@@ -33,3 +33,48 @@ Commit and push the log file.
 ```
 Changed: Committed the prompt log and pushed it to GitHub.
 Files: log/prompts.md
+
+### 2026-09-23 00:30
+Prompt:
+```
+Set up the site's look and build a static version of the hero. The playable game comes later, so this version is the fallback it will sit on top of. Stop and tell me if anything fails.
+
+1. Colours. Define these as site-wide design tokens in globals.css using the Tailwind setup already installed, so I can use classes like bg-paper and text-clay:
+   paper #F3EFE6 (page background)
+   ink #161514 (main text)
+   muted #5C5751 (secondary text)
+   line #DDD6C9 (borders and dividers)
+   field #EAE4D7 (the clay game area)
+   card #FBF8F2 (cards)
+   clay #E8480C (the only accent colour: clays, the receipts number, links on hover, arrows)
+   clay-dark #9E2F06 (the ring on each clay)
+   The site is always light. Remove the default dark mode styles that create-next-app added.
+
+2. Font. Use Instrument Sans for everything, loaded with next/font so it's served from our own site with no outside requests. Weights 400, 500, 600 and 700. Headlines are tight: letter-spacing about -0.035em and line-height about 0.95.
+
+3. Content. Update content/home.md so all hero text lives there, keeping draft: true:
+   title: I can't code.
+   intro: [Your one-line intro]
+   gameHint: [Game hint]
+   receiptsValue: 0
+   receiptsLabel: [Receipts line]
+   The bracketed text is a placeholder I'll replace myself. Show it exactly as written.
+
+4. Build the hero, mobile first, top to bottom:
+   - A slim header with "AJ" on the left in 700 weight. No menu yet.
+   - The title as the page's h1, very large: about 68px on a 390px-wide phone, scaling up on bigger screens.
+   - The intro line underneath in muted text, 16px.
+   - The game area: a rounded box in the field colour, about 300px tall on a phone. Inside it, a static SVG scene: two clays in flight on faint dotted flight paths, and one clay already shattered into a few small orange shards. Draw each clay as an orange ellipse with a thin clay-dark ring on top, seen slightly from the side. Label the SVG for screen readers as "Clay targets in flight". Put the gameHint text in the bottom-left corner in small muted text.
+   - The receipts block: a thin line above it, then receiptsValue very large in clay orange, with receiptsLabel beside it in small muted text.
+   On screens wider than about 900px, put the title, intro and receipts on the left and the game area on the right, side by side. Keep the maximum content width around 1200px.
+
+5. Page title in the browser tab: "AJ". Leave the description for later.
+
+6. Check the page at 375px wide and at 1280px wide. Nothing should overflow sideways, and the title should be the first thing visible without scrolling.
+
+7. Run gitleaks git -v, then commit with the message "Site look and static hero" and push to main.
+
+When you're done, tell me in plain English what changed and what to look at on the live site.
+```
+Changed: Set the site colours, font and a static hero.
+Files: content/home.md, lib/content.ts, app/globals.css, app/layout.tsx, app/page.tsx, components/clay-scene.tsx, log/prompts.md
