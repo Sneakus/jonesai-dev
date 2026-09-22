@@ -1,0 +1,65 @@
+---
+description: Core rules for AJ's personal website (jonesai.dev)
+alwaysApply: true
+---
+
+# AJ's website - rules for every request
+
+## About the owner
+AJ can't code. He directs the build and reviews the result in the browser.
+- After every change, explain in one or two plain sentences what you changed and what AJ should check in the browser.
+- No jargon without a short plain explanation.
+- If a request is unclear, ask one question before changing anything.
+
+## Prompt log (do this every time, no exceptions)
+Append an entry to `log/prompts.md` after every request, including questions that change nothing. Create the file if it doesn't exist.
+
+Format:
+
+    ### YYYY-MM-DD HH:MM
+    Prompt:
+    ```
+    <AJ's prompt, verbatim, typos included>
+    ```
+    Changed: <one line, plain English>
+    Files: <files touched, or "none">
+
+- Copy the prompt exactly. Never paraphrase, tidy or shorten it.
+- Only ever append. Never edit or delete earlier entries.
+- If a prompt contains an API key, password or email address, replace just that part with [REDACTED].
+- If AJ says he edited a file by hand, add a line to the entry: `Hand edit: <file> - <what he changed>`.
+
+## Stack
+- Next.js (App Router), TypeScript, Tailwind CSS, deployed on Vercel.
+- Keep dependencies minimal. Ask before adding any new package, and say why it's needed.
+- No component libraries or UI kits unless AJ asks for one.
+
+## Site copy
+- All site text lives in `content/` as Markdown files. Components read from there. Never hardcode copy inside components.
+- AJ writes the copy. Never rewrite, reword or "improve" text in `content/` unless AJ asks for that specific change.
+- Files with `draft: true` in their frontmatter keep that flag until AJ removes it.
+- Anything a visitor can read, including alt text, metadata and button labels, follows these rules:
+  - No em-dashes or en-dashes. Plain hyphens only.
+  - None of these words: leveraging, synergy, stakeholder, passionate about, end to end, results-driven, cross-functional.
+  - No bold in the middle of sentences.
+  - Never name the company behind the Meeting plan agent take-home. It is "a take-home for an AI agency".
+
+## Performance and access (non-negotiable)
+- Mobile first. Check every layout at 375px wide before anything else.
+- The hero text ("I can't code.") renders as real HTML on the server and appears before any canvas, game or animation loads.
+- The clay target game is an extra layer, not a requirement. Load it lazily, never block the first paint, and show a static fallback until it's ready or if it fails.
+- Respect `prefers-reduced-motion`: no game animation or scroll effects for those visitors, only the static version.
+- Everything important is readable with JavaScript turned off.
+- Images through `next/image`. Videos lazy-loaded, muted by default, with captions.
+- Every page has a proper title, description and share image, and a readable URL (for example `/meeting-plan-agent`).
+
+## Originality
+- Do not copy landonorris.com's layout, assets or colours, and do not use code from any clone of that site.
+
+## Secrets and safety
+- Never put API keys or secrets in code. Use environment variables, and keep `.env*` files in `.gitignore`.
+- Never suggest changes to DNS email records (MX, SPF, DKIM, DMARC). Email for the domain runs on Migadu.
+
+## Git
+- Keep each change small and focused.
+- After each change that works, suggest a short commit message in plain English.
