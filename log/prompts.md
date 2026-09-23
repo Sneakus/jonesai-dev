@@ -467,6 +467,26 @@ Tell me in plain English what changed.
 Changed: Started simplifying the contact section, then stopped because the code check failed.
 Files: components/contact-section.tsx, content/contact.md, lib/content.ts, log/prompts.md
 
+### 2026-09-23 21:37
+Prompt:
+```
+Add feedback to the Copy button in the contact section. Keep everything else as it is. Stop and tell me if anything fails.
+
+1. When Copy is clicked and the copy works, the button text changes to "Copied" with a small clay-orange tick in front of it, then switches back to "Copy" after about 2 seconds. Keep the button the same width in both states, so nothing next to it shifts.
+
+2. Announce "Email copied" to screen readers when it works, using a polite live region.
+
+3. If the browser blocks copying, select the email text on the page instead and change the button to "Press Ctrl+C" (or "Press Cmd+C" on a Mac) for about 3 seconds.
+
+4. Visitors with reduced motion get the same text change with no animation. For everyone else, a quick fade between the two states is enough.
+
+5. Check it works on a phone and a desktop width, run the code check, run gitleaks git -v, commit with "Contact: copy feedback" and push to main. Don't use the built-in browser, I'll check it visually.
+
+Tell me in plain English what changed.
+```
+Changed: Added success and blocked-copy feedback to the contact section's Copy button.
+Files: components/contact-section.tsx, content/contact.md, lib/content.ts, log/prompts.md
+
 ### 2026-09-23 21:13
 Prompt:
 ```

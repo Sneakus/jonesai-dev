@@ -22,6 +22,10 @@ export type ContactContent = {
   heading: string;
   intro: string;
   copyLabel: string;
+  copiedLabel: string;
+  copiedAnnouncement: string;
+  copyFallbackControl: string;
+  copyFallbackCommand: string;
   linkedInLabel: string;
   linkedInUrl: string;
   githubLabel: string;
@@ -165,6 +169,10 @@ export function readContact(): ContactContent {
     heading: requiredString(data, "heading", file),
     intro: requiredString(data, "intro", file),
     copyLabel: requiredString(data, "copyLabel", file),
+    copiedLabel: requiredString(data, "copiedLabel", file),
+    copiedAnnouncement: requiredString(data, "copiedAnnouncement", file),
+    copyFallbackControl: requiredString(data, "copyFallbackControl", file),
+    copyFallbackCommand: requiredString(data, "copyFallbackCommand", file),
     linkedInLabel: requiredString(data, "linkedInLabel", file),
     linkedInUrl: requiredString(data, "linkedInUrl", file),
     githubLabel: requiredString(data, "githubLabel", file),
