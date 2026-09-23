@@ -642,3 +642,11 @@ Tell me in plain English what changed and what to try.
 ```
 Changed: Removed selectable game text and replaced the border-hand celebration with one rapid-fire sweeping hand.
 Files: components/clay-game.tsx, log/prompts.md
+
+### 2026-09-24 00:23
+Prompt:
+```
+Briefly inform the user about the task result and perform any follow-up actions (if needed).
+```
+Changed: Confirmed the completed result; no website changes were needed.
+Files: log/prompts.md
