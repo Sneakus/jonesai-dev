@@ -15,6 +15,13 @@ export type HomeContent = {
   hitMark: string;
 };
 
+export type GameContent = {
+  draft: boolean;
+  replayButton: string;
+  perfectBanner: string;
+  scoreMessages: string[][];
+};
+
 export type ContactContent = {
   draft: boolean;
   heading: string;
@@ -151,6 +158,37 @@ export function readHome(): HomeContent {
     replayLabel: requiredString(data, "replayLabel", "content/home.md"),
     gameLiveLabel: requiredString(data, "gameLiveLabel", "content/home.md"),
     hitMark: requiredString(data, "hitMark", "content/home.md"),
+  };
+}
+
+export function readGame(): GameContent {
+  const file = "content/game.md";
+  const filePath = path.join(process.cwd(), "content", "game.md");
+  const { data } = readMarkdown(filePath);
+  const messages = data.scoreMessages;
+  if (!isRecord(messages)) {
+    throw new Error(`${file} is missing scoreMessages`);
+  }
+
+  const scoreMessages = Array.from({ length: 5 }, (_, score) => {
+    const value =
+      messages[String(score)] ?? messages[`"${String(score)}"`];
+    if (!Array.isArray(value) || value.length === 0) {
+      throw new Error(`${file} is missing messages for score ${score}`);
+    }
+    return value.map((message) => {
+      if (typeof message !== "string") {
+        throw new Error(`${file} has a message that could not be read`);
+      }
+      return message;
+    });
+  });
+
+  return {
+    draft: data.draft === "true",
+    replayButton: requiredString(data, "replayButton", file),
+    perfectBanner: requiredString(data, "perfectBanner", file),
+    scoreMessages,
   };
 }
 

@@ -2,13 +2,20 @@ import { BuildsSection } from "@/components/builds-section";
 import { ContactSection } from "@/components/contact-section";
 import { ClayGameHost } from "@/components/clay-game-host";
 import { PageFrame } from "@/components/site-header";
-import { readBuilds, readContact, readHome, readSite } from "@/lib/content";
+import {
+  readBuilds,
+  readContact,
+  readGame,
+  readHome,
+  readSite,
+} from "@/lib/content";
 
 export default function Home() {
   const home = readHome();
   const site = readSite();
   const builds = readBuilds();
   const contact = readContact();
+  const game = readGame();
 
   return (
     <PageFrame>
@@ -21,9 +28,11 @@ export default function Home() {
               label={home.gameLabel}
               hint={home.gameHint}
               startLabel={home.startLabel}
-              replayLabel={home.replayLabel}
+              replayLabel={game.replayButton}
               liveLabel={home.gameLiveLabel}
               hitMark={home.hitMark}
+              scoreMessages={game.scoreMessages}
+              perfectBanner={game.perfectBanner}
             />
           </div>
         </div>

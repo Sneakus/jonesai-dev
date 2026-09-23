@@ -16,6 +16,8 @@ export const settings = {
   pelletCount: 12, // dots in each shot
   shakeStrength: 2, // pixels the box shakes on a hit. 0 turns the shake off
   claysPerRound: 5, // clays in one round
+  fastClaysPerRound: 1, // minimum mini clays in each round
+  fastClaySize: 0.5, // size used when the round still needs its fast clay
 
   // How often each throw appears. A higher number means it comes up more often.
   throwCrosser: 3,
@@ -60,6 +62,10 @@ export const settings = {
   fairTime: 1.2, // seconds a clay must be shootable
   fairHand: 0.25, // most of the on-screen flight that can sit behind the hand
   fairTries: 20, // new throws to try before using a safe one
+
+  perfectDuration: 3500, // full 5/5 celebration, in milliseconds
+  perfectHandCopies: 10, // hands around the edge during the celebration
+  perfectConfetti: 54, // orange and ink pieces in the celebration
 };
 
 const pelletFade = 400;
@@ -148,6 +154,23 @@ type Floater = {
   x: number;
   y: number;
   born: number;
+};
+
+type CelebrationConfetti = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  angle: number;
+  spin: number;
+  size: number;
+  ink: boolean;
+};
+
+type GameResult = {
+  score: number;
+  message: string;
+  perfect: boolean;
 };
 
 type Colors = {
@@ -553,12 +576,16 @@ export function ClayGame({
   replayLabel,
   liveLabel,
   hitMark,
+  scoreMessages,
+  perfectBanner,
   onFail,
 }: {
   hint: string;
   replayLabel: string;
   liveLabel: string;
   hitMark: string;
+  scoreMessages: string[][];
+  perfectBanner: string;
   onFail: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -566,8 +593,11 @@ export function ClayGame({
   const replayRef = useRef<HTMLButtonElement>(null);
   const onFailRef = useRef(onFail);
   const hitMarkRef = useRef(hitMark);
+  const scoreMessagesRef = useRef(scoreMessages);
+  const perfectBannerRef = useRef(perfectBanner);
   const [score, setScore] = useState({ hits: 0, launched: 0 });
   const [over, setOver] = useState(false);
+  const [result, setResult] = useState<GameResult | null>(null);
 
   useEffect(() => {
     onFailRef.current = onFail;
@@ -576,6 +606,14 @@ export function ClayGame({
   useEffect(() => {
     hitMarkRef.current = hitMark;
   }, [hitMark]);
+
+  useEffect(() => {
+    scoreMessagesRef.current = scoreMessages;
+  }, [scoreMessages]);
+
+  useEffect(() => {
+    perfectBannerRef.current = perfectBanner;
+  }, [perfectBanner]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -602,6 +640,15 @@ export function ClayGame({
     let launched = 0;
     let hits = 0;
     let finished = false;
+    let fastClays = 0;
+    let fastClayDeadline =
+      1 + Math.floor(Math.random() * Math.max(1, settings.claysPerRound));
+    let lastMessage = "";
+    let forcePerfect = window.location.href.endsWith("?perfect");
+    let celebrationAt = 0;
+    let celebrationFinished = false;
+    let celebrationConfetti: CelebrationConfetti[] = [];
+    let pendingResult: GameResult | null = null;
     let nextLaunchAt = performance.now() + 280;
     let readyAt = 0;
     let dtHand = 0.016;
@@ -612,6 +659,10 @@ export function ClayGame({
     let handPixelH = 1;
     let recoilUntil = 0;
     let recoilFacing: HandFacing = "straight";
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const handImages: Partial<Record<HandPose, HTMLImageElement>> = {};
     const handOpacity: Record<HandPose, number> = {
       left: 0,
       straight: 1,
@@ -627,6 +678,7 @@ export function ClayGame({
           new Promise<void>((resolve, reject) => {
             const image = new Image();
             image.onload = () => {
+              handImages[pose] = image;
               if (image.naturalWidth > 0 && image.naturalHeight > 0) {
                 photoRatio = image.naturalWidth / image.naturalHeight;
               }
@@ -734,9 +786,66 @@ export function ClayGame({
 
     const publish = () => {
       setScore({ hits, launched });
-      if (finished) {
-        setOver(true);
+    };
+
+    const pickScoreMessage = (value: number) => {
+      const messages = scoreMessagesRef.current[value] ?? [];
+      if (messages.length === 0) {
+        return "";
       }
+      const choices =
+        messages.length > 1
+          ? messages.filter((message) => message !== lastMessage)
+          : messages;
+      const message =
+        choices[Math.floor(Math.random() * Math.max(1, choices.length))] ??
+        messages[0];
+      lastMessage = message;
+      return message;
+    };
+
+    const makeConfetti = () => {
+      const count =
+        width < 520
+          ? Math.max(24, Math.round(settings.perfectConfetti * 0.65))
+          : Math.max(1, Math.round(settings.perfectConfetti));
+      celebrationConfetti = Array.from({ length: count }, (_, index) => {
+        const angle = rand(-Math.PI * 0.88, -Math.PI * 0.12);
+        const speed = rand(180, width < 520 ? 330 : 440);
+        return {
+          x: width / 2,
+          y: height * 0.5,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          angle: rand(0, Math.PI * 2),
+          spin: rand(-10, 10),
+          size: rand(3, 7),
+          ink: index % 3 === 0,
+        };
+      });
+    };
+
+    const finishRound = (now: number) => {
+      finished = true;
+      const perfect =
+        hits >= Math.max(1, settings.claysPerRound) || forcePerfect;
+      forcePerfect = false;
+      pendingResult = {
+        score: hits,
+        message: perfect
+          ? perfectBannerRef.current
+          : pickScoreMessage(Math.max(0, Math.min(4, hits))),
+        perfect,
+      };
+      publish();
+      if (perfect && !reducedMotion) {
+        celebrationAt = now;
+        celebrationFinished = false;
+        makeConfetti();
+        return;
+      }
+      setResult(pendingResult);
+      setOver(true);
     };
 
     const clearShake = () => {
@@ -973,15 +1082,16 @@ export function ClayGame({
       return launchRabbit();
     };
 
-    const safeCrosser = () => {
+    const safeCrosser = (fast = false, extraTime = 0) => {
       const target = freshClay(
         "crosser",
         lerp(settings.nearDistance, settings.farDistance, 0.45),
       );
-      target.sizeScale = 1;
+      target.sizeScale = fast ? settings.fastClaySize : 1;
       target.wind = 0;
       const direction = Math.random() < 0.5 ? 1 : -1;
-      const duration = Math.max(1.8, settings.fairTime + 0.55);
+      const duration =
+        Math.max(1.8, settings.fairTime + 0.55) + Math.max(0, extraTime);
       const look = lookOf(target);
       target.y = height * 0.42;
       const rise = height * 0.05;
@@ -1000,11 +1110,18 @@ export function ClayGame({
         nextLaunchAt = performance.now() + 50;
         return;
       }
+      const roundLength = Math.max(1, settings.claysPerRound);
+      const fastMinimum = Math.max(0, Math.round(settings.fastClaysPerRound));
+      const throwsLeft = roundLength - launched;
+      const fastStillNeeded = Math.max(0, fastMinimum - fastClays);
+      const forceFast =
+        fastStillNeeded > 0 &&
+        (launched + 1 >= fastClayDeadline || throwsLeft <= fastStillNeeded);
       const tries = Math.max(1, Math.round(settings.fairTries));
       const kind = pickThrow();
       let chosen: Clay | null = null;
       for (let attempt = 0; attempt < tries; attempt += 1) {
-        nextSize = pickSize();
+        nextSize = forceFast ? settings.fastClaySize : pickSize();
         const candidate = makeThrow(kind);
         if (flightIsFair(candidate, width, height, behindHand)) {
           chosen = candidate;
@@ -1012,10 +1129,23 @@ export function ClayGame({
         }
       }
       if (!chosen) {
-        nextSize = 1;
-        chosen = safeCrosser();
+        nextSize = forceFast ? settings.fastClaySize : 1;
+        for (let attempt = 0; attempt < tries; attempt += 1) {
+          const fallback = safeCrosser(forceFast, attempt * 0.04);
+          if (flightIsFair(fallback, width, height, behindHand)) {
+            chosen = fallback;
+            break;
+          }
+        }
+      }
+      if (!chosen) {
+        nextLaunchAt = performance.now() + 50;
+        return;
       }
       clay = chosen;
+      if (clay.sizeScale <= settings.fastClaySize + 0.001) {
+        fastClays += 1;
+      }
       launched += 1;
       nextLaunchAt = 0;
       publish();
@@ -1024,8 +1154,7 @@ export function ClayGame({
     const resolveClay = (now: number) => {
       clay = null;
       if (launched >= Math.max(1, settings.claysPerRound)) {
-        finished = true;
-        publish();
+        finishRound(now);
         return;
       }
       nextLaunchAt = now + settings.pauseBetweenClays;
@@ -1048,7 +1177,7 @@ export function ClayGame({
     const shoot = (x: number, y: number, now: number) => {
       aimX = x;
       aimY = y;
-      if (now < readyAt) {
+      if (finished || now < readyAt) {
         return;
       }
       readyAt = now + settings.reloadTime;
@@ -1109,6 +1238,13 @@ export function ClayGame({
       launched = 0;
       hits = 0;
       finished = false;
+      fastClays = 0;
+      fastClayDeadline =
+        1 + Math.floor(Math.random() * Math.max(1, settings.claysPerRound));
+      celebrationAt = 0;
+      celebrationFinished = false;
+      celebrationConfetti = [];
+      pendingResult = null;
       readyAt = 0;
       clay = null;
       shards.length = 0;
@@ -1155,6 +1291,177 @@ export function ClayGame({
       const x = Math.sin(progress * 48) * amount;
       const y = Math.cos(progress * 37) * amount;
       box.style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)`;
+    };
+
+    const drawHandPhoto = (
+      image: HTMLImageElement,
+      x: number,
+      y: number,
+      handHeight: number,
+      rotation: number,
+      opacity: number,
+    ) => {
+      const handWidth = handHeight * photoRatio;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+      ctx.drawImage(
+        image,
+        -handWidth / 2,
+        -handHeight / 2,
+        handWidth,
+        handHeight,
+      );
+      ctx.restore();
+    };
+
+    const edgePoint = (index: number, count: number) => {
+      const pad = Math.max(10, Math.min(width, height) * 0.025);
+      const usableWidth = Math.max(1, width - pad * 2);
+      const usableHeight = Math.max(1, height - pad * 2);
+      const perimeter = (usableWidth + usableHeight) * 2;
+      let distance = ((index + 0.5) / count) * perimeter;
+      if (distance <= usableWidth) {
+        return { x: pad + distance, y: pad };
+      }
+      distance -= usableWidth;
+      if (distance <= usableHeight) {
+        return { x: width - pad, y: pad + distance };
+      }
+      distance -= usableHeight;
+      if (distance <= usableWidth) {
+        return { x: width - pad - distance, y: height - pad };
+      }
+      distance -= usableWidth;
+      return { x: pad, y: height - pad - distance };
+    };
+
+    const drawCelebration = (now: number) => {
+      if (celebrationAt <= 0 || celebrationFinished) {
+        return;
+      }
+      const elapsed = now - celebrationAt;
+      const straight = handImages.straight;
+      const recoil = handImages["recoil-straight"];
+
+      if (straight && elapsed < 1180) {
+        const progress = clamp01(elapsed / 1000);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const handHeight = Math.min(
+          height * 0.38,
+          Math.max(86, width * 0.24),
+        );
+        drawHandPhoto(
+          straight,
+          width / 2,
+          height - handHeight * 0.42,
+          handHeight,
+          eased * Math.PI * 2,
+          Math.min(1, elapsed / 120) * (1 - clamp01((elapsed - 980) / 200)),
+        );
+      }
+
+      if (straight && recoil && elapsed >= 420 && elapsed <= 2380) {
+        const copyCount =
+          width < 520
+            ? Math.max(6, Math.round(settings.perfectHandCopies * 0.7))
+            : Math.max(1, Math.round(settings.perfectHandCopies));
+        const copyHeight = Math.min(
+          height * 0.19,
+          Math.max(48, width * 0.105),
+        );
+        for (let index = 0; index < copyCount; index += 1) {
+          const point = edgePoint(index, copyCount);
+          const inward = Math.atan2(
+            height / 2 - point.y,
+            width / 2 - point.x,
+          );
+          const rotation = inward + Math.PI / 2;
+          const appearAt = 420 + index * 45;
+          const fireAt = 820 + index * 72;
+          const opacity =
+            clamp01((elapsed - appearAt) / 130) *
+            (1 - clamp01((elapsed - 2120) / 260));
+          if (opacity <= 0) {
+            continue;
+          }
+          const recoiling = elapsed >= fireAt && elapsed < fireAt + 120;
+          drawHandPhoto(
+            recoiling ? recoil : straight,
+            point.x,
+            point.y,
+            copyHeight,
+            rotation,
+            opacity,
+          );
+
+          const flash = (elapsed - fireAt) / 150;
+          if (flash >= 0 && flash <= 1) {
+            const flashX = point.x + Math.cos(inward) * copyHeight * 0.44;
+            const flashY = point.y + Math.sin(inward) * copyHeight * 0.44;
+            ctx.save();
+            ctx.globalAlpha = 1 - flash;
+            ctx.fillStyle = colors.ink;
+            for (let pellet = 0; pellet < 6; pellet += 1) {
+              const angle =
+                (Math.PI * 2 * pellet) / 6 + index * 0.73;
+              const radius = 3 + pellet * 1.35;
+              ctx.beginPath();
+              ctx.arc(
+                flashX + Math.cos(angle) * radius,
+                flashY + Math.sin(angle) * radius,
+                1.5,
+                0,
+                Math.PI * 2,
+              );
+              ctx.fill();
+            }
+            ctx.restore();
+          }
+        }
+      }
+
+      const confettiAge = (elapsed - 1120) / 1000;
+      if (confettiAge >= 0) {
+        for (const piece of celebrationConfetti) {
+          const x = piece.x + piece.vx * confettiAge;
+          const y =
+            piece.y +
+            piece.vy * confettiAge +
+            0.5 * settings.gravity * 0.55 * confettiAge * confettiAge;
+          if (y > height + 30) {
+            continue;
+          }
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(piece.angle + piece.spin * confettiAge);
+          ctx.fillStyle = piece.ink ? colors.ink : colors.clay;
+          ctx.fillRect(
+            -piece.size / 2,
+            -piece.size * 0.25,
+            piece.size,
+            piece.size * 0.5,
+          );
+          ctx.restore();
+        }
+      }
+
+      if (elapsed >= 1680) {
+        const drop = clamp01((elapsed - 1680) / 620);
+        const eased = 1 - Math.pow(1 - drop, 3);
+        const y = lerp(-36, height * 0.47, eased);
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = `700 ${Math.max(24, Math.min(42, width * 0.07))}px ${uiFont}`;
+        ctx.lineWidth = 7;
+        ctx.strokeStyle = colors.field;
+        ctx.strokeText(perfectBannerRef.current, width / 2, y);
+        ctx.fillStyle = colors.clay;
+        ctx.fillText(perfectBannerRef.current, width / 2, y);
+        ctx.restore();
+      }
     };
 
     const draw = (now: number) => {
@@ -1205,13 +1512,15 @@ export function ClayGame({
 
       const hand = handRef.current;
       if (hand && width > 0 && height > 0) {
+        const celebrating = celebrationAt > 0 && !celebrationFinished;
         const reach = height * (height >= 500 ? settings.handSize : settings.handSizePhone);
         const slideLimit = Math.max(0, settings.handSlide);
         const slide = Math.max(
           -slideLimit,
           Math.min(slideLimit, (aimX / width - 0.5) * 2 * slideLimit),
         );
-        hand.style.visibility = handsReady ? "visible" : "hidden";
+        hand.style.visibility =
+          handsReady && !celebrating ? "visible" : "hidden";
         hand.style.height = `${Math.round(reach)}px`;
         hand.style.width = `${Math.round(reach * photoRatio)}px`;
         hand.style.transform = `translateX(calc(-50% + ${slide.toFixed(2)}px))`;
@@ -1234,6 +1543,8 @@ export function ClayGame({
           }
         }
       }
+
+      drawCelebration(now);
 
       if (finePointer && pointerInside) {
         ctx.strokeStyle = colors.ink;
@@ -1320,6 +1631,18 @@ export function ClayGame({
         if (now - floaters[index].born > floaterTime) {
           floaters.splice(index, 1);
         }
+      }
+
+      if (
+        celebrationAt > 0 &&
+        !celebrationFinished &&
+        now - celebrationAt >= settings.perfectDuration
+      ) {
+        celebrationFinished = true;
+        if (pendingResult) {
+          setResult(pendingResult);
+        }
+        setOver(true);
       }
 
       draw(now);
@@ -1431,20 +1754,36 @@ export function ClayGame({
           {score.hits} / {score.launched}
         </p>
       ) : null}
-      {over ? (
-        <button
-          ref={replayRef}
-          type="button"
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-line bg-card px-5 py-2.5 text-base text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-          onClick={() => {
-            setScore({ hits: 0, launched: 0 });
-            setOver(false);
-            const canvas = canvasRef.current;
-            canvas?.dispatchEvent(new Event("replay"));
-          }}
+      {over && result ? (
+        <div
+          className="absolute top-1/2 left-1/2 flex w-[min(88%,28rem)] -translate-x-1/2 -translate-y-1/2 flex-col items-center rounded-2xl border border-line bg-card px-5 py-5 text-center"
+          aria-live="polite"
         >
-          {replayLabel}
-        </button>
+          <p className="text-sm font-medium text-muted">
+            {result.score} / {Math.max(1, settings.claysPerRound)}
+          </p>
+          <p
+            className={`mt-2 text-[20px] leading-snug font-semibold ${
+              result.perfect ? "text-clay" : "text-ink"
+            }`}
+          >
+            {result.message}
+          </p>
+          <button
+            ref={replayRef}
+            type="button"
+            className="mt-4 rounded-full border border-line bg-card px-5 py-2.5 text-base text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            onClick={() => {
+              setScore({ hits: 0, launched: 0 });
+              setResult(null);
+              setOver(false);
+              const canvas = canvasRef.current;
+              canvas?.dispatchEvent(new Event("replay"));
+            }}
+          >
+            {replayLabel}
+          </button>
+        </div>
       ) : null}
     </div>
   );

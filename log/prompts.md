@@ -527,3 +527,34 @@ Tell me in plain English what changed.
 ```
 Changed: Updated the home and contact wording, removed receipts, and served the sharper build images directly.
 Files: app/page.tsx, components/build-article.tsx, components/contact-section.tsx, content/home.md, content/contact.md, content/game.md, lib/content.ts, next.config.ts, public/builds/worldcupmap.webp, public/builds/ajob-email.webp, log/prompts.md
+
+### 2026-09-23 23:38
+Prompt:
+```
+Add end-of-round messages, a guaranteed fast clay and a 5/5 celebration to the clay game. Keep everything else as it is. Stop and tell me if anything fails.
+
+1. Messages: content/game.md has a list of messages for each score from 0 to 4, plus replayButton and perfectBanner. Don't change any of the text.
+   - After the fifth clay, show the final score with one message picked at random from that score's list, never the same one twice in a row.
+   - Replace the [Replay button] placeholder with the replayButton text.
+
+2. Fast clay: every round of 5 must include at least one fast throw, such as a mini clay or a throw from the fastest quarter of the speed range. It must still pass the existing fairness check. Put the rule in the settings object.
+
+3. The 5/5 celebration, only when all five are hit, about 3.5 seconds in total:
+   - My hand spins round once.
+   - Copies of the hand photo appear all round the edge of the game box, rotated so the fingers point in towards the middle, at the visitor.
+   - They fire in a quick ripple, each swapping to its recoil photo with a small pellet flash.
+   - Confetti bursts in clay orange and ink only.
+   - The perfectBanner text drops into the middle of the box.
+   - It then settles on the final score, the banner and the replay button.
+   Draw it on the game canvas with no new libraries, and keep it smooth on phones.
+
+4. Reduced motion: no spin, copies or confetti. Just the banner and the score.
+
+5. Add a preview: when the page address ends in ?perfect, the next round ends with the 5/5 celebration whatever the score, so I can check it. It does nothing else.
+
+6. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "Game: score messages, fast clay, 5/5 celebration" and push to main.
+
+Tell me in plain English what changed and what to try.
+```
+Changed: Added score messages, one guaranteed fair mini clay, and the 5/5 hand and confetti celebration.
+Files: app/page.tsx, components/clay-game-host.tsx, components/clay-game.tsx, content/home.md, lib/content.ts, log/prompts.md

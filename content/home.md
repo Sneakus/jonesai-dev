@@ -6,7 +6,7 @@ intro: AJ, a startup operator who builds with AI and has a creative streak.
 gameHint: Get smashing
 gameLabel: Clay targets in flight
 startLabel: Pull
-replayLabel: "[Replay button]"
+replayLabel: Go again
 gameLiveLabel: Clay shooting game. Optional, just for fun.
 hitMark: "+1"
 ---
