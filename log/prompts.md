@@ -78,3 +78,61 @@ When you're done, tell me in plain English what changed and what to look at on t
 ```
 Changed: Set the site colours, font and a static hero.
 Files: content/home.md, lib/content.ts, app/globals.css, app/layout.tsx, app/page.tsx, components/clay-scene.tsx, log/prompts.md
+
+### 2026-09-23 00:39
+Prompt:
+```
+Build the Meeting plan agent page and a Builds section on the home page. Stop and tell me if anything fails.
+
+1. I've added content/builds/meeting-plan-agent.md. Don't change any of its text, and keep draft: true.
+
+2. Create a page at /meeting-plan-agent that reads that file. Same header ("AJ", linking back home), colours and font as the home page. Top to bottom:
+   - The title as the h1: large, but smaller than the home page title (about 44px on a phone).
+   - The summary line underneath in muted text.
+   - The body sections in order. Section headings about 22px at 600 weight. Body text 17px with line-height 1.6, and a max width around 640px so lines stay readable.
+   - Where the body has <!-- EXCERPT -->, show the excerpt from the frontmatter as a panel in the card colour, with a thin line-colour border and rounded corners:
+     - excerptLabel at the top in small muted text.
+     - Each finding: a small "Quoted" tag, the claim, then the quote underneath, indented with a thin clay-orange line on its left.
+     - The gap: a small "Gap" tag, the gap text, then the questions as a short list.
+     - The judgement: a small "Judgement" tag, judgementLabel in italic muted text, then the judgement text.
+     The three tags should be easy to tell apart but quiet: small outline pills, nothing loud.
+   - A row of three plain links at the end: "Full transcript", "Full plan" and "Code on GitHub", using the transcript, plan and repo links from the frontmatter. They open in a new tab.
+
+3. Page metadata: title "Meeting plan agent - AJ", with the summary line as the description.
+
+4. On the home page, add a Builds section below the hero: the heading "Builds", then one card for this build showing the title, the summary underneath in muted text, and a clay-orange arrow on the right. The whole card links to /meeting-plan-agent. Build the section so more cards appear automatically when I add files to content/builds/.
+
+5. Check both pages at 375px and 1280px wide. Nothing overflows sideways, and the excerpt is easy to read on a phone.
+
+6. Run gitleaks git -v, commit with the message "Meeting plan agent page and builds section", and push to main.
+
+Tell me in plain English what changed and what to look at.
+```
+Changed: Stopped because content/builds/meeting-plan-agent.md is not in the folder.
+Files: log/prompts.md
+
+### 2026-09-23 01:16
+Prompt:
+```
+Where did you get to? Don't open the browser. List which steps are done and which aren't.
+```
+Changed: Nothing on the site. Reported which build-page steps are done.
+Files: log/prompts.md
+
+### 2026-09-23 01:30
+Prompt:
+```
+Two things.
+
+1. Add this line to .cursor/rules/aj-website.mdc, under "About the owner":
+- Never use the built-in browser to check pages. Request the page to check it loads, and AJ will check it visually.
+
+2. Finish the last two steps from before, without the browser:
+- Request /meeting-plan-agent and confirm it loads with no errors. I'll check the wide-screen layout myself.
+- Run gitleaks git -v.
+- Commit the page and Builds section with the message "Meeting plan agent page and builds section", and the rules change separately with "Rule: no built-in browser checks". Push both to main.
+
+Tell me when it's pushed.
+```
+Changed: Added the Meeting plan agent page and Builds section, and a rule not to use the built-in browser.
+Files: app/globals.css, app/page.tsx, app/[slug]/page.tsx, components/build-article.tsx, components/builds-section.tsx, components/site-header.tsx, content/builds/meeting-plan-agent.md, content/site.md, lib/content.ts, lib/frontmatter.ts, log/prompts.md, .cursor/rules/aj-website.mdc
