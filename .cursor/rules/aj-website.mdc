@@ -10,6 +10,7 @@ AJ can't code. He directs the build and reviews the result in the browser.
 - After every change, explain in one or two plain sentences what you changed and what AJ should check in the browser.
 - No jargon without a short plain explanation.
 - If a request is unclear, ask one question before changing anything.
+- Never use the built-in browser to check pages. Request the page to check it loads, and AJ will check it visually.
 
 ## Prompt log (do this every time, no exceptions)
 Append an entry to `log/prompts.md` after every request, including questions that change nothing. Create the file if it doesn't exist.
