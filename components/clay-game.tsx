@@ -11,9 +11,6 @@ export const settings = {
   hitAreaSize: 8, // extra pixels around a clay that still count when a pellet is close
   shardCount: 8, // pieces when a clay breaks
   shardSpeed: 340, // how fast those pieces fly apart
-  recoilDistance: 12, // how far the hand kicks back, in pixels
-  recoilAngle: 9, // how far the hand tips on a shot, in degrees
-  recoilTime: 150, // how long the kick lasts, in milliseconds
   reloadTime: 350, // wait after a shot before the next one counts, in milliseconds
   patternSize: 28, // how far pellets scatter around the aim point for a near clay
   pelletCount: 12, // dots in each shot
@@ -36,9 +33,13 @@ export const settings = {
 
   windStrength: 0.1, // sideways drift as a share of the box width. 0 is no wind
 
-  handFollow: 0.5, // how much of the way the hand follows the aim. 1 would point straight at it
-  handTilt: 16, // furthest the hand will tilt, in degrees
-  handSmoothing: 140, // how quickly the arm catches up, in milliseconds. 0 snaps
+  aimLeft: 1 / 3, // left of this share of the box, show the left hand
+  aimRight: 2 / 3, // right of this share of the box, show the right hand
+  handFade: 100, // milliseconds to blend between hand photos
+  handRecoil: 120, // how long the recoil photo stays up, in milliseconds
+  handSize: 0.45, // how far up the hand reaches on a large screen, as a share of the box height
+  handSizePhone: 0.36, // a bit smaller on a phone
+  handSlide: 6, // furthest the hand shifts toward the aim, in pixels
 
   nearDistance: 0.42, // closest a clay can be. Lower is closer to the shooter
   farDistance: 1, // furthest a clay can be
@@ -60,8 +61,32 @@ const shakeTime = 110;
 const floaterTime = 480;
 const minAirTime = 1.08;
 const farPattern = 0.78;
-// Where the hand picture points before it tilts. Up and left, from its bottom-right corner.
-const handPoint = Math.atan2(48 - 1361, 220 - 860);
+
+const handPoses = [
+  "left",
+  "straight",
+  "right",
+  "recoil-left",
+  "recoil-straight",
+  "recoil-right",
+] as const;
+
+type HandPose = (typeof handPoses)[number];
+type HandFacing = "left" | "straight" | "right";
+
+function handSrc(pose: HandPose) {
+  return `/hand/hand-${pose}.webp`;
+}
+
+function recoilPose(facing: HandFacing): HandPose {
+  if (facing === "left") {
+    return "recoil-left";
+  }
+  if (facing === "right") {
+    return "recoil-right";
+  }
+  return "recoil-straight";
+}
 
 type ThrowKind = "crosser" | "away" | "incomer" | "high" | "rabbit" | "battue" | "teal";
 
@@ -284,17 +309,6 @@ function createShards(clay: Clay): Shard[] {
   return shards;
 }
 
-function kickAmount(now: number, startedAt: number) {
-  if (startedAt <= 0) {
-    return 0;
-  }
-  const progress = (now - startedAt) / settings.recoilTime;
-  if (progress <= 0 || progress >= 1) {
-    return 0;
-  }
-  return Math.sin(Math.pow(progress, 0.45) * Math.PI);
-}
-
 function patternRadius(distance: number | null) {
   const t = distance == null ? 0.45 : distanceT(distance);
   return settings.patternSize * lerp(1, farPattern, t);
@@ -412,7 +426,7 @@ export function ClayGame({
   onFail: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const handRef = useRef<HTMLImageElement>(null);
+  const handRef = useRef<HTMLDivElement>(null);
   const replayRef = useRef<HTMLButtonElement>(null);
   const onFailRef = useRef(onFail);
   const hitMarkRef = useRef(hitMark);
@@ -454,10 +468,62 @@ export function ClayGame({
     let finished = false;
     let nextLaunchAt = performance.now() + 280;
     let readyAt = 0;
-    let handDeg = 0;
     let dtHand = 0.016;
+    let handsReady = false;
+    let photoRatio = 208 / 228;
+    let recoilUntil = 0;
+    let recoilFacing: HandFacing = "straight";
+    const handOpacity: Record<HandPose, number> = {
+      left: 0,
+      straight: 1,
+      right: 0,
+      "recoil-left": 0,
+      "recoil-straight": 0,
+      "recoil-right": 0,
+    };
     let nextSize = 1;
-    let recoilAt = 0;
+    const preloadHands = Promise.all(
+      handPoses.map(
+        (pose) =>
+          new Promise<void>((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => {
+              if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+                photoRatio = image.naturalWidth / image.naturalHeight;
+              }
+              resolve();
+            };
+            image.onerror = () => reject(new Error(pose));
+            image.src = handSrc(pose);
+          }),
+      ),
+    );
+    preloadHands
+      .then(() => {
+        if (!stopped) {
+          handsReady = true;
+        }
+      })
+      .catch(() => {
+        if (!stopped) {
+          onFailRef.current();
+        }
+      });
+
+    const facingFor = (x: number): HandFacing => {
+      if (width <= 0) {
+        return "straight";
+      }
+      const across = x / width;
+      if (across < settings.aimLeft) {
+        return "left";
+      }
+      if (across > settings.aimRight) {
+        return "right";
+      }
+      return "straight";
+    };
+
     let shakeAt = 0;
     let clay: Clay | null = null;
     let aimX = 0;
@@ -763,7 +829,8 @@ export function ClayGame({
         return;
       }
       readyAt = now + settings.reloadTime;
-      recoilAt = now;
+      recoilFacing = facingFor(x);
+      recoilUntil = now + settings.handRecoil;
       const distance = clay ? clay.distance : null;
       const t = distance == null ? 0.45 : distanceT(distance);
       shots.push({
@@ -824,7 +891,10 @@ export function ClayGame({
       shards.length = 0;
       shots.length = 0;
       floaters.length = 0;
-      recoilAt = 0;
+      recoilUntil = 0;
+      for (const pose of handPoses) {
+        handOpacity[pose] = pose === facingFor(aimX) ? 1 : 0;
+      }
       clearShake();
       nextLaunchAt = performance.now() + 280;
       publish();
@@ -912,21 +982,34 @@ export function ClayGame({
 
       const hand = handRef.current;
       if (hand && width > 0 && height > 0) {
-        const reach = height >= 500 ? 0.45 : 0.36;
-        hand.style.height = `${Math.round(height * reach)}px`;
-        const aimAngle = Math.atan2(aimY - height, aimX - width);
-        const needed = Math.atan2(Math.sin(aimAngle - handPoint), Math.cos(aimAngle - handPoint));
-        let targetDeg = ((needed * 180) / Math.PI) * settings.handFollow;
-        const tilt = Math.max(0, settings.handTilt);
-        targetDeg = Math.max(-tilt, Math.min(tilt, targetDeg));
-        const smooth = settings.handSmoothing;
-        const blend = smooth <= 0 ? 1 : 1 - Math.exp((-(dtHand || 0.016) * 1000) / smooth);
-        handDeg += (targetDeg - handDeg) * blend;
-        const kick = kickAmount(now, recoilAt);
-        const kickX = kick * settings.recoilDistance * 0.4;
-        const kickY = -kick * settings.recoilDistance;
-        const rot = handDeg + kick * settings.recoilAngle;
-        hand.style.transform = `translate(${kickX.toFixed(2)}px, ${kickY.toFixed(2)}px) rotate(${rot.toFixed(2)}deg)`;
+        const reach = height * (height >= 500 ? settings.handSize : settings.handSizePhone);
+        const slideLimit = Math.max(0, settings.handSlide);
+        const slide = Math.max(
+          -slideLimit,
+          Math.min(slideLimit, (aimX / width - 0.5) * 2 * slideLimit),
+        );
+        hand.style.visibility = handsReady ? "visible" : "hidden";
+        hand.style.height = `${Math.round(reach)}px`;
+        hand.style.width = `${Math.round(reach * photoRatio)}px`;
+        hand.style.transform = `translateX(calc(-50% + ${slide.toFixed(2)}px))`;
+
+        const showingRecoil = recoilUntil > 0 && now < recoilUntil;
+        const targetPose = showingRecoil ? recoilPose(recoilFacing) : facingFor(aimX);
+        const step =
+          settings.handFade <= 0 ? 1 : ((dtHand || 0.016) * 1000) / settings.handFade;
+        for (const pose of handPoses) {
+          const goal = pose === targetPose ? 1 : 0;
+          if (showingRecoil) {
+            handOpacity[pose] = goal;
+          } else {
+            const gap = goal - handOpacity[pose];
+            handOpacity[pose] += Math.sign(gap) * Math.min(step, Math.abs(gap));
+          }
+          const node = hand.querySelector<HTMLElement>(`[data-hand="${pose}"]`);
+          if (node) {
+            node.style.opacity = String(handOpacity[pose]);
+          }
+        }
       }
 
       if (finePointer && pointerInside) {
@@ -966,7 +1049,11 @@ export function ClayGame({
       last = now;
 
       if (!clay && !finished && nextLaunchAt > 0 && now >= nextLaunchAt) {
-        launch();
+        if (handsReady) {
+          launch();
+        } else {
+          nextLaunchAt = now + 30;
+        }
       }
 
       if (clay) {
@@ -1162,15 +1249,24 @@ export function ClayGame({
       <p className="pointer-events-none absolute bottom-4 left-4 max-w-[46%] text-[13px] leading-snug text-muted">
         {hint}
       </p>
-      <img
+      <div
         ref={handRef}
-        src="/hand.svg"
-        alt=""
+        className="pointer-events-none absolute bottom-0 left-1/2"
+        style={{ visibility: "hidden" }}
         aria-hidden="true"
-        draggable={false}
-        className="pointer-events-none absolute right-0 bottom-0 h-auto max-w-none select-none"
-        style={{ transformOrigin: "100% 100%" }}
-      />
+      >
+        {handPoses.map((pose) => (
+          <img
+            key={pose}
+            data-hand={pose}
+            src={handSrc(pose)}
+            alt=""
+            draggable={false}
+            className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain object-bottom"
+            style={{ opacity: pose === "straight" ? 1 : 0 }}
+          />
+        ))}
+      </div>
       {score.launched > 0 ? (
         <p
           className="pointer-events-none absolute top-4 right-4 text-[13px] font-medium text-ink"

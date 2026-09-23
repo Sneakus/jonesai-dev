@@ -287,3 +287,29 @@ Tell me in plain English what changed and what to try.
 ```
 Changed: Replaced the drawn hand with AJ's hand picture, added a short reload, and mixed in more throw types.
 Files: components/clay-game.tsx, components/finger-gun.ts, public/hand.svg, log/prompts.md
+
+### 2026-09-23 15:39
+Prompt:
+```
+Replace the hand in the clay game with six photos of my real hand. Keep everything else as it is. Stop and tell me if anything fails.
+
+1. The photos are in public/hand/: hand-left, hand-straight and hand-right for aiming, and hand-recoil-left, hand-recoil-straight and hand-recoil-right for the moment after a shot (all .webp). They're all framed identically, so they line up when swapped. Remove public/hand.svg and any code only it used.
+
+2. Place the hand at the bottom centre of the game box, with the bottom edge of the photo sitting exactly on the bottom edge of the box, so the arm comes up from below. Size it so the top of the hand reaches about 45% of the box height on desktop, a bit smaller on phones.
+
+3. Pick the aiming photo by where the mouse or tap is: the left third of the box uses hand-left, the middle third hand-straight, the right third hand-right. Crossfade between them over about 100ms so the hand turns smoothly rather than jumping.
+
+4. On every shot, show the matching recoil photo for the current direction for about 120ms, then crossfade back to the aiming photo. This replaces the old movement-based recoil.
+
+5. Keep a very small slide towards the aim point, a few pixels at most, so the hand feels alive, but the photo's bottom edge must always stay on the box's bottom edge.
+
+6. Load all six photos before the round starts, so there's no flicker the first time the hand turns or fires.
+
+7. Put the aim thresholds, crossfade time, recoil time, size and slide amount in the settings object.
+
+Don't use the built-in browser, I'll play it myself. Check it loads without errors, run gitleaks git -v, commit with "Clay game: my real hand, aim and recoil photos" and push to main.
+
+Tell me in plain English what changed and what to try.
+```
+Changed: Swapped the single hand picture for six photos that turn and recoil with the aim.
+Files: components/clay-game.tsx, public/hand.svg, public/hand/hand-left.webp, public/hand/hand-straight.webp, public/hand/hand-right.webp, public/hand/hand-recoil-left.webp, public/hand/hand-recoil-straight.webp, public/hand/hand-recoil-right.webp, log/prompts.md
