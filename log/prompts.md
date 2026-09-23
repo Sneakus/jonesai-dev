@@ -413,3 +413,34 @@ Tell me in plain English what changed and what to try.
 ```
 Changed: Added a contact section at the bottom of the home page, with a clay that reveals the email.
 Files: content/contact.md, lib/content.ts, components/contact-section.tsx, app/page.tsx, log/prompts.md
+
+### 2026-09-23 20:55
+Prompt:
+```
+Replace the email strip in the contact section with a clay button. Keep everything else in the contact section as it is. Stop and tell me if anything fails.
+
+1. Remove the floating-clay strip and the separate "Show email" button.
+
+2. Add one button that looks like a clay: an orange ellipse with the thin clay-dark ring, about 120px wide, drawn the same way as the game's clays. Under it, a small label in muted text: [Email button label]. That's a placeholder, show it exactly as written. The button's screen reader label is "Show email address".
+
+3. When pressed (click, tap, Enter or Space):
+   - A small pellet cluster hits it, the same look as the game's shot.
+   - It shatters into shards, the same as the game.
+   - The shards then fly one by one, slightly staggered, and settle into the shape of the email address, like the pieces are assembling the letters. Make this satisfying to watch: smooth easing, about 1.2 seconds in total.
+   - Once assembled, the shards fade and the real email text fades in on the same spot, as a clickable email link with a small "Copy" button beside it.
+   - After that, it stays revealed.
+
+4. Visitors with reduced motion: pressing the button shows the email straight away, with no animation.
+
+5. Keep the email hidden from scrapers: build the address in JavaScript only when the button is pressed, as now.
+
+6. Write the "shards fly to target points" part as its own reusable piece of code, where the targets are just a list of points. Later, the same code will assemble my ASCII portrait in the hero. Put shard count, travel time, stagger and easing in a settings object.
+
+7. Check the home page at 375px and 1280px wide, and confirm the email address still isn't in the downloaded files as plain text. Don't use the built-in browser, I'll check it visually.
+
+8. Run gitleaks git -v, commit with "Contact: clay button email reveal" and push to main.
+
+Tell me in plain English what changed and what to try.
+```
+Changed: Replaced the email strip with one clay button whose pieces assemble the email address.
+Files: components/contact-section.tsx, components/shard-flight.ts, content/contact.md, lib/content.ts, log/prompts.md

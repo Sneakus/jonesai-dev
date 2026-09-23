@@ -21,7 +21,8 @@ export type ContactContent = {
   draft: boolean;
   heading: string;
   intro: string;
-  showLabel: string;
+  emailButtonLabel: string;
+  emailButtonAria: string;
   copyLabel: string;
   linkedInLabel: string;
   linkedInUrl: string;
@@ -165,7 +166,8 @@ export function readContact(): ContactContent {
     draft: data.draft === "true",
     heading: requiredString(data, "heading", file),
     intro: requiredString(data, "intro", file),
-    showLabel: requiredString(data, "showLabel", file),
+    emailButtonLabel: requiredString(data, "emailButtonLabel", file),
+    emailButtonAria: requiredString(data, "emailButtonAria", file),
     copyLabel: requiredString(data, "copyLabel", file),
     linkedInLabel: requiredString(data, "linkedInLabel", file),
     linkedInUrl: requiredString(data, "linkedInUrl", file),
