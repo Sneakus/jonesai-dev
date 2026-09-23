@@ -620,3 +620,25 @@ Tell me in plain English what changed and what to try.
 ```
 Changed: Slowed and staged the perfect-round celebration, added winner quips, and stopped score messages repeating across reloads.
 Files: app/page.tsx, components/clay-game-host.tsx, components/clay-game.tsx, content/game.md, lib/content.ts, log/prompts.md
+
+### 2026-09-24 00:21
+Prompt:
+```
+Two fixes to the clay game. Keep everything else as it is. Stop and tell me if anything fails.
+
+1. Stray text cursor: clicking or click-dragging in the game box sometimes shows a blinking text cursor on a white patch, middle left of the box. Find which element is taking focus or text selection there (for example hidden screen reader text, an input, or something focusable) and stop it, without breaking keyboard use of the buttons or the screen reader announcements. The game box should never show a text cursor, a selection highlight or a focus box when clicked with a mouse or touched. Keyboard focus rings on the real buttons must still show.
+
+2. Replace the 5/5 celebration after the twirl:
+   - Keep the hand's first twirl exactly as it is now.
+   - Remove the 8 border hands.
+   - After the twirl, my hand becomes a fireworks machine gun. It sweeps from aiming left to aiming right over about 2.5 seconds, switching between the left, straight and right photos as it turns, firing rapidly, about 12 to 16 shots. Each shot flicks to the matching recoil photo and sends a firework up into the box that bursts into sparks in clay orange and ink, using the current firework look.
+   - Then the winner quip drops in, and the score, quip and Go again button stay until Go again is pressed.
+   - About 5 seconds in total. Put the sweep time, shot count and firework settings in the settings object.
+   - Reduced motion stays as it is.
+
+3. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "Game: machine-gun celebration, no stray text cursor" and push to main.
+
+Tell me in plain English what changed and what to try.
+```
+Changed: Removed selectable game text and replaced the border-hand celebration with one rapid-fire sweeping hand.
+Files: components/clay-game.tsx, log/prompts.md

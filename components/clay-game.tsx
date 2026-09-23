@@ -63,20 +63,16 @@ export const settings = {
   fairHand: 0.25, // most of the on-screen flight that can sit behind the hand
   fairTries: 20, // new throws to try before using a safe one
 
-  perfectDuration: 7000, // full 5/5 celebration before the result settles
+  perfectDuration: 5200, // full 5/5 celebration before the result settles
   perfectSpinTime: 1800, // one full spin of the main hand
-  perfectHandsStart: 1900, // when the edge hands begin arriving
-  perfectHandSlideTime: 420, // each edge hand's slide-in time
-  perfectHandStagger: 260, // wait between each edge hand arriving
-  perfectFireStart: 4300, // when the first edge hand fires
-  perfectFireStagger: 240, // wait between each edge hand firing
-  perfectRecoilTime: 170, // how long each recoil photo stays up
-  perfectFireworkTravel: 320, // fingertip-to-middle firework time
-  perfectSparkTime: 600, // how long each firework burst lasts
-  winnerBannerStart: 6350, // when the winner quip begins dropping
-  winnerBannerDropTime: 600, // winner quip drop time
-  perfectHandCopies: 8, // corners and middle of each side
-  perfectHandSize: 2, // edge hand size compared with the old celebration
+  perfectSweepStart: 1800, // when the machine-gun sweep begins
+  perfectSweepTime: 2500, // left-to-right sweep time
+  perfectShotCount: 14, // fireworks fired during the sweep
+  perfectRecoilTime: 120, // how long each recoil photo stays up
+  perfectFireworkTravel: 260, // fingertip-to-burst firework time
+  perfectSparkTime: 450, // how long each firework burst lasts
+  winnerBannerStart: 4600, // when the winner quip begins dropping
+  winnerBannerDropTime: 400, // winner quip drop time
   perfectFireworkSize: 4, // firework dot and spark size
   perfectSparkCount: 10, // sparks in each firework burst
 };
@@ -1299,38 +1295,14 @@ export function ClayGame({
       ctx.restore();
     };
 
-    const edgePoint = (index: number, count: number) => {
-      const pad = Math.max(10, Math.min(width, height) * 0.025);
-      if (count === 8) {
-        const positions = [
-          { x: pad, y: pad },
-          { x: width / 2, y: pad },
-          { x: width - pad, y: pad },
-          { x: width - pad, y: height / 2 },
-          { x: width - pad, y: height - pad },
-          { x: width / 2, y: height - pad },
-          { x: pad, y: height - pad },
-          { x: pad, y: height / 2 },
-        ];
-        return positions[index % positions.length];
+    const celebrationFacing = (progress: number): HandFacing => {
+      if (progress < 1 / 3) {
+        return "left";
       }
-      const usableWidth = Math.max(1, width - pad * 2);
-      const usableHeight = Math.max(1, height - pad * 2);
-      const perimeter = (usableWidth + usableHeight) * 2;
-      let distance = ((index + 0.5) / count) * perimeter;
-      if (distance <= usableWidth) {
-        return { x: pad + distance, y: pad };
+      if (progress > 2 / 3) {
+        return "right";
       }
-      distance -= usableWidth;
-      if (distance <= usableHeight) {
-        return { x: width - pad, y: pad + distance };
-      }
-      distance -= usableHeight;
-      if (distance <= usableWidth) {
-        return { x: width - pad - distance, y: height - pad };
-      }
-      distance -= usableWidth;
-      return { x: pad, y: height - pad - distance };
+      return "straight";
     };
 
     const drawCelebration = (now: number) => {
@@ -1342,7 +1314,6 @@ export function ClayGame({
         settings.perfectDuration,
       );
       const straight = handImages.straight;
-      const recoil = handImages["recoil-straight"];
 
       if (
         straight &&
@@ -1365,127 +1336,150 @@ export function ClayGame({
         );
       }
 
-      if (straight && recoil) {
-        const copyCount = Math.max(
+      if (
+        !celebrationFinished &&
+        elapsed >= settings.perfectSweepStart
+      ) {
+        const shotCount = Math.max(
           1,
-          Math.round(settings.perfectHandCopies),
+          Math.round(settings.perfectShotCount),
         );
-        const oldCopyHeight = Math.min(
-          height * 0.19,
-          Math.max(48, width * 0.105),
+        const interval =
+          shotCount <= 1
+            ? settings.perfectSweepTime
+            : settings.perfectSweepTime / (shotCount - 1);
+        const sweep = clamp01(
+          (elapsed - settings.perfectSweepStart) /
+            settings.perfectSweepTime,
         );
-        const copyHeight = oldCopyHeight * settings.perfectHandSize;
-        for (let index = 0; index < copyCount; index += 1) {
-          const point = edgePoint(index, copyCount);
-          const inward = Math.atan2(
-            height / 2 - point.y,
-            width / 2 - point.x,
+        const facing = celebrationFacing(sweep);
+        const latestShot = Math.min(
+          shotCount - 1,
+          Math.max(
+            0,
+            Math.floor(
+              (elapsed - settings.perfectSweepStart) /
+                Math.max(1, interval),
+            ),
+          ),
+        );
+        const latestFireAt =
+          settings.perfectSweepStart + latestShot * interval;
+        const recoiling =
+          elapsed >= latestFireAt &&
+          elapsed < latestFireAt + settings.perfectRecoilTime;
+        const shotFacing = celebrationFacing(
+          shotCount <= 1 ? 0.5 : latestShot / (shotCount - 1),
+        );
+        const pose = recoiling ? recoilPose(shotFacing) : facing;
+        const handImage = handImages[pose];
+        const handHeight = Math.min(
+          height * 0.38,
+          Math.max(86, width * 0.24),
+        );
+        if (handImage && elapsed <= settings.winnerBannerStart) {
+          const sweepEnd =
+            settings.perfectSweepStart + settings.perfectSweepTime;
+          const settleGap = Math.max(
+            1,
+            settings.winnerBannerStart - sweepEnd,
           );
-          const rotation = inward + Math.PI / 2;
-          const appearAt =
-            settings.perfectHandsStart +
-            index * settings.perfectHandStagger;
-          const slide = celebrationFinished
-            ? 1
-            : clamp01(
-                (elapsed - appearAt) / settings.perfectHandSlideTime,
-              );
-          if (slide <= 0) {
+          const opacity =
+            elapsed <= sweepEnd
+              ? 1
+              : 1 - clamp01((elapsed - sweepEnd) / settleGap);
+          drawHandPhoto(
+            handImage,
+            width / 2,
+            height - handHeight * 0.42,
+            handHeight,
+            0,
+            opacity,
+          );
+        }
+
+        for (let index = 0; index < shotCount; index += 1) {
+          const shotProgress =
+            shotCount <= 1 ? 0.5 : index / (shotCount - 1);
+          const fireAt =
+            settings.perfectSweepStart + index * interval;
+          const fireworkAge = elapsed - fireAt;
+          if (
+            fireworkAge < 0 ||
+            fireworkAge >
+              settings.perfectFireworkTravel +
+                settings.perfectSparkTime
+          ) {
             continue;
           }
-          const easedSlide = 1 - Math.pow(1 - slide, 3);
-          const outwardX = point.x - width / 2;
-          const outwardY = point.y - height / 2;
-          const outwardLength =
-            Math.hypot(outwardX, outwardY) || 1;
-          const startX =
-            point.x + (outwardX / outwardLength) * copyHeight * 0.8;
-          const startY =
-            point.y + (outwardY / outwardLength) * copyHeight * 0.8;
-          const handX = lerp(startX, point.x, easedSlide);
-          const handY = lerp(startY, point.y, easedSlide);
-          const fireAt =
-            settings.perfectFireStart +
-            index * settings.perfectFireStagger;
-          const recoiling =
-            !celebrationFinished &&
-            elapsed >= fireAt &&
-            elapsed < fireAt + settings.perfectRecoilTime;
-          drawHandPhoto(
-            recoiling ? recoil : straight,
-            handX,
-            handY,
-            copyHeight,
-            rotation,
-            1,
+          const startFireX =
+            width / 2 + lerp(-0.2, 0.2, shotProgress) * handHeight;
+          const startFireY = height - handHeight * 0.82;
+          const burstX =
+            lerp(width * 0.12, width * 0.88, shotProgress) +
+            Math.sin(index * 2.4) * width * 0.025;
+          const burstY =
+            height * (0.18 + ((index % 3) / 2) * 0.12);
+          const travel = clamp01(
+            fireworkAge / settings.perfectFireworkTravel,
           );
-
-          if (!celebrationFinished && elapsed >= fireAt) {
-            const fireworkAge = elapsed - fireAt;
-            const startFireX =
-              point.x + Math.cos(inward) * copyHeight * 0.44;
-            const startFireY =
-              point.y + Math.sin(inward) * copyHeight * 0.44;
-            const burstX = width / 2;
-            const burstY = height / 2;
-            const travel = clamp01(
-              fireworkAge / settings.perfectFireworkTravel,
+          if (travel < 1) {
+            const easedTravel = 1 - Math.pow(1 - travel, 2);
+            const fireX = lerp(startFireX, burstX, easedTravel);
+            const fireY = lerp(startFireY, burstY, easedTravel);
+            ctx.save();
+            ctx.globalAlpha = 0.55;
+            ctx.strokeStyle = index % 2 === 0 ? colors.clay : colors.ink;
+            ctx.lineWidth = Math.max(
+              1,
+              settings.perfectFireworkSize * 0.5,
             );
-            if (travel < 1) {
-              const easedTravel = 1 - Math.pow(1 - travel, 2);
-              const fireX = lerp(startFireX, burstX, easedTravel);
-              const fireY = lerp(startFireY, burstY, easedTravel);
-              ctx.save();
-              ctx.globalAlpha = 0.55;
-              ctx.strokeStyle = index % 2 === 0 ? colors.clay : colors.ink;
-              ctx.lineWidth = Math.max(1, settings.perfectFireworkSize * 0.5);
-              ctx.beginPath();
-              ctx.moveTo(startFireX, startFireY);
-              ctx.lineTo(fireX, fireY);
-              ctx.stroke();
-              ctx.globalAlpha = 1;
-              ctx.fillStyle = index % 2 === 0 ? colors.clay : colors.ink;
+            ctx.beginPath();
+            ctx.moveTo(startFireX, startFireY);
+            ctx.lineTo(fireX, fireY);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = index % 2 === 0 ? colors.clay : colors.ink;
+            ctx.beginPath();
+            ctx.arc(
+              fireX,
+              fireY,
+              settings.perfectFireworkSize,
+              0,
+              Math.PI * 2,
+            );
+            ctx.fill();
+            ctx.restore();
+          }
+
+          const sparkAge =
+            (fireworkAge - settings.perfectFireworkTravel) /
+            settings.perfectSparkTime;
+          if (sparkAge >= 0 && sparkAge <= 1) {
+            const sparkCount = Math.max(
+              1,
+              Math.round(settings.perfectSparkCount),
+            );
+            const radius =
+              sparkAge * settings.perfectFireworkSize * 11;
+            ctx.save();
+            ctx.globalAlpha = 1 - sparkAge;
+            for (let spark = 0; spark < sparkCount; spark += 1) {
+              const angle =
+                (Math.PI * 2 * spark) / sparkCount + index * 0.47;
+              ctx.fillStyle =
+                (spark + index) % 2 === 0 ? colors.clay : colors.ink;
               ctx.beginPath();
               ctx.arc(
-                fireX,
-                fireY,
-                settings.perfectFireworkSize,
+                burstX + Math.cos(angle) * radius,
+                burstY + Math.sin(angle) * radius,
+                Math.max(1.5, settings.perfectFireworkSize * 0.55),
                 0,
                 Math.PI * 2,
               );
               ctx.fill();
-              ctx.restore();
             }
-
-            const sparkAge =
-              (fireworkAge - settings.perfectFireworkTravel) /
-              settings.perfectSparkTime;
-            if (sparkAge >= 0 && sparkAge <= 1) {
-              const sparkCount = Math.max(
-                1,
-                Math.round(settings.perfectSparkCount),
-              );
-              const radius =
-                sparkAge * settings.perfectFireworkSize * 11;
-              ctx.save();
-              ctx.globalAlpha = 1 - sparkAge;
-              for (let spark = 0; spark < sparkCount; spark += 1) {
-                const angle =
-                  (Math.PI * 2 * spark) / sparkCount + index * 0.47;
-                ctx.fillStyle =
-                  (spark + index) % 2 === 0 ? colors.clay : colors.ink;
-                ctx.beginPath();
-                ctx.arc(
-                  burstX + Math.cos(angle) * radius,
-                  burstY + Math.sin(angle) * radius,
-                  Math.max(1.5, settings.perfectFireworkSize * 0.55),
-                  0,
-                  Math.PI * 2,
-                );
-                ctx.fill();
-              }
-              ctx.restore();
-            }
+            ctx.restore();
           }
         }
       }
@@ -1788,10 +1782,15 @@ export function ClayGame({
   }, []);
 
   return (
-    <div className={clayBoxClass} role="group" aria-label={liveLabel}>
+    <div
+      className={`${clayBoxClass} cursor-default select-none`}
+      style={{ caretColor: "transparent", userSelect: "none" }}
+      role="group"
+      aria-label={liveLabel}
+    >
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 h-full w-full"
+        className="absolute inset-0 h-full w-full select-none"
         style={{ touchAction: "pan-y" }}
         aria-hidden="true"
       />
