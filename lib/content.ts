@@ -13,14 +13,11 @@ export type HomeContent = {
   replayLabel: string;
   gameLiveLabel: string;
   hitMark: string;
-  receiptsValue: string;
-  receiptsLabel: string;
 };
 
 export type ContactContent = {
   draft: boolean;
   heading: string;
-  intro: string;
   copyLabel: string;
   copiedLabel: string;
   copiedAnnouncement: string;
@@ -154,8 +151,6 @@ export function readHome(): HomeContent {
     replayLabel: requiredString(data, "replayLabel", "content/home.md"),
     gameLiveLabel: requiredString(data, "gameLiveLabel", "content/home.md"),
     hitMark: requiredString(data, "hitMark", "content/home.md"),
-    receiptsValue: requiredString(data, "receiptsValue", "content/home.md"),
-    receiptsLabel: requiredString(data, "receiptsLabel", "content/home.md"),
   };
 }
 
@@ -167,7 +162,6 @@ export function readContact(): ContactContent {
   return {
     draft: data.draft === "true",
     heading: requiredString(data, "heading", file),
-    intro: requiredString(data, "intro", file),
     copyLabel: requiredString(data, "copyLabel", file),
     copiedLabel: requiredString(data, "copiedLabel", file),
     copiedAnnouncement: requiredString(data, "copiedAnnouncement", file),

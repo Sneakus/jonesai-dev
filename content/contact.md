@@ -1,7 +1,6 @@
 ---
 draft: true
-heading: [Contact heading]
-intro: [Contact intro line]
+heading: My DMs are open.
 copyLabel: Copy
 copiedLabel: Copied
 copiedAnnouncement: Email copied

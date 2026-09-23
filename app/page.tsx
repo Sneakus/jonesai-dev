@@ -26,14 +26,6 @@ export default function Home() {
               hitMark={home.hitMark}
             />
           </div>
-          <div className="mt-8 border-t border-line pt-6">
-            <div className="flex items-baseline gap-4">
-              <p className="headline text-clay">{home.receiptsValue}</p>
-              <p className="max-w-[11rem] text-sm text-muted">
-                {home.receiptsLabel}
-              </p>
-            </div>
-          </div>
         </div>
         <BuildsSection heading={site.buildsHeading} builds={builds} />
         <ContactSection contact={contact} />

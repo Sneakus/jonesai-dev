@@ -121,7 +121,9 @@ export function BuildArticle({
           alt={build.image.alt}
           width={build.image.width}
           height={build.image.height}
-          sizes="(min-width: 680px) 640px, 100vw"
+          quality={90}
+          sizes="(max-width: 679px) calc(100vw - 40px), 640px"
+          unoptimized
           className="mt-8 h-auto w-full rounded-2xl"
         />
       ) : null}

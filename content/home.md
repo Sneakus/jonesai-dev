@@ -2,13 +2,11 @@
 draft: true
 name: AJ
 title: I can't code.
-intro: "[Your one-line intro]"
-gameHint: "[Game hint]"
+intro: AJ, a startup operator who builds with AI and has a creative streak.
+gameHint: Get smashing
 gameLabel: Clay targets in flight
-startLabel: "[Start button]"
+startLabel: Pull
 replayLabel: "[Replay button]"
 gameLiveLabel: Clay shooting game. Optional, just for fun.
 hitMark: "+1"
-receiptsValue: 0
-receiptsLabel: "[Receipts line]"
 ---

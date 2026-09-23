@@ -121,7 +121,6 @@ export function ContactSection({ contact }: { contact: ContactContent }) {
       <h2 className="text-[22px] font-semibold tracking-[-0.035em]">
         {contact.heading}
       </h2>
-      <p className="mt-4 text-base text-muted">{contact.intro}</p>
       <div className="mt-6 flex max-w-full flex-wrap items-center gap-3">
         <a
           ref={emailRef}

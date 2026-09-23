@@ -502,3 +502,28 @@ Tell me in plain English what changed.
 ```
 Changed: Finished the plain email using a direct link reference, without weakening the lint rule.
 Files: components/contact-section.tsx, content/contact.md, lib/content.ts, log/prompts.md
+
+### 2026-09-23 23:31
+Prompt:
+```
+Wording and image updates. Keep everything else as it is. Stop and tell me if anything fails.
+
+1. I've added content/game.md and replaced public/builds/worldcupmap.webp and public/builds/ajob-email.webp with sharper versions. Don't change any text in the content files except where listed below.
+
+2. In content/home.md, set:
+   intro: AJ, a startup operator who builds with AI and has a creative streak.
+   gameHint: Get smashing
+   Find the [Start button] placeholder wherever it lives and change it to: Pull
+
+3. Remove the receipts block from the hero (the big 0 and its line), and remove receiptsValue and receiptsLabel from content/home.md.
+
+4. In content/contact.md, set heading: My DMs are open. Remove the intro line completely, including any gap it leaves.
+
+5. The build page images look blurry. Make sure they're served sharp: image quality 90 or higher, and sizes set so high-resolution screens get a large enough version. If they still look soft, serve these two images without optimisation.
+
+6. Check the home page, /worldcupmap and /ajob at 375px and 1280px wide. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "Wording pass and sharper build images" and push to main.
+
+Tell me in plain English what changed.
+```
+Changed: Updated the home and contact wording, removed receipts, and served the sharper build images directly.
+Files: app/page.tsx, components/build-article.tsx, components/contact-section.tsx, content/home.md, content/contact.md, content/game.md, lib/content.ts, next.config.ts, public/builds/worldcupmap.webp, public/builds/ajob-email.webp, log/prompts.md
