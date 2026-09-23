@@ -7,11 +7,15 @@ function indentOf(line: string): number {
   return line.match(/^ */)?.[0].length ?? 0;
 }
 
+function isQuoted(value: string): boolean {
+  return (
+    (value.startsWith('"') && value.endsWith('"') && value.length >= 2) ||
+    (value.startsWith("'") && value.endsWith("'") && value.length >= 2)
+  );
+}
+
 function unquote(value: string): string {
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
+  if (isQuoted(value)) {
     return value.slice(1, -1);
   }
   return value;
@@ -139,7 +143,7 @@ function parseList(
 
     const rest = line.trim().slice(2);
     const colon = rest.indexOf(":");
-    const looksLikeKey = colon > 0 && !rest.startsWith("http");
+    const looksLikeKey = colon > 0 && !rest.startsWith("http") && !isQuoted(rest);
 
     if (!looksLikeKey) {
       value.push(unquote(rest));

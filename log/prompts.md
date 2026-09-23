@@ -366,3 +366,21 @@ Tell me in plain English what changed and what to look at.
 ```
 Changed: Added three build pages, and let a build page show a picture, an example, and its own links.
 Files: .cursor/rules/aj-website.mdc, components/build-article.tsx, lib/content.ts, content/builds/meeting-plan-agent.md, content/builds/worldcupmap.md, content/builds/golf-agent.md, content/builds/ajob.md, public/builds/worldcupmap.webp, public/builds/ajob-email.webp, public/Alex_Jones_CV.pdf, log/prompts.md
+
+### 2026-09-23 17:47
+Prompt:
+```
+In content/builds/golf-agent.md, replace the whole example block in the frontmatter with this, exactly as written. Change nothing else in the file.
+
+example:
+  label: One of my test questions, in my own words
+  question: "3w shot where ball was beneath my feet ended up in a slice wide right"
+  answerLabel: What it said back (a real answer, 23 Sep 2026)
+  answer:
+    - "Slice caused by ball-below-feet lie, not a swing fault"
+    - "Try this: Stay in your posture and let the club brush through low."
+
+Check /golf-agent loads without errors, run gitleaks git -v, commit with "Golf Agent: real example answer" and push to main.
+```
+Changed: Swapped the Golf Agent example for the real answer it gave.
+Files: content/builds/golf-agent.md, lib/frontmatter.ts, log/prompts.md

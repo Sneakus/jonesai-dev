@@ -5,11 +5,12 @@ title: Golf Agent
 slug: golf-agent
 summary: You describe a bad golf shot in your own words, and it works out the likely cause, then gives you one thing to focus on.
 example:
-  label: One of the test questions, in my own words
+  label: One of my test questions, in my own words
   question: "3w shot where ball was beneath my feet ended up in a slice wide right"
-  answerLabel: What it should find, from the notes I wrote
+  answerLabel: What it said back (a real answer, 23 Sep 2026)
   answer:
-    - "The resulting right-curving shot is usually a lie effect, not a swing fault. Diagnosing it as a slice will send you fixing something that is not broken."
+    - "Slice caused by ball-below-feet lie, not a swing fault"
+    - "Try this: Stay in your posture and let the club brush through low."
 links:
   - label: Code on GitHub
     url: https://github.com/Sneakus/Golf-Agent
