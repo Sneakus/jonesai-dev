@@ -1,7 +1,6 @@
 ---
 draft: true
 replayButton: Go again
-perfectBanner: Completed it mate
 scoreMessages:
   "0":
     - "Not a single one. The clays send their regards."
@@ -20,4 +19,9 @@ scoreMessages:
   "4":
     - "One away from greatness."
     - "So close. That one's going to haunt you."
+  "5":
+    - "Completed it, mate."
+    - "Five from five. Were you raised on a clay ground?"
+    - "Flawless. The clays never stood a chance."
+    - "Perfect round. Very tidy indeed."
 ---

@@ -11,7 +11,6 @@ type ClayGameHostProps = {
   liveLabel: string;
   hitMark: string;
   scoreMessages: string[][];
-  perfectBanner: string;
 };
 
 export function ClayGameHost({
@@ -22,7 +21,6 @@ export function ClayGameHost({
   liveLabel,
   hitMark,
   scoreMessages,
-  perfectBanner,
 }: ClayGameHostProps) {
   const [Game, setGame] = useState<
     typeof import("@/components/clay-game").ClayGame | null
@@ -62,7 +60,6 @@ export function ClayGameHost({
         liveLabel={liveLabel}
         hitMark={hitMark}
         scoreMessages={scoreMessages}
-        perfectBanner={perfectBanner}
         onFail={() => {
           setPlaying(false);
           setFailed(true);

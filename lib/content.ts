@@ -18,7 +18,6 @@ export type HomeContent = {
 export type GameContent = {
   draft: boolean;
   replayButton: string;
-  perfectBanner: string;
   scoreMessages: string[][];
 };
 
@@ -170,7 +169,7 @@ export function readGame(): GameContent {
     throw new Error(`${file} is missing scoreMessages`);
   }
 
-  const scoreMessages = Array.from({ length: 5 }, (_, score) => {
+  const scoreMessages = Array.from({ length: 6 }, (_, score) => {
     const value =
       messages[String(score)] ?? messages[`"${String(score)}"`];
     if (!Array.isArray(value) || value.length === 0) {
@@ -187,7 +186,6 @@ export function readGame(): GameContent {
   return {
     draft: data.draft === "true",
     replayButton: requiredString(data, "replayButton", file),
-    perfectBanner: requiredString(data, "perfectBanner", file),
     scoreMessages,
   };
 }

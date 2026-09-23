@@ -63,9 +63,22 @@ export const settings = {
   fairHand: 0.25, // most of the on-screen flight that can sit behind the hand
   fairTries: 20, // new throws to try before using a safe one
 
-  perfectDuration: 3500, // full 5/5 celebration, in milliseconds
-  perfectHandCopies: 10, // hands around the edge during the celebration
-  perfectConfetti: 54, // orange and ink pieces in the celebration
+  perfectDuration: 7000, // full 5/5 celebration before the result settles
+  perfectSpinTime: 1800, // one full spin of the main hand
+  perfectHandsStart: 1900, // when the edge hands begin arriving
+  perfectHandSlideTime: 420, // each edge hand's slide-in time
+  perfectHandStagger: 260, // wait between each edge hand arriving
+  perfectFireStart: 4300, // when the first edge hand fires
+  perfectFireStagger: 240, // wait between each edge hand firing
+  perfectRecoilTime: 170, // how long each recoil photo stays up
+  perfectFireworkTravel: 320, // fingertip-to-middle firework time
+  perfectSparkTime: 600, // how long each firework burst lasts
+  winnerBannerStart: 6350, // when the winner quip begins dropping
+  winnerBannerDropTime: 600, // winner quip drop time
+  perfectHandCopies: 8, // corners and middle of each side
+  perfectHandSize: 2, // edge hand size compared with the old celebration
+  perfectFireworkSize: 4, // firework dot and spark size
+  perfectSparkCount: 10, // sparks in each firework burst
 };
 
 const pelletFade = 400;
@@ -154,17 +167,6 @@ type Floater = {
   x: number;
   y: number;
   born: number;
-};
-
-type CelebrationConfetti = {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  angle: number;
-  spin: number;
-  size: number;
-  ink: boolean;
 };
 
 type GameResult = {
@@ -577,7 +579,6 @@ export function ClayGame({
   liveLabel,
   hitMark,
   scoreMessages,
-  perfectBanner,
   onFail,
 }: {
   hint: string;
@@ -585,7 +586,6 @@ export function ClayGame({
   liveLabel: string;
   hitMark: string;
   scoreMessages: string[][];
-  perfectBanner: string;
   onFail: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -594,7 +594,6 @@ export function ClayGame({
   const onFailRef = useRef(onFail);
   const hitMarkRef = useRef(hitMark);
   const scoreMessagesRef = useRef(scoreMessages);
-  const perfectBannerRef = useRef(perfectBanner);
   const [score, setScore] = useState({ hits: 0, launched: 0 });
   const [over, setOver] = useState(false);
   const [result, setResult] = useState<GameResult | null>(null);
@@ -610,10 +609,6 @@ export function ClayGame({
   useEffect(() => {
     scoreMessagesRef.current = scoreMessages;
   }, [scoreMessages]);
-
-  useEffect(() => {
-    perfectBannerRef.current = perfectBanner;
-  }, [perfectBanner]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -647,7 +642,6 @@ export function ClayGame({
     let forcePerfect = window.location.href.endsWith("?perfect");
     let celebrationAt = 0;
     let celebrationFinished = false;
-    let celebrationConfetti: CelebrationConfetti[] = [];
     let pendingResult: GameResult | null = null;
     let nextLaunchAt = performance.now() + 280;
     let readyAt = 0;
@@ -793,36 +787,27 @@ export function ClayGame({
       if (messages.length === 0) {
         return "";
       }
+      let previous = lastMessage;
+      try {
+        previous =
+          window.sessionStorage.getItem("clay-last-score-message") ?? previous;
+      } catch {
+        // The in-memory value still prevents repeats for this page.
+      }
       const choices =
         messages.length > 1
-          ? messages.filter((message) => message !== lastMessage)
+          ? messages.filter((message) => message !== previous)
           : messages;
       const message =
         choices[Math.floor(Math.random() * Math.max(1, choices.length))] ??
         messages[0];
       lastMessage = message;
+      try {
+        window.sessionStorage.setItem("clay-last-score-message", message);
+      } catch {
+        // Some privacy settings block storage; the game still works.
+      }
       return message;
-    };
-
-    const makeConfetti = () => {
-      const count =
-        width < 520
-          ? Math.max(24, Math.round(settings.perfectConfetti * 0.65))
-          : Math.max(1, Math.round(settings.perfectConfetti));
-      celebrationConfetti = Array.from({ length: count }, (_, index) => {
-        const angle = rand(-Math.PI * 0.88, -Math.PI * 0.12);
-        const speed = rand(180, width < 520 ? 330 : 440);
-        return {
-          x: width / 2,
-          y: height * 0.5,
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed,
-          angle: rand(0, Math.PI * 2),
-          spin: rand(-10, 10),
-          size: rand(3, 7),
-          ink: index % 3 === 0,
-        };
-      });
     };
 
     const finishRound = (now: number) => {
@@ -832,16 +817,15 @@ export function ClayGame({
       forcePerfect = false;
       pendingResult = {
         score: hits,
-        message: perfect
-          ? perfectBannerRef.current
-          : pickScoreMessage(Math.max(0, Math.min(4, hits))),
+        message: pickScoreMessage(
+          perfect ? 5 : Math.max(0, Math.min(4, hits)),
+        ),
         perfect,
       };
       publish();
       if (perfect && !reducedMotion) {
         celebrationAt = now;
         celebrationFinished = false;
-        makeConfetti();
         return;
       }
       setResult(pendingResult);
@@ -1243,7 +1227,6 @@ export function ClayGame({
         1 + Math.floor(Math.random() * Math.max(1, settings.claysPerRound));
       celebrationAt = 0;
       celebrationFinished = false;
-      celebrationConfetti = [];
       pendingResult = null;
       readyAt = 0;
       clay = null;
@@ -1318,6 +1301,19 @@ export function ClayGame({
 
     const edgePoint = (index: number, count: number) => {
       const pad = Math.max(10, Math.min(width, height) * 0.025);
+      if (count === 8) {
+        const positions = [
+          { x: pad, y: pad },
+          { x: width / 2, y: pad },
+          { x: width - pad, y: pad },
+          { x: width - pad, y: height / 2 },
+          { x: width - pad, y: height - pad },
+          { x: width / 2, y: height - pad },
+          { x: pad, y: height - pad },
+          { x: pad, y: height / 2 },
+        ];
+        return positions[index % positions.length];
+      }
       const usableWidth = Math.max(1, width - pad * 2);
       const usableHeight = Math.max(1, height - pad * 2);
       const perimeter = (usableWidth + usableHeight) * 2;
@@ -1338,15 +1334,22 @@ export function ClayGame({
     };
 
     const drawCelebration = (now: number) => {
-      if (celebrationAt <= 0 || celebrationFinished) {
+      if (celebrationAt <= 0) {
         return;
       }
-      const elapsed = now - celebrationAt;
+      const elapsed = Math.min(
+        Math.max(0, now - celebrationAt),
+        settings.perfectDuration,
+      );
       const straight = handImages.straight;
       const recoil = handImages["recoil-straight"];
 
-      if (straight && elapsed < 1180) {
-        const progress = clamp01(elapsed / 1000);
+      if (
+        straight &&
+        !celebrationFinished &&
+        elapsed < settings.perfectSpinTime
+      ) {
+        const progress = clamp01(elapsed / settings.perfectSpinTime);
         const eased = 1 - Math.pow(1 - progress, 3);
         const handHeight = Math.min(
           height * 0.38,
@@ -1358,19 +1361,20 @@ export function ClayGame({
           height - handHeight * 0.42,
           handHeight,
           eased * Math.PI * 2,
-          Math.min(1, elapsed / 120) * (1 - clamp01((elapsed - 980) / 200)),
+          1 - clamp01((progress - 0.82) / 0.18),
         );
       }
 
-      if (straight && recoil && elapsed >= 420 && elapsed <= 2380) {
-        const copyCount =
-          width < 520
-            ? Math.max(6, Math.round(settings.perfectHandCopies * 0.7))
-            : Math.max(1, Math.round(settings.perfectHandCopies));
-        const copyHeight = Math.min(
+      if (straight && recoil) {
+        const copyCount = Math.max(
+          1,
+          Math.round(settings.perfectHandCopies),
+        );
+        const oldCopyHeight = Math.min(
           height * 0.19,
           Math.max(48, width * 0.105),
         );
+        const copyHeight = oldCopyHeight * settings.perfectHandSize;
         for (let index = 0; index < copyCount; index += 1) {
           const point = edgePoint(index, copyCount);
           const inward = Math.atan2(
@@ -1378,88 +1382,154 @@ export function ClayGame({
             width / 2 - point.x,
           );
           const rotation = inward + Math.PI / 2;
-          const appearAt = 420 + index * 45;
-          const fireAt = 820 + index * 72;
-          const opacity =
-            clamp01((elapsed - appearAt) / 130) *
-            (1 - clamp01((elapsed - 2120) / 260));
-          if (opacity <= 0) {
+          const appearAt =
+            settings.perfectHandsStart +
+            index * settings.perfectHandStagger;
+          const slide = celebrationFinished
+            ? 1
+            : clamp01(
+                (elapsed - appearAt) / settings.perfectHandSlideTime,
+              );
+          if (slide <= 0) {
             continue;
           }
-          const recoiling = elapsed >= fireAt && elapsed < fireAt + 120;
+          const easedSlide = 1 - Math.pow(1 - slide, 3);
+          const outwardX = point.x - width / 2;
+          const outwardY = point.y - height / 2;
+          const outwardLength =
+            Math.hypot(outwardX, outwardY) || 1;
+          const startX =
+            point.x + (outwardX / outwardLength) * copyHeight * 0.8;
+          const startY =
+            point.y + (outwardY / outwardLength) * copyHeight * 0.8;
+          const handX = lerp(startX, point.x, easedSlide);
+          const handY = lerp(startY, point.y, easedSlide);
+          const fireAt =
+            settings.perfectFireStart +
+            index * settings.perfectFireStagger;
+          const recoiling =
+            !celebrationFinished &&
+            elapsed >= fireAt &&
+            elapsed < fireAt + settings.perfectRecoilTime;
           drawHandPhoto(
             recoiling ? recoil : straight,
-            point.x,
-            point.y,
+            handX,
+            handY,
             copyHeight,
             rotation,
-            opacity,
+            1,
           );
 
-          const flash = (elapsed - fireAt) / 150;
-          if (flash >= 0 && flash <= 1) {
-            const flashX = point.x + Math.cos(inward) * copyHeight * 0.44;
-            const flashY = point.y + Math.sin(inward) * copyHeight * 0.44;
-            ctx.save();
-            ctx.globalAlpha = 1 - flash;
-            ctx.fillStyle = colors.ink;
-            for (let pellet = 0; pellet < 6; pellet += 1) {
-              const angle =
-                (Math.PI * 2 * pellet) / 6 + index * 0.73;
-              const radius = 3 + pellet * 1.35;
+          if (!celebrationFinished && elapsed >= fireAt) {
+            const fireworkAge = elapsed - fireAt;
+            const startFireX =
+              point.x + Math.cos(inward) * copyHeight * 0.44;
+            const startFireY =
+              point.y + Math.sin(inward) * copyHeight * 0.44;
+            const burstX = width / 2;
+            const burstY = height / 2;
+            const travel = clamp01(
+              fireworkAge / settings.perfectFireworkTravel,
+            );
+            if (travel < 1) {
+              const easedTravel = 1 - Math.pow(1 - travel, 2);
+              const fireX = lerp(startFireX, burstX, easedTravel);
+              const fireY = lerp(startFireY, burstY, easedTravel);
+              ctx.save();
+              ctx.globalAlpha = 0.55;
+              ctx.strokeStyle = index % 2 === 0 ? colors.clay : colors.ink;
+              ctx.lineWidth = Math.max(1, settings.perfectFireworkSize * 0.5);
+              ctx.beginPath();
+              ctx.moveTo(startFireX, startFireY);
+              ctx.lineTo(fireX, fireY);
+              ctx.stroke();
+              ctx.globalAlpha = 1;
+              ctx.fillStyle = index % 2 === 0 ? colors.clay : colors.ink;
               ctx.beginPath();
               ctx.arc(
-                flashX + Math.cos(angle) * radius,
-                flashY + Math.sin(angle) * radius,
-                1.5,
+                fireX,
+                fireY,
+                settings.perfectFireworkSize,
                 0,
                 Math.PI * 2,
               );
               ctx.fill();
+              ctx.restore();
             }
-            ctx.restore();
+
+            const sparkAge =
+              (fireworkAge - settings.perfectFireworkTravel) /
+              settings.perfectSparkTime;
+            if (sparkAge >= 0 && sparkAge <= 1) {
+              const sparkCount = Math.max(
+                1,
+                Math.round(settings.perfectSparkCount),
+              );
+              const radius =
+                sparkAge * settings.perfectFireworkSize * 11;
+              ctx.save();
+              ctx.globalAlpha = 1 - sparkAge;
+              for (let spark = 0; spark < sparkCount; spark += 1) {
+                const angle =
+                  (Math.PI * 2 * spark) / sparkCount + index * 0.47;
+                ctx.fillStyle =
+                  (spark + index) % 2 === 0 ? colors.clay : colors.ink;
+                ctx.beginPath();
+                ctx.arc(
+                  burstX + Math.cos(angle) * radius,
+                  burstY + Math.sin(angle) * radius,
+                  Math.max(1.5, settings.perfectFireworkSize * 0.55),
+                  0,
+                  Math.PI * 2,
+                );
+                ctx.fill();
+              }
+              ctx.restore();
+            }
           }
         }
       }
 
-      const confettiAge = (elapsed - 1120) / 1000;
-      if (confettiAge >= 0) {
-        for (const piece of celebrationConfetti) {
-          const x = piece.x + piece.vx * confettiAge;
-          const y =
-            piece.y +
-            piece.vy * confettiAge +
-            0.5 * settings.gravity * 0.55 * confettiAge * confettiAge;
-          if (y > height + 30) {
-            continue;
-          }
-          ctx.save();
-          ctx.translate(x, y);
-          ctx.rotate(piece.angle + piece.spin * confettiAge);
-          ctx.fillStyle = piece.ink ? colors.ink : colors.clay;
-          ctx.fillRect(
-            -piece.size / 2,
-            -piece.size * 0.25,
-            piece.size,
-            piece.size * 0.5,
-          );
-          ctx.restore();
-        }
-      }
-
-      if (elapsed >= 1680) {
-        const drop = clamp01((elapsed - 1680) / 620);
+      if (
+        !celebrationFinished &&
+        elapsed >= settings.winnerBannerStart &&
+        pendingResult
+      ) {
+        const drop = clamp01(
+          (elapsed - settings.winnerBannerStart) /
+            settings.winnerBannerDropTime,
+        );
         const eased = 1 - Math.pow(1 - drop, 3);
         const y = lerp(-36, height * 0.47, eased);
         ctx.save();
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.font = `700 ${Math.max(24, Math.min(42, width * 0.07))}px ${uiFont}`;
+        const fontSize = Math.max(22, Math.min(42, width * 0.065));
+        ctx.font = `700 ${fontSize}px ${uiFont}`;
         ctx.lineWidth = 7;
         ctx.strokeStyle = colors.field;
-        ctx.strokeText(perfectBannerRef.current, width / 2, y);
         ctx.fillStyle = colors.clay;
-        ctx.fillText(perfectBannerRef.current, width / 2, y);
+        const words = pendingResult.message.split(" ");
+        const lines: string[] = [];
+        const maxWidth = width * 0.82;
+        for (const word of words) {
+          const current = lines[lines.length - 1] ?? "";
+          const next = current ? `${current} ${word}` : word;
+          if (current && ctx.measureText(next).width > maxWidth) {
+            lines.push(word);
+          } else if (lines.length === 0) {
+            lines.push(next);
+          } else {
+            lines[lines.length - 1] = next;
+          }
+        }
+        const lineHeight = fontSize * 1.12;
+        const firstY = y - ((lines.length - 1) * lineHeight) / 2;
+        lines.forEach((line, index) => {
+          const lineY = firstY + index * lineHeight;
+          ctx.strokeText(line, width / 2, lineY);
+          ctx.fillText(line, width / 2, lineY);
+        });
         ctx.restore();
       }
     };
@@ -1512,7 +1582,7 @@ export function ClayGame({
 
       const hand = handRef.current;
       if (hand && width > 0 && height > 0) {
-        const celebrating = celebrationAt > 0 && !celebrationFinished;
+        const celebrating = celebrationAt > 0;
         const reach = height * (height >= 500 ? settings.handSize : settings.handSizePhone);
         const slideLimit = Math.max(0, settings.handSlide);
         const slide = Math.max(

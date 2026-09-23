@@ -32,7 +32,6 @@ export default function Home() {
               liveLabel={home.gameLiveLabel}
               hitMark={home.hitMark}
               scoreMessages={game.scoreMessages}
-              perfectBanner={game.perfectBanner}
             />
           </div>
         </div>

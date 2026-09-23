@@ -587,3 +587,36 @@ Tell me in plain English what changed.
 ```
 Changed: Replaced the Golf Agent example and formatted its answer labels and bullet points.
 Files: components/build-article.tsx, content/builds/golf-agent.md, log/prompts.md
+
+### 2026-09-23 23:58
+Prompt:
+```
+Update the 5/5 celebration and add a guardrail to the score messages. Keep everything else in the game as it is. Stop and tell me if anything fails.
+
+1. Score messages guardrail: the same message must never show twice in a row, including after a page reload. Remember the last message shown in sessionStorage, wrapped in try/catch, and pick from the rest of that score's list. If a score only has one message, show it.
+
+2. Winner messages: in content/game.md, remove perfectBanner and add a list for a score of 5 under scoreMessages, exactly as written:
+  "5":
+    - "Completed it, mate."
+    - "Five from five. Were you raised on a clay ground?"
+    - "Flawless. The clays never stood a chance."
+    - "Perfect round. Very tidy indeed."
+   The 5/5 banner shows one of these, picked the same way as the other scores, with the same no-repeat guardrail.
+
+3. Slow the celebration down and make it clearer, about 7 seconds before it settles:
+   - My hand spins round once, a little slower than now.
+   - Then 8 copies of my hand slide in one at a time around the edge of the box (the four corners and the middle of each side), each about twice their current size, fingers pointing in towards the middle, at the visitor. Leave a short beat between each so you can see they're my hand.
+   - Once all 8 are in, they fire one after another. Each shot sends a small firework from the fingertip towards the middle, which bursts into sparks in clay orange and ink, with the hand swapping to its recoil photo as it fires.
+   - The banner drops into the middle after the last firework.
+   - The hands, banner, score and Go again button then stay on screen until the visitor presses Go again.
+
+4. Put every timing, the hand count, the hand size and the firework size in the settings object, so I can tune it.
+
+5. Reduced motion stays as it is: just the banner and the score.
+
+6. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "Game: slower 5/5 celebration, fireworks, winner quips, no repeated messages" and push to main.
+
+Tell me in plain English what changed and what to try.
+```
+Changed: Slowed and staged the perfect-round celebration, added winner quips, and stopped score messages repeating across reloads.
+Files: app/page.tsx, components/clay-game-host.tsx, components/clay-game.tsx, content/game.md, lib/content.ts, log/prompts.md
