@@ -2,8 +2,6 @@
 draft: true
 heading: [Contact heading]
 intro: [Contact intro line]
-emailButtonLabel: [Email button label]
-emailButtonAria: Show email address
 copyLabel: Copy
 linkedInLabel: LinkedIn
 linkedInUrl: https://www.linkedin.com/in/jonesai

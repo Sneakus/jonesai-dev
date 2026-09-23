@@ -444,3 +444,41 @@ Tell me in plain English what changed and what to try.
 ```
 Changed: Replaced the email strip with one clay button whose pieces assemble the email address.
 Files: components/contact-section.tsx, components/shard-flight.ts, content/contact.md, lib/content.ts, log/prompts.md
+
+### 2026-09-23 21:10
+Prompt:
+```
+Simplify the contact section. Keep the heading, intro and links as they are. Stop and tell me if anything fails.
+
+1. Remove the clay button, its [Email button label] placeholder and the reveal animation from the contact section.
+
+2. Show my email address plainly instead, as a clickable email link with the small "Copy" button beside it, styled like the rest of the contact section.
+
+3. Keep it hidden from scrapers: build the address in JavaScript when the page loads, so it still isn't written in the HTML or in any downloaded file as plain text. Visitors with JavaScript turned off still get the LinkedIn, GitHub and CV links.
+
+4. Keep the reusable "shards fly to target points" code in the project, unused for now. It will build my ASCII portrait later. Remove anything that only the contact reveal used.
+
+5. Check the home page at 375px and 1280px wide, and confirm the email isn't in the downloaded files as plain text. Don't use the built-in browser, I'll check it visually.
+
+6. Run gitleaks git -v, commit with "Contact: plain email, keep assembly code for the portrait" and push to main.
+
+Tell me in plain English what changed.
+```
+Changed: Started simplifying the contact section, then stopped because the code check failed.
+Files: components/contact-section.tsx, content/contact.md, lib/content.ts, log/prompts.md
+
+### 2026-09-23 21:13
+Prompt:
+```
+Carry on with the contact change using a different approach for showing the email. Don't turn off or ignore the lint rule.
+
+1. Instead of putting the email into React state inside a page-load effect, render the email link with no text and no href, give it a ref, and in the effect write the address straight into the link's text and href through the ref. No state update is needed, so the rule is satisfied. The Copy button should build the address itself when clicked.
+
+2. If that can't be done cleanly, use useSyncExternalStore with an empty value on the server instead.
+
+3. Then finish the remaining steps: check the home page at 375px and 1280px wide, confirm the email isn't in the downloaded files as plain text, run the code check, run gitleaks git -v, commit with "Contact: plain email, keep assembly code for the portrait" and push to main.
+
+Tell me in plain English what changed.
+```
+Changed: Finished the plain email using a direct link reference, without weakening the lint rule.
+Files: components/contact-section.tsx, content/contact.md, lib/content.ts, log/prompts.md
