@@ -231,3 +231,31 @@ Tell me in plain English what changed and what to try.
 ```
 Changed: Made the clay game bigger and harder, with leading shots, a pellet pattern, two shells, and a larger hand.
 Files: app/page.tsx, components/clay-game-host.tsx, components/clay-game.tsx, components/finger-gun.ts, components/clay-scene.tsx, content/home.md, lib/content.ts, log/prompts.md
+
+### 2026-09-23 14:03
+Prompt:
+```
+Make the clay game feel like real clay shooting. Keep everything that already works, especially the shooting, the shells, the pellet cluster and the layout. Stop and tell me if anything fails.
+
+1. Depth. Give every clay a distance from the shooter. Far clays look smaller and slightly paler, and move more slowly across the screen. Near clays look bigger and move faster across the screen. The shot takes longer to reach far clays, so you have to lead them more: scale the shot travel time with distance, from about 80ms for the nearest clays to about 350ms for the furthest.
+
+2. Different kinds of throw, picked at random each time, like a real clay ground:
+   - Crosser: flies across the whole width of the box, left to right or right to left, at different heights.
+   - Going away: launched from just below the shooter, flying away and shrinking as it goes.
+   - Incomer: starts far away and small, grows as it comes towards you, and passes over the top of the box.
+   - High bird: a high, fast arc across the top of the box.
+   - Rabbit: rolls and bounces along the bottom of the box on its edge.
+   Vary the speed, angle, height and distance of every throw within sensible limits, so no two are the same. Every clay must stay on screen long enough to be hittable, at least about a second.
+
+3. Make the base clay size about 15% smaller and the overall speed about 20% faster than now.
+
+4. The pellet cluster keeps its look, but shrinks slightly for far clays, so distant targets need more precise aim.
+
+5. Add all of this to the settings object: how often each throw type appears, the near and far distance limits, the shot travel time range, the speed range and the size range. Also put the number of clays per round there, still 5 for now.
+
+Don't use the built-in browser, I'll play it myself. Check it loads without errors, run gitleaks git -v, commit with "Clay game: depth and real throw types" and push to main.
+
+Tell me in plain English what changed and what to try.
+```
+Changed: Gave each clay a distance and five kinds of throw, like a real clay ground.
+Files: components/clay-game.tsx, log/prompts.md
