@@ -1,12 +1,14 @@
 import { BuildsSection } from "@/components/builds-section";
+import { ContactSection } from "@/components/contact-section";
 import { ClayGameHost } from "@/components/clay-game-host";
 import { PageFrame } from "@/components/site-header";
-import { readBuilds, readHome, readSite } from "@/lib/content";
+import { readBuilds, readContact, readHome, readSite } from "@/lib/content";
 
 export default function Home() {
   const home = readHome();
   const site = readSite();
   const builds = readBuilds();
+  const contact = readContact();
 
   return (
     <PageFrame>
@@ -34,6 +36,7 @@ export default function Home() {
           </div>
         </div>
         <BuildsSection heading={site.buildsHeading} builds={builds} />
+        <ContactSection contact={contact} />
       </main>
     </PageFrame>
   );

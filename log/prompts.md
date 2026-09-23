@@ -384,3 +384,32 @@ Check /golf-agent loads without errors, run gitleaks git -v, commit with "Golf A
 ```
 Changed: Swapped the Golf Agent example for the real answer it gave.
 Files: content/builds/golf-agent.md, lib/frontmatter.ts, log/prompts.md
+
+### 2026-09-23 18:02
+Prompt:
+```
+Add a contact section at the bottom of the home page. Stop and tell me if anything fails.
+
+1. Content: create content/contact.md with draft: true, holding:
+   heading: [Contact heading]
+   intro: [Contact intro line]
+   These are placeholders I'll replace myself. Show them exactly as written.
+
+2. The email reveal:
+   - A strip in the field colour, about 140px tall, with rounded corners. One clay, drawn like the game's clays, drifts slowly and gently across it in a loop.
+   - Clicking or tapping the clay shatters it with the same shard effect as the game, then shows my email address in its place as a clickable email link, with a small "Copy" button next to it.
+   - Make the clay very easy to hit: slow, with a hit area about twice its size. It should never feel like a test.
+   - Next to the strip, always show a plain button labelled "Show email" that reveals the email straight away.
+   - Visitors with reduced motion see the clay standing still, and clicking it or the button still reveals the email.
+   - The email address must not appear anywhere in the page's HTML or in any file the browser downloads as plain text. Build it from separate pieces in JavaScript only when someone reveals it. The address is [REDACTED].
+
+3. Below the reveal, three plain links: "LinkedIn" (https://www.linkedin.com/in/jonesai), "GitHub" (https://github.com/Sneakus) and "CV (PDF)" (/Alex_Jones_CV.pdf). LinkedIn and GitHub open in a new tab. The CV downloads.
+
+4. Check the home page at 375px and 1280px wide, with nothing overflowing. Search the built site files to confirm the full email address doesn't appear in them as plain text. Don't use the built-in browser, I'll check them visually.
+
+5. Run gitleaks git -v, commit with "Contact section with clay email reveal" and push to main.
+
+Tell me in plain English what changed and what to try.
+```
+Changed: Added a contact section at the bottom of the home page, with a clay that reveals the email.
+Files: content/contact.md, lib/content.ts, components/contact-section.tsx, app/page.tsx, log/prompts.md

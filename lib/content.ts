@@ -17,6 +17,20 @@ export type HomeContent = {
   receiptsLabel: string;
 };
 
+export type ContactContent = {
+  draft: boolean;
+  heading: string;
+  intro: string;
+  showLabel: string;
+  copyLabel: string;
+  linkedInLabel: string;
+  linkedInUrl: string;
+  githubLabel: string;
+  githubUrl: string;
+  cvLabel: string;
+  cvUrl: string;
+};
+
 export type SiteContent = {
   buildsHeading: string;
   quotedTag: string;
@@ -139,6 +153,26 @@ export function readHome(): HomeContent {
     hitMark: requiredString(data, "hitMark", "content/home.md"),
     receiptsValue: requiredString(data, "receiptsValue", "content/home.md"),
     receiptsLabel: requiredString(data, "receiptsLabel", "content/home.md"),
+  };
+}
+
+export function readContact(): ContactContent {
+  const file = "content/contact.md";
+  const filePath = path.join(process.cwd(), "content", "contact.md");
+  const { data } = readMarkdown(filePath);
+
+  return {
+    draft: data.draft === "true",
+    heading: requiredString(data, "heading", file),
+    intro: requiredString(data, "intro", file),
+    showLabel: requiredString(data, "showLabel", file),
+    copyLabel: requiredString(data, "copyLabel", file),
+    linkedInLabel: requiredString(data, "linkedInLabel", file),
+    linkedInUrl: requiredString(data, "linkedInUrl", file),
+    githubLabel: requiredString(data, "githubLabel", file),
+    githubUrl: requiredString(data, "githubUrl", file),
+    cvLabel: requiredString(data, "cvLabel", file),
+    cvUrl: requiredString(data, "cvUrl", file),
   };
 }
 
