@@ -78,6 +78,14 @@ function ExamplePanel({ build }: { build: Build }) {
   }
 
   const example = build.example;
+  const answers: { line: string; bullets: string[] }[] = [];
+  for (const line of example.answer) {
+    if (line.startsWith("- ") && answers.length > 0) {
+      answers[answers.length - 1].bullets.push(line.slice(2));
+    } else {
+      answers.push({ line, bullets: [] });
+    }
+  }
 
   return (
     <aside className="my-8 rounded-2xl border border-line bg-card px-4 py-5 min-[900px]:px-6 min-[900px]:py-6">
@@ -86,11 +94,32 @@ function ExamplePanel({ build }: { build: Build }) {
         {example.question}
       </blockquote>
       <p className="mt-6 text-sm text-muted">{example.answerLabel}</p>
-      {example.answer.map((line) => (
-        <p key={line} className="mt-2 text-[17px] leading-[1.6]">
-          {line}
-        </p>
-      ))}
+      {answers.map((answer, index) => {
+        const colon = answer.line.indexOf(":");
+        return (
+          <div key={`${answer.line}-${index}`} className="mt-2">
+            <p className="text-[17px] leading-[1.6]">
+              {colon > 0 ? (
+                <>
+                  <span className="font-semibold">
+                    {answer.line.slice(0, colon)}
+                  </span>
+                  {answer.line.slice(colon)}
+                </>
+              ) : (
+                answer.line
+              )}
+            </p>
+            {answer.bullets.length > 0 ? (
+              <ul className="mt-2 list-disc space-y-1.5 pl-5 text-[17px] leading-[1.6] marker:text-muted">
+                {answer.bullets.map((bullet) => (
+                  <li key={bullet}>{bullet}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        );
+      })}
     </aside>
   );
 }

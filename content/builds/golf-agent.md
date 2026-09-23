@@ -9,8 +9,13 @@ example:
   question: "3w shot where ball was beneath my feet ended up in a slice wide right"
   answerLabel: What it said back (a real answer, 23 Sep 2026)
   answer:
-    - "Slice caused by ball-below-feet lie, not a swing fault"
-    - "Try this: Stay in your posture and let the club brush through low."
+    - "What happened: The ball-below-feet lie tilted the clubface open, promoting the slice with your fairway wood."
+    - "Before your next shot:"
+    - "- Aim left to allow for the expected right curve."
+    - "- Take one extra club, as this lie costs distance."
+    - "Swing thought: Stay at the same height all the way through the ball."
+    - "Why: With long clubs, the bent-over posture makes a full turn harder and can leave the face open through the ball."
+    - "If it keeps happening: If slices only appear from this lie, it is the lie, not your swing."
 links:
   - label: Code on GitHub
     url: https://github.com/Sneakus/Golf-Agent

@@ -558,3 +558,32 @@ Tell me in plain English what changed and what to try.
 ```
 Changed: Added score messages, one guaranteed fair mini clay, and the 5/5 hand and confetti celebration.
 Files: app/page.tsx, components/clay-game-host.tsx, components/clay-game.tsx, content/home.md, lib/content.ts, log/prompts.md
+
+### 2026-09-23 23:51
+Prompt:
+```
+Replace the Golf Agent example with a new real answer. Change nothing else on the page except where listed. Stop and tell me if anything fails.
+
+1. In content/builds/golf-agent.md, replace the whole example block in the frontmatter with this, exactly as written:
+
+example:
+  label: One of my test questions, in my own words
+  question: "3w shot where ball was beneath my feet ended up in a slice wide right"
+  answerLabel: What it said back (a real answer, 23 Sep 2026)
+  answer:
+    - "What happened: The ball-below-feet lie tilted the clubface open, promoting the slice with your fairway wood."
+    - "Before your next shot:"
+    - "- Aim left to allow for the expected right curve."
+    - "- Take one extra club, as this lie costs distance."
+    - "Swing thought: Stay at the same height all the way through the ball."
+    - "Why: With long clubs, the bent-over posture makes a full turn harder and can leave the face open through the ball."
+    - "If it keeps happening: If slices only appear from this lie, it is the lie, not your swing."
+
+2. In the example panel, show answer lines that start with "- " as bullet points under the line before them, without the dash. Show the label at the start of each answer line (the words before the first colon, like "What happened") in 600 weight.
+
+3. Check /golf-agent at 375px and 1280px wide. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "Golf Agent: richer real example" and push to main.
+
+Tell me in plain English what changed.
+```
+Changed: Replaced the Golf Agent example and formatted its answer labels and bullet points.
+Files: components/build-article.tsx, content/builds/golf-agent.md, log/prompts.md
