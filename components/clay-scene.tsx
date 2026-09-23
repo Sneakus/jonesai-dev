@@ -1,3 +1,6 @@
+export const clayBoxClass =
+  "relative h-[300px] overflow-hidden rounded-[1.75rem] bg-field min-[900px]:h-full min-[900px]:min-h-[440px]";
+
 type ClaySceneProps = {
   label: string;
   hint: string;
@@ -29,7 +32,7 @@ function Clay({
 
 export function ClayScene({ label, hint }: ClaySceneProps) {
   return (
-    <div className="relative h-[300px] overflow-hidden rounded-[1.75rem] bg-field min-[900px]:h-full min-[900px]:min-h-[440px]">
+    <div className={clayBoxClass}>
       <svg
         viewBox="0 0 640 420"
         className="absolute inset-0 h-full w-full"

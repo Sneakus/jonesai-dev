@@ -9,6 +9,9 @@ export type HomeContent = {
   intro: string;
   gameHint: string;
   gameLabel: string;
+  startLabel: string;
+  replayLabel: string;
+  gameLiveLabel: string;
   receiptsValue: string;
   receiptsLabel: string;
 };
@@ -105,6 +108,9 @@ export function readHome(): HomeContent {
     intro: requiredString(data, "intro", "content/home.md"),
     gameHint: requiredString(data, "gameHint", "content/home.md"),
     gameLabel: requiredString(data, "gameLabel", "content/home.md"),
+    startLabel: requiredString(data, "startLabel", "content/home.md"),
+    replayLabel: requiredString(data, "replayLabel", "content/home.md"),
+    gameLiveLabel: requiredString(data, "gameLiveLabel", "content/home.md"),
     receiptsValue: requiredString(data, "receiptsValue", "content/home.md"),
     receiptsLabel: requiredString(data, "receiptsLabel", "content/home.md"),
   };

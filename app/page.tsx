@@ -1,5 +1,5 @@
 import { BuildsSection } from "@/components/builds-section";
-import { ClayScene } from "@/components/clay-scene";
+import { ClayGameHost } from "@/components/clay-game-host";
 import { PageFrame } from "@/components/site-header";
 import { readBuilds, readHome, readSite } from "@/lib/content";
 
@@ -19,7 +19,13 @@ export default function Home() {
             {home.intro}
           </p>
           <div className="min-[900px]:col-start-2 min-[900px]:row-start-1 min-[900px]:row-span-3">
-            <ClayScene label={home.gameLabel} hint={home.gameHint} />
+            <ClayGameHost
+              label={home.gameLabel}
+              hint={home.gameHint}
+              startLabel={home.startLabel}
+              replayLabel={home.replayLabel}
+              liveLabel={home.gameLiveLabel}
+            />
           </div>
           <div className="border-t border-line pt-6 min-[900px]:col-start-1 min-[900px]:row-start-3 min-[900px]:self-end">
             <div className="flex items-baseline gap-4">

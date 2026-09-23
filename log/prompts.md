@@ -168,3 +168,38 @@ Commit with the message "Update rules: plain language, look, gitleaks" and push 
 ```
 Changed: Updated the site rules for plain language, colours and font, and a secrets check before every push.
 Files: .cursor/rules/aj-website.mdc, log/prompts.md
+
+### 2026-09-23 13:09
+Prompt:
+```
+Turn the static clay scene into a small playable clay shooting game with an on-screen finger-gun hand. Keep it simple, smooth and polished, like a small Google Doodle, not a full video game. Stop and tell me if anything fails.
+
+How it should behave:
+1. The static scene stays as it is and shows first. The game loads lazily after the page has appeared, then takes over the same box. If the game fails to load, or the visitor has reduced motion turned on, the static scene stays.
+2. Before starting, the box shows the static scene and a start button labelled [Start button]. It's a placeholder, keep it exactly as written. Clicking it starts a round.
+3. A round is 5 clays, launched one at a time with a short pause between them, from the lower left or lower right, alternating. Each clay flies in an arc under gravity across the box, tilting slightly as it flies, and falls out of view if missed. Draw them exactly like the static clays: orange ellipse with a thin clay-dark ring on top.
+4. The hand: a simple flat hand making a finger gun (index finger pointing, thumb up, other fingers curled) in the ink colour, at the bottom centre of the box, partly cut off by the bottom edge as if it's coming from just off screen. On desktop it turns to point wherever the mouse is. On a phone it turns to point at wherever you tap. Put the hand's drawing in its own file so I can swap it for a drawing of my real hand later.
+5. Shooting: tap or click on a clay to hit it. Make the hit area noticeably bigger than the clay, so it feels fair on a phone. On every shot, hit or miss, the hand recoils: it kicks back and tips up quickly, the thumb snaps down like a hammer, then everything springs back in about 150ms.
+6. On a hit, the clay breaks into 6 to 10 small orange shards that fly outward, spin and fall with gravity, out through the bottom of the box. On a miss, show a small faint ring where the shot landed.
+7. Show the score in the bottom-right corner as hits out of clays launched, e.g. "2 / 5". Keep the gameHint text in the bottom-left.
+8. After the fifth clay, show the final score and a button labelled [Replay button]. It's also a placeholder.
+9. On desktop, also show a small, simple crosshair in the ink colour where the mouse is.
+
+Quality:
+- Draw it on a canvas with no new libraries.
+- Make it sharp on high-resolution screens and smooth on phones, using requestAnimationFrame.
+- Pause the game when the box is off screen or the tab is hidden.
+- Taps inside the box must never stop the page from scrolling on a phone. Only a tap on the box itself counts as a shot.
+- Put every feel setting at the top of the game file in one clearly labelled settings object: gravity, launch speed, pause between clays, clay size, hit area size, shard count, shard speed, recoil distance, recoil angle, recoil time. I'll tune the game by asking you to change these numbers.
+- Write the shard code so each shard's position and movement are easy to hand over to something else. In the next step, shards will leave the box and pile up at the bottom of the screen.
+
+Accessibility:
+- The start and replay buttons are real buttons that work with the keyboard.
+- Give the game box a screen reader label: "Clay shooting game. Optional, just for fun."
+
+Check it loads without errors and doesn't block the page appearing. Don't use the built-in browser, I'll play it myself. Then run gitleaks git -v, commit with "Playable clay game with finger-gun hand" and push to main.
+
+Tell me in plain English what changed and what to try.
+```
+Changed: Added a small clay shooting game that loads after the static scene.
+Files: app/page.tsx, components/clay-game-host.tsx, components/clay-game.tsx, components/finger-gun.ts, components/clay-scene.tsx, content/home.md, lib/content.ts, log/prompts.md
