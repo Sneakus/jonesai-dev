@@ -136,3 +136,35 @@ Tell me when it's pushed.
 ```
 Changed: Added the Meeting plan agent page and Builds section, and a rule not to use the built-in browser.
 Files: app/globals.css, app/page.tsx, app/[slug]/page.tsx, components/build-article.tsx, components/builds-section.tsx, components/site-header.tsx, content/builds/meeting-plan-agent.md, content/site.md, lib/content.ts, lib/frontmatter.ts, log/prompts.md, .cursor/rules/aj-website.mdc
+
+### 2026-09-23 01:31
+Prompt:
+```
+Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.
+```
+Changed: Nothing. The failed background jobs were the frozen local site, already replaced.
+Files: log/prompts.md
+
+### 2026-09-23 01:42
+Prompt:
+```
+Update .cursor/rules/aj-website.mdc with these changes. Keep everything else as it is.
+
+1. Under "Site copy", add:
+- Anything a visitor reads must be understandable by someone with no tech background. No jargon in labels, headings, alt text or buttons.
+
+2. Add a new section called "Look", after "Site copy":
+- Use only the colour tokens in globals.css. Never add new colours. Clay orange is the only accent.
+- Instrument Sans is the only font. Never add another.
+- The site is always light. Never add dark mode.
+
+3. Under "Secrets and safety", add:
+- Run gitleaks git -v before every push, and stop if it finds anything.
+
+4. Under "Performance and access", replace the line about the clay game with:
+- The clay game is an extra layer, never a requirement or a gate. Load it lazily, never block the first paint, and show the static clay scene until it's ready or if it fails. Visitors with reduced motion see the static version.
+
+Commit with the message "Update rules: plain language, look, gitleaks" and push to main.
+```
+Changed: Updated the site rules for plain language, colours and font, and a secrets check before every push.
+Files: .cursor/rules/aj-website.mdc, log/prompts.md

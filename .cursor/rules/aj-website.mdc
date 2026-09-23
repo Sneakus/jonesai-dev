@@ -44,11 +44,17 @@ Format:
   - None of these words: leveraging, synergy, stakeholder, passionate about, end to end, results-driven, cross-functional.
   - No bold in the middle of sentences.
   - Never name the company behind the Meeting plan agent take-home. It is "a take-home for an AI agency".
+- Anything a visitor reads must be understandable by someone with no tech background. No jargon in labels, headings, alt text or buttons.
+
+## Look
+- Use only the colour tokens in globals.css. Never add new colours. Clay orange is the only accent.
+- Instrument Sans is the only font. Never add another.
+- The site is always light. Never add dark mode.
 
 ## Performance and access (non-negotiable)
 - Mobile first. Check every layout at 375px wide before anything else.
 - The hero text ("I can't code.") renders as real HTML on the server and appears before any canvas, game or animation loads.
-- The clay target game is an extra layer, not a requirement. Load it lazily, never block the first paint, and show a static fallback until it's ready or if it fails.
+- The clay game is an extra layer, never a requirement or a gate. Load it lazily, never block the first paint, and show the static clay scene until it's ready or if it fails. Visitors with reduced motion see the static version.
 - Respect `prefers-reduced-motion`: no game animation or scroll effects for those visitors, only the static version.
 - Everything important is readable with JavaScript turned off.
 - Images through `next/image`. Videos lazy-loaded, muted by default, with captions.
@@ -60,6 +66,7 @@ Format:
 ## Secrets and safety
 - Never put API keys or secrets in code. Use environment variables, and keep `.env*` files in `.gitignore`.
 - Never suggest changes to DNS email records (MX, SPF, DKIM, DMARC). Email for the domain runs on Migadu.
+- Run gitleaks git -v before every push, and stop if it finds anything.
 
 ## Git
 - Keep each change small and focused.
