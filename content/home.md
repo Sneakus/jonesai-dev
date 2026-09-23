@@ -2,7 +2,9 @@
 draft: true
 name: AJ
 title: I can't code.
-intro: AJ, a startup operator who builds with AI and has a creative streak.
+intro: Startup operator, making a bunch of stuff with AI
+metaTitle: AJ - Startup operator, making a bunch of stuff with AI
+metaDescription: I'm not a coder
 gameHint: Get smashing
 gameLabel: Clay targets in flight
 startLabel: Pull

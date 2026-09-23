@@ -650,3 +650,60 @@ Briefly inform the user about the task result and perform any follow-up actions 
 ```
 Changed: Confirmed the completed result; no website changes were needed.
 Files: log/prompts.md
+
+### 2026-09-24 00:24
+Prompt:
+```
+Update the intro and add a link preview. Stop and tell me if anything fails.
+
+1. In content/home.md, set intro: Startup operator, making a bunch of stuff with AI
+
+2. Link preview for the home page (what shows when the link is pasted into LinkedIn, WhatsApp, iMessage and similar):
+   - Title: AJ - Startup operator, making a bunch of stuff with AI
+   - Description: I'm not a coder
+   - Use the same title for the home page's browser tab.
+
+3. Share image, 1200 by 630, made with Next.js's built-in image generation so it always matches the site: the paper background, "I can't code." very large in Instrument Sans in the ink colour, one clay in clay orange drawn like the game's clays, and "AJ" small in a corner. Use it for the home page and as the default for every page. Build pages keep their own titles and descriptions.
+
+4. Set the site's base address, used to build full preview links, to https://jonesai-dev.vercel.app for now. Keep it in one clearly labelled place, so I can switch it to https://jonesai.dev when the domain is connected.
+
+5. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "Intro update and link preview" and push to main.
+
+Tell me in plain English what changed and how to test the preview.
+```
+Changed: Started the intro and link preview update, but stopped when the generated share image failed the production build.
+Files: app/[slug]/page.tsx, app/layout.tsx, app/opengraph-image.tsx, content/home.md, lib/content.ts, lib/site-config.ts, log/prompts.md
+
+### 2026-09-24 00:44
+Prompt:
+```
+Carry on with the intro and link preview change. The share image needs Instrument Sans as a TTF, not WOFF2.
+
+1. Get Instrument Sans from its official source (the Google Fonts repository on GitHub, under the Open Font License) and save a single static TTF at the weight the headline uses into the project, for example assets/fonts/InstrumentSans-SemiBold.ttf, with its licence file alongside it. If the official download is only a variable font, make a static instance at that weight first. The share image generator doesn't handle variable fonts well.
+
+2. Load that TTF in the share image code only. The rest of the site keeps using next/font as it does now.
+
+3. If saving the font file into the project isn't possible, load the TTF from the Google Fonts API at build time instead, limited to the characters the image needs.
+
+4. Then finish the remaining steps from before: the build must pass, check the share image renders correctly at /opengraph-image, run the code check and gitleaks git -v, commit with "Intro update and link preview" and push to main.
+
+Tell me in plain English what changed and how to test the preview.
+```
+Changed: Added an official static Instrument Sans TTF and licence, but stopped when Next.js could not fetch the local font file during the production build.
+Files: app/[slug]/page.tsx, app/layout.tsx, app/opengraph-image.tsx, assets/fonts/InstrumentSans-Medium.ttf, assets/fonts/OFL.txt, content/home.md, lib/content.ts, lib/site-config.ts, log/prompts.md
+
+### 2026-09-24 00:48
+Prompt:
+```
+Go ahead with your approach: read the TTF directly from the filesystem in the share image generator.
+
+1. Read assets/fonts/ with readFile and a path built from process.cwd(), so it works on Windows and on Vercel. Make sure the share image route runs on the Node.js runtime, not Edge, since Edge can't read files.
+
+2. Make sure the font file is included when Vercel builds and deploys the site, so the image still works live, not just on this computer.
+
+3. Then finish: the production build must pass, check /opengraph-image renders the paper background, "I can't code.", the clay and "AJ", run the code check and gitleaks git -v, commit with "Intro update and link preview" and push to main.
+
+Tell me in plain English what changed and how to test the preview.
+```
+Changed: Finished the intro and social link preview with a generated image that uses the bundled static Instrument Sans font.
+Files: app/[slug]/page.tsx, app/layout.tsx, app/opengraph-image.tsx, assets/fonts/InstrumentSans-Medium.ttf, assets/fonts/OFL.txt, content/home.md, lib/content.ts, lib/site-config.ts, log/prompts.md, next.config.ts

@@ -7,6 +7,8 @@ export type HomeContent = {
   name: string;
   title: string;
   intro: string;
+  metaTitle: string;
+  metaDescription: string;
   gameHint: string;
   gameLabel: string;
   startLabel: string;
@@ -151,6 +153,8 @@ export function readHome(): HomeContent {
     name: requiredString(data, "name", "content/home.md"),
     title: requiredString(data, "title", "content/home.md"),
     intro: requiredString(data, "intro", "content/home.md"),
+    metaTitle: requiredString(data, "metaTitle", "content/home.md"),
+    metaDescription: requiredString(data, "metaDescription", "content/home.md"),
     gameHint: requiredString(data, "gameHint", "content/home.md"),
     gameLabel: requiredString(data, "gameLabel", "content/home.md"),
     startLabel: requiredString(data, "startLabel", "content/home.md"),
