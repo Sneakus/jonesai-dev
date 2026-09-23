@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { clayBoxClass } from "@/components/clay-scene";
-import { drawFingerGun } from "@/components/finger-gun";
 
 // Feel settings. Change these numbers to tune the game.
 export const settings = {
@@ -12,9 +11,10 @@ export const settings = {
   hitAreaSize: 8, // extra pixels around a clay that still count when a pellet is close
   shardCount: 8, // pieces when a clay breaks
   shardSpeed: 340, // how fast those pieces fly apart
-  recoilDistance: 18, // how far the hand kicks back
-  recoilAngle: 16, // how far the hand tips up, in degrees
+  recoilDistance: 12, // how far the hand kicks back, in pixels
+  recoilAngle: 9, // how far the hand tips on a shot, in degrees
   recoilTime: 150, // how long the kick lasts, in milliseconds
+  reloadTime: 350, // wait after a shot before the next one counts, in milliseconds
   patternSize: 28, // how far pellets scatter around the aim point for a near clay
   pelletCount: 12, // dots in each shot
   shakeStrength: 2, // pixels the box shakes on a hit. 0 turns the shake off
@@ -26,6 +26,19 @@ export const settings = {
   throwIncomer: 2,
   throwHigh: 2,
   throwRabbit: 2,
+  throwBattue: 2,
+  throwTeal: 2,
+
+  // How often each clay size appears. Most throws should stay standard.
+  sizeStandard: 6,
+  sizeMidi: 2, // about 25% smaller
+  sizeMini: 1, // about half the size, and a bit faster
+
+  windStrength: 0.1, // sideways drift as a share of the box width. 0 is no wind
+
+  handFollow: 0.5, // how much of the way the hand follows the aim. 1 would point straight at it
+  handTilt: 16, // furthest the hand will tilt, in degrees
+  handSmoothing: 140, // how quickly the arm catches up, in milliseconds. 0 snaps
 
   nearDistance: 0.42, // closest a clay can be. Lower is closer to the shooter
   farDistance: 1, // furthest a clay can be
@@ -47,8 +60,10 @@ const shakeTime = 110;
 const floaterTime = 480;
 const minAirTime = 1.08;
 const farPattern = 0.78;
+// Where the hand picture points before it tilts. Up and left, from its bottom-right corner.
+const handPoint = Math.atan2(48 - 1361, 220 - 860);
 
-type ThrowKind = "crosser" | "away" | "incomer" | "high" | "rabbit";
+type ThrowKind = "crosser" | "away" | "incomer" | "high" | "rabbit" | "battue" | "teal";
 
 type Clay = {
   x: number;
@@ -70,6 +85,10 @@ type Clay = {
   cy: number;
   distance0: number;
   distance1: number;
+  sizeScale: number;
+  wind: number;
+  hang: number;
+  hangLimit: number;
 };
 
 export type Shard = {
@@ -157,6 +176,8 @@ function pickThrow(): ThrowKind {
     { kind: "incomer", weight: settings.throwIncomer },
     { kind: "high", weight: settings.throwHigh },
     { kind: "rabbit", weight: settings.throwRabbit },
+    { kind: "battue", weight: settings.throwBattue },
+    { kind: "teal", weight: settings.throwTeal },
   ];
   const total = options.reduce((sum, option) => sum + Math.max(0, option.weight), 0);
   let roll = Math.random() * (total || 1);
@@ -196,13 +217,40 @@ function mixColor(from: string, to: string, amount: number) {
   return `rgb(${red}, ${green}, ${blue})`;
 }
 
+function pickSize() {
+  const options = [
+    { scale: 1, weight: settings.sizeStandard },
+    { scale: 0.75, weight: settings.sizeMidi },
+    { scale: 0.5, weight: settings.sizeMini },
+  ];
+  const total = options.reduce((sum, option) => sum + Math.max(0, option.weight), 0);
+  let roll = Math.random() * (total || 1);
+  for (const option of options) {
+    roll -= Math.max(0, option.weight);
+    if (roll <= 0) {
+      return option.scale;
+    }
+  }
+  return 1;
+}
+
 function lookOf(clay: Clay) {
   const t = distanceT(clay.distance);
-  const width = settings.claySize * lerp(settings.sizeNear, settings.sizeFar, t);
+  const width =
+    settings.claySize * lerp(settings.sizeNear, settings.sizeFar, t) * clay.sizeScale;
   const disc = width / 2;
   const pale = t * 0.4;
   if (clay.kind === "rabbit") {
     return { rx: Math.max(disc * 0.38, 6), ry: disc, pale, disc };
+  }
+  if (clay.kind === "battue") {
+    const flip = Math.min(1, Math.abs(clay.roll) / 2.2);
+    return {
+      rx: disc * lerp(0.78, 1, flip),
+      ry: disc * (24 / 78) * lerp(0.28, 1.2, flip),
+      pale,
+      disc,
+    };
   }
   return { rx: disc, ry: disc * (24 / 78), pale, disc };
 }
@@ -315,7 +363,11 @@ function drawClay(
   }
 
   const tilt = Math.max(-0.45, Math.min(0.45, Math.atan2(clay.vy, clay.vx) * 0.28));
-  ctx.rotate(tilt);
+  if (clay.kind === "battue") {
+    ctx.rotate(clay.roll + tilt * (1 - Math.min(1, Math.abs(clay.roll) / 2)));
+  } else {
+    ctx.rotate(tilt);
+  }
   ctx.fillStyle = fill;
   ctx.beginPath();
   ctx.ellipse(0, look.ry * 0.16, look.rx, look.ry, 0, 0, Math.PI * 2);
@@ -346,41 +398,6 @@ function drawShard(ctx: CanvasRenderingContext2D, shard: Shard, color: string) {
   ctx.restore();
 }
 
-function Shell({ full }: { full: boolean }) {
-  return (
-    <svg viewBox="0 0 18 40" className="h-8 w-4 text-ink" aria-hidden="true">
-      <path
-        d="M4 12 L9 4 L14 12"
-        fill={full ? "currentColor" : "none"}
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <rect
-        x="3.5"
-        y="11"
-        width="11"
-        height="18"
-        rx="1.5"
-        fill={full ? "currentColor" : "none"}
-        stroke="currentColor"
-        strokeWidth="1.6"
-      />
-      <rect
-        x="2.5"
-        y="27"
-        width="13"
-        height="7"
-        rx="1.5"
-        fill={full ? "currentColor" : "none"}
-        stroke="currentColor"
-        strokeWidth="1.6"
-      />
-      {full ? <rect x="3.5" y="17" width="11" height="3.5" className="fill-clay" /> : null}
-    </svg>
-  );
-}
-
 export function ClayGame({
   hint,
   replayLabel,
@@ -395,12 +412,12 @@ export function ClayGame({
   onFail: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const handRef = useRef<HTMLImageElement>(null);
   const replayRef = useRef<HTMLButtonElement>(null);
   const onFailRef = useRef(onFail);
   const hitMarkRef = useRef(hitMark);
   const [score, setScore] = useState({ hits: 0, launched: 0 });
   const [over, setOver] = useState(false);
-  const [shells, setShells] = useState(0);
 
   useEffect(() => {
     onFailRef.current = onFail;
@@ -435,8 +452,11 @@ export function ClayGame({
     let launched = 0;
     let hits = 0;
     let finished = false;
-    let shellsLeft = 0;
     let nextLaunchAt = performance.now() + 280;
+    let readyAt = 0;
+    let handDeg = 0;
+    let dtHand = 0.016;
+    let nextSize = 1;
     let recoilAt = 0;
     let shakeAt = 0;
     let clay: Clay | null = null;
@@ -495,6 +515,10 @@ export function ClayGame({
       cy: 0,
       distance0: distance,
       distance1: distance,
+      sizeScale: nextSize,
+      wind: (Math.random() - 0.5) * 2 * settings.windStrength,
+      hang: 0,
+      hangLimit: nextSize <= 0.55 ? 0.16 : 0.28,
     });
 
     const placePath = (target: Clay, amount: number) => {
@@ -504,12 +528,14 @@ export function ClayGame({
         target.x = lerp(target.x0, target.x1, ease) + Math.sin(ease * Math.PI) * target.cx;
         target.y = lerp(target.y0, target.y1, ease);
         target.distance = lerp(target.distance0, target.distance1, ease);
+        target.x += target.wind * width * 0.42 * Math.sin(u * Math.PI);
         return;
       }
       const rest = 1 - u;
       target.x = rest * rest * target.x0 + 2 * rest * u * target.cx + u * u * target.x1;
       target.y = rest * rest * target.y0 + 2 * rest * u * target.cy + u * u * target.y1;
       target.distance = lerp(target.distance0, target.distance1, u);
+      target.x += target.wind * width * 0.42 * Math.sin(u * Math.PI);
     };
 
     const visibleShare = (target: Clay) => {
@@ -559,19 +585,24 @@ export function ClayGame({
       return 1 / widthsPerSecond;
     };
 
+    const flightTime = (distance: number, pace: number) => {
+      const boost = nextSize <= 0.55 ? 1.32 : 1;
+      return Math.max(minAirTime, paceTime(distance, pace) / boost);
+    };
+
     const launchCrosser = (kind: "crosser" | "high") => {
       const distance =
         kind === "high" ? pickDistance(0.45, 1) : pickDistance(0, 1);
       const target = freshClay(kind, distance);
       const direction = Math.random() < 0.5 ? 1 : -1;
-      const time = paceTime(distance, kind === "high" ? pickPace(0.62, 1) : pickPace(0, 1));
+      const time = flightTime(distance, kind === "high" ? pickPace(0.62, 1) : pickPace(0, 1));
       const look = lookOf(target);
       const riseLimit = kind === "high" ? 0.1 : 0.2;
       const yMin = kind === "high" ? height * 0.1 : height * 0.32;
       const yMax = kind === "high" ? height * 0.28 : height * 0.66;
       target.y = rand(yMin, Math.max(yMin + 8, yMax));
       const rise = Math.min(height * rand(kind === "high" ? 0.03 : 0.07, riseLimit), target.y - 14);
-      const duration = Math.max(time, minAirTime);
+      const duration = time;
       const gravity = Math.max(rise, 12) / (0.125 * duration * duration);
       const span = width + look.rx * 2;
       target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
@@ -593,9 +624,9 @@ export function ClayGame({
       target.x1 = width * rand(0.22, 0.78);
       target.y1 = -height * rand(0.06, 0.14);
       target.cx = (Math.random() - 0.5) * width * 0.18;
-      target.duration = Math.max(
-        paceTime((target.distance0 + target.distance1) / 2, pickPace(0.15, 0.9)),
-        minAirTime,
+      target.duration = flightTime(
+        (target.distance0 + target.distance1) / 2,
+        pickPace(0.15, 0.9),
       );
       holdLongEnough(target);
       aimPath(target);
@@ -616,9 +647,9 @@ export function ClayGame({
         Math.min(width * 0.84, lerp(target.x0, target.x1, 0.4) + width * rand(-0.1, 0.1)),
       );
       target.cy = height * rand(0.4, 0.62);
-      target.duration = Math.max(
-        paceTime((target.distance0 + target.distance1) / 2, pickPace(0.25, 1)),
-        minAirTime,
+      target.duration = flightTime(
+        (target.distance0 + target.distance1) / 2,
+        pickPace(0.25, 1),
       );
       holdLongEnough(target);
       aimPath(target);
@@ -629,7 +660,7 @@ export function ClayGame({
       const distance = pickDistance(0, 0.5);
       const target = freshClay("rabbit", distance);
       const direction = Math.random() < 0.5 ? 1 : -1;
-      const time = Math.max(paceTime(distance, pickPace(0.2, 0.62)), minAirTime);
+      const time = flightTime(distance, pickPace(0.2, 0.62));
       const look = lookOf(target);
       const span = width + look.rx * 2;
       target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
@@ -641,11 +672,47 @@ export function ClayGame({
       return target;
     };
 
+    const launchBattue = () => {
+      const distance = pickDistance(0.1, 0.8);
+      const target = freshClay("battue", distance);
+      const direction = Math.random() < 0.5 ? 1 : -1;
+      const duration = Math.max(flightTime(distance, pickPace(0.4, 0.95)), minAirTime * 1.25);
+      target.roll = 0;
+      const look = lookOf(target);
+      target.y = rand(height * 0.28, height * 0.52);
+      const rise = Math.min(height * rand(0.02, 0.05), target.y - 14);
+      const gravity = Math.max(rise, 10) / (0.125 * duration * duration);
+      const span = width + look.rx * 2;
+      target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
+      target.vx = (direction * span) / duration;
+      target.vy = -0.5 * gravity * duration;
+      target.gravityScale = gravity / Math.max(settings.gravity, 1);
+      target.duration = duration;
+      return target;
+    };
+
+    const launchTeal = () => {
+      const distance = pickDistance(0.15, 0.7);
+      const target = freshClay("teal", distance);
+      const boost = nextSize <= 0.55 ? 1.28 : 1;
+      target.x = width * rand(0.3, 0.7);
+      target.y = height * rand(0.62, 0.8);
+      const peak = height * rand(0.12, 0.24);
+      const rise = Math.max(48, target.y - peak);
+      const gravity = settings.gravity * 0.62 * boost;
+      target.gravityScale = 0.62 * boost;
+      target.vy = -Math.sqrt(2 * gravity * rise);
+      target.vx = (Math.random() - 0.5) * width * 0.05;
+      target.duration = 1.7;
+      return target;
+    };
+
     const launch = () => {
       if (width < 20 || height < 20) {
         nextLaunchAt = performance.now() + 50;
         return;
       }
+      nextSize = pickSize();
       const kind = pickThrow();
       if (kind === "crosser" || kind === "high") {
         clay = launchCrosser(kind);
@@ -653,13 +720,15 @@ export function ClayGame({
         clay = launchAway();
       } else if (kind === "incomer") {
         clay = launchIncomer();
+      } else if (kind === "battue") {
+        clay = launchBattue();
+      } else if (kind === "teal") {
+        clay = launchTeal();
       } else {
         clay = launchRabbit();
       }
       launched += 1;
       nextLaunchAt = 0;
-      shellsLeft = 2;
-      setShells(2);
       publish();
     };
 
@@ -688,13 +757,12 @@ export function ClayGame({
     };
 
     const shoot = (x: number, y: number, now: number) => {
-      if (shellsLeft <= 0) {
-        return;
-      }
-      shellsLeft -= 1;
-      setShells(shellsLeft);
       aimX = x;
       aimY = y;
+      if (now < readyAt) {
+        return;
+      }
+      readyAt = now + settings.reloadTime;
       recoilAt = now;
       const distance = clay ? clay.distance : null;
       const t = distance == null ? 0.45 : distanceT(distance);
@@ -751,8 +819,7 @@ export function ClayGame({
       launched = 0;
       hits = 0;
       finished = false;
-      shellsLeft = 0;
-      setShells(0);
+      readyAt = 0;
       clay = null;
       shards.length = 0;
       shots.length = 0;
@@ -843,16 +910,24 @@ export function ClayGame({
       }
       ctx.restore();
 
-      const kick = kickAmount(now, recoilAt);
-      const handX = width / 2;
-      const handY = height + 20;
-      const aim = Math.atan2(aimY - handY, aimX - handX);
-      ctx.save();
-      ctx.translate(handX, handY);
-      ctx.rotate(aim - kick * ((settings.recoilAngle * Math.PI) / 180));
-      ctx.translate(-kick * settings.recoilDistance, 0);
-      drawFingerGun(ctx, colors.ink, kick);
-      ctx.restore();
+      const hand = handRef.current;
+      if (hand && width > 0 && height > 0) {
+        const reach = height >= 500 ? 0.45 : 0.36;
+        hand.style.height = `${Math.round(height * reach)}px`;
+        const aimAngle = Math.atan2(aimY - height, aimX - width);
+        const needed = Math.atan2(Math.sin(aimAngle - handPoint), Math.cos(aimAngle - handPoint));
+        let targetDeg = ((needed * 180) / Math.PI) * settings.handFollow;
+        const tilt = Math.max(0, settings.handTilt);
+        targetDeg = Math.max(-tilt, Math.min(tilt, targetDeg));
+        const smooth = settings.handSmoothing;
+        const blend = smooth <= 0 ? 1 : 1 - Math.exp((-(dtHand || 0.016) * 1000) / smooth);
+        handDeg += (targetDeg - handDeg) * blend;
+        const kick = kickAmount(now, recoilAt);
+        const kickX = kick * settings.recoilDistance * 0.4;
+        const kickY = -kick * settings.recoilDistance;
+        const rot = handDeg + kick * settings.recoilAngle;
+        hand.style.transform = `translate(${kickX.toFixed(2)}px, ${kickY.toFixed(2)}px) rotate(${rot.toFixed(2)}deg)`;
+      }
 
       if (finePointer && pointerInside) {
         ctx.strokeStyle = colors.ink;
@@ -887,6 +962,7 @@ export function ClayGame({
       frame = window.requestAnimationFrame(tick);
 
       const dt = Math.min(0.032, last === 0 ? 0.016 : (now - last) / 1000);
+      dtHand = dt;
       last = now;
 
       if (!clay && !finished && nextLaunchAt > 0 && now >= nextLaunchAt) {
@@ -902,10 +978,46 @@ export function ClayGame({
           clay.vx = (clay.x - prevX) / Math.max(dt, 0.001);
           clay.vy = (clay.y - prevY) / Math.max(dt, 0.001);
         } else {
+          const bow = (age: number, span: number, wind: number) =>
+            Math.sin(Math.min(1, Math.max(0, age) / Math.max(span, 0.4)) * Math.PI) *
+            wind *
+            width *
+            0.42;
+          const sideways = clay.kind === "teal";
+          const before = bow(clay.age, clay.duration, clay.wind);
           clay.age += dt;
-          clay.vy += settings.gravity * clay.gravityScale * dt;
+          let gravityScale = clay.gravityScale;
+          if (
+            clay.kind === "teal" &&
+            clay.y < height * 0.45 &&
+            Math.abs(clay.vy) < height * 0.22 &&
+            clay.hang < clay.hangLimit
+          ) {
+            clay.hang += dt;
+            gravityScale = 0.14;
+          }
+          if (clay.kind === "battue" && clay.age > clay.duration * 0.7) {
+            gravityScale += 1.2;
+            clay.roll += dt * 8;
+          }
+          clay.vy += settings.gravity * gravityScale * dt;
           clay.x += clay.vx * dt;
           clay.y += clay.vy * dt;
+          const after = bow(clay.age, clay.duration, clay.wind);
+          if (clay.kind === "rabbit") {
+            clay.vx += clay.wind * width * 0.25 * dt;
+          } else if (sideways) {
+            clay.x += after - before;
+          } else {
+            clay.y += after - before;
+          }
+          if (clay.kind === "teal") {
+            const look = lookOf(clay);
+            if (clay.y < look.ry + 8 && clay.vy < 0) {
+              clay.y = look.ry + 8;
+              clay.vy = 0;
+            }
+          }
           if (clay.kind === "rabbit") {
             const look = lookOf(clay);
             const floor = height - look.ry;
@@ -1047,13 +1159,18 @@ export function ClayGame({
         style={{ touchAction: "pan-y" }}
         aria-hidden="true"
       />
-      <p className="pointer-events-none absolute bottom-4 left-4 max-w-[58%] text-[13px] leading-snug text-muted">
+      <p className="pointer-events-none absolute bottom-4 left-4 max-w-[46%] text-[13px] leading-snug text-muted">
         {hint}
       </p>
-      <div className="pointer-events-none absolute right-4 bottom-4 flex items-end gap-1.5">
-        <Shell full={shells > 0} />
-        <Shell full={shells > 1} />
-      </div>
+      <img
+        ref={handRef}
+        src="/hand.svg"
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        className="pointer-events-none absolute right-0 bottom-0 h-auto max-w-none select-none"
+        style={{ transformOrigin: "100% 100%" }}
+      />
       {score.launched > 0 ? (
         <p
           className="pointer-events-none absolute top-4 right-4 text-[13px] font-medium text-ink"
@@ -1070,7 +1187,6 @@ export function ClayGame({
           onClick={() => {
             setScore({ hits: 0, launched: 0 });
             setOver(false);
-            setShells(0);
             const canvas = canvasRef.current;
             canvas?.dispatchEvent(new Event("replay"));
           }}

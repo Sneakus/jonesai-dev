@@ -259,3 +259,31 @@ Tell me in plain English what changed and what to try.
 ```
 Changed: Gave each clay a distance and five kinds of throw, like a real clay ground.
 Files: components/clay-game.tsx, log/prompts.md
+
+### 2026-09-23 14:43
+Prompt:
+```
+Update the clay game. Keep everything else that already works. Stop and tell me if anything fails.
+
+1. Remove the two-shell ammo system completely: the shells, the two-shots-per-clay limit and the refill. Instead, add a short reload between shots of about 350ms, so rapid clicking doesn't work. Put the reload time in the settings object.
+
+2. More flight variety, mixed in with the existing throw types:
+   - Clay sizes: standard, midi (about 25% smaller) and mini (about 50% smaller and faster). Most throws are standard.
+   - Battue: a thin clay that flies flat, then rolls over and dives near the end of its flight.
+   - Teal: launches almost straight up, slows and hangs at the top, then drops.
+   - Wind: every throw gets a small random sideways drift, so paths curve slightly.
+   Every clay must still stay on screen long enough to be hittable. Add how often each appears, the size mix and the wind strength to the settings object.
+
+3. Replace the hand drawing with public/hand.svg. It's a first-person view of my own hand, seen from behind my shoulder, with the arm running off the bottom-right corner:
+   - Anchor it to the bottom-right of the game box so the arm always runs off the edge, with the hand reaching up to about 45% of the box height on desktop, and a bit smaller on phones.
+   - As you aim, it slides left and right to partly follow the aim point (not all the way) and tilts slightly so the hand points towards it. Smooth the movement so it feels like a real arm, not snapping.
+   - On each shot, a quick recoil: the hand kicks up and back slightly and settles in about 150ms.
+   - Clicks on top of the hand still count as shots at that spot.
+   Put follow amount, tilt amount, smoothing and recoil in the settings object.
+
+Don't use the built-in browser, I'll play it myself. Check it loads without errors, run gitleaks git -v, commit with "Clay game: first-person hand, reload, more throw types" and push to main.
+
+Tell me in plain English what changed and what to try.
+```
+Changed: Replaced the drawn hand with AJ's hand picture, added a short reload, and mixed in more throw types.
+Files: components/clay-game.tsx, components/finger-gun.ts, public/hand.svg, log/prompts.md
