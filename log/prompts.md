@@ -313,3 +313,28 @@ Tell me in plain English what changed and what to try.
 ```
 Changed: Swapped the single hand picture for six photos that turn and recoil with the aim.
 Files: components/clay-game.tsx, public/hand.svg, public/hand/hand-left.webp, public/hand/hand-straight.webp, public/hand/hand-right.webp, public/hand/hand-recoil-left.webp, public/hand/hand-recoil-straight.webp, public/hand/hand-recoil-right.webp, log/prompts.md
+
+### 2026-09-23 16:19
+Prompt:
+```
+Some clays fly outside the game box and can't really be shot. Fix it without losing the variety. Keep everything else as it is. Stop and tell me if anything fails.
+
+1. Before each clay launches, work out its whole flight path in advance using the same physics the game uses (speed, angle, gravity, wind, depth, and the special movement for battue, teal and rabbit).
+
+2. A throw only counts as fair if:
+   - at least 75% of its flight is inside the visible game box, with a small margin from the edges (about 4% of the box size),
+   - it's shootable for at least 1.2 seconds in total,
+   - it doesn't spend more than a quarter of its visible flight hidden behind the hand.
+
+3. If a throw isn't fair, pick new random values for it and check again, up to 20 times. If none pass, use a simple safe crosser through the middle of the box.
+
+4. Work the paths out relative to the box's actual size, so throws are fair on both a wide desktop box and a narrow phone box.
+
+5. Put the visible percentage, edge margin, minimum shootable time, hand overlap limit and number of retries in the settings object.
+
+Don't use the built-in browser, I'll play it myself. Check it loads without errors, run gitleaks git -v, commit with "Clay game: only fair throws" and push to main.
+
+Tell me in plain English what changed and what to try.
+```
+Changed: Each clay is checked before it flies, and only a throw you can actually shoot is used.
+Files: components/clay-game.tsx, log/prompts.md
