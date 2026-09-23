@@ -9,6 +9,7 @@ type ClayGameHostProps = {
   startLabel: string;
   replayLabel: string;
   liveLabel: string;
+  hitMark: string;
 };
 
 export function ClayGameHost({
@@ -17,6 +18,7 @@ export function ClayGameHost({
   startLabel,
   replayLabel,
   liveLabel,
+  hitMark,
 }: ClayGameHostProps) {
   const [Game, setGame] = useState<
     typeof import("@/components/clay-game").ClayGame | null
@@ -54,6 +56,7 @@ export function ClayGameHost({
         hint={hint}
         replayLabel={replayLabel}
         liveLabel={liveLabel}
+        hitMark={hitMark}
         onFail={() => {
           setPlaying(false);
           setFailed(true);
@@ -63,7 +66,7 @@ export function ClayGameHost({
   }
 
   return (
-    <div className="relative h-full">
+    <div className="relative">
       <ClayScene label={label} hint={hint} />
       {Game && !failed ? (
         <button

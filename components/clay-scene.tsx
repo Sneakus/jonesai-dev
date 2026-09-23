@@ -1,5 +1,5 @@
 export const clayBoxClass =
-  "relative h-[300px] overflow-hidden rounded-[1.75rem] bg-field min-[900px]:h-full min-[900px]:min-h-[440px]";
+  "relative h-[360px] w-full overflow-hidden rounded-[1.75rem] bg-field min-[900px]:h-[560px]";
 
 type ClaySceneProps = {
   label: string;

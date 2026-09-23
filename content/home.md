@@ -8,6 +8,7 @@ gameLabel: Clay targets in flight
 startLabel: "[Start button]"
 replayLabel: "[Replay button]"
 gameLiveLabel: Clay shooting game. Optional, just for fun.
+hitMark: "+1"
 receiptsValue: 0
 receiptsLabel: "[Receipts line]"
 ---

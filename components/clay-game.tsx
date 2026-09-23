@@ -7,16 +7,25 @@ import { drawFingerGun } from "@/components/finger-gun";
 // Feel settings. Change these numbers to tune the game.
 export const settings = {
   gravity: 1000, // how fast clays and pieces fall
-  launchSpeed: 680, // how hard each clay is thrown
+  launchSpeed: 850, // how hard each clay is thrown
   pauseBetweenClays: 560, // wait after one clay before the next, in milliseconds
-  claySize: 86, // width of a clay
-  hitAreaSize: 32, // extra pixels around a clay that still count as a hit
+  claySize: 60, // width of a clay
+  hitAreaSize: 8, // extra pixels around a clay that still count when a pellet is close
   shardCount: 8, // pieces when a clay breaks
   shardSpeed: 340, // how fast those pieces fly apart
   recoilDistance: 18, // how far the hand kicks back
   recoilAngle: 16, // how far the hand tips up, in degrees
   recoilTime: 150, // how long the kick lasts, in milliseconds
+  shotTravelTime: 100, // how long a shot takes to reach the aim point, in milliseconds
+  patternSize: 28, // how far pellets scatter around the aim point
+  pelletCount: 12, // dots in each shot
+  shakeStrength: 2, // pixels the box shakes on a hit. 0 turns the shake off
 };
+
+const pelletFade = 400;
+const shakeTime = 110;
+const floaterTime = 480;
+const launchAngle = 1.12;
 
 type Clay = {
   x: number;
@@ -36,7 +45,18 @@ export type Shard = {
   size: number;
 };
 
-type MissRing = {
+type Pellet = {
+  x: number;
+  y: number;
+};
+
+type Shot = {
+  pellets: Pellet[];
+  arriveAt: number;
+  born: number;
+};
+
+type Floater = {
   x: number;
   y: number;
   born: number;
@@ -48,8 +68,6 @@ type Colors = {
   ink: string;
   field: string;
 };
-
-const launchAngle = 1.12;
 
 function readColors(box: HTMLElement): Colors {
   const styles = getComputedStyle(box);
@@ -108,6 +126,31 @@ function kickAmount(now: number, startedAt: number) {
   return Math.sin(Math.pow(progress, 0.45) * Math.PI);
 }
 
+function scatterPellets(x: number, y: number): Pellet[] {
+  const pellets: Pellet[] = [];
+  const count = Math.max(1, Math.round(settings.pelletCount));
+
+  for (let index = 0; index < count; index += 1) {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.sqrt(Math.random()) * settings.patternSize;
+    pellets.push({
+      x: x + Math.cos(angle) * distance,
+      y: y + Math.sin(angle) * distance,
+    });
+  }
+
+  return pellets;
+}
+
+function pelletHitsClay(clay: Clay, pellet: Pellet) {
+  const { rx, ry } = clayRadii();
+  const hitX = rx + settings.hitAreaSize;
+  const hitY = ry + settings.hitAreaSize;
+  const dx = (pellet.x - clay.x) / hitX;
+  const dy = (pellet.y - clay.y) / hitY;
+  return dx * dx + dy * dy <= 1;
+}
+
 function drawClay(
   ctx: CanvasRenderingContext2D,
   clay: Clay,
@@ -149,35 +192,69 @@ function drawShard(ctx: CanvasRenderingContext2D, shard: Shard, color: string) {
   ctx.restore();
 }
 
-function hitsClay(clay: Clay, x: number, y: number) {
-  const { rx, ry } = clayRadii();
-  const hitX = rx + settings.hitAreaSize;
-  const hitY = ry + settings.hitAreaSize;
-  const dx = (x - clay.x) / hitX;
-  const dy = (y - clay.y) / hitY;
-  return dx * dx + dy * dy <= 1;
+function Shell({ full }: { full: boolean }) {
+  return (
+    <svg viewBox="0 0 18 40" className="h-8 w-4 text-ink" aria-hidden="true">
+      <path
+        d="M4 12 L9 4 L14 12"
+        fill={full ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <rect
+        x="3.5"
+        y="11"
+        width="11"
+        height="18"
+        rx="1.5"
+        fill={full ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
+      <rect
+        x="2.5"
+        y="27"
+        width="13"
+        height="7"
+        rx="1.5"
+        fill={full ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
+      {full ? <rect x="3.5" y="17" width="11" height="3.5" className="fill-clay" /> : null}
+    </svg>
+  );
 }
 
 export function ClayGame({
   hint,
   replayLabel,
   liveLabel,
+  hitMark,
   onFail,
 }: {
   hint: string;
   replayLabel: string;
   liveLabel: string;
+  hitMark: string;
   onFail: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const replayRef = useRef<HTMLButtonElement>(null);
   const onFailRef = useRef(onFail);
+  const hitMarkRef = useRef(hitMark);
   const [score, setScore] = useState({ hits: 0, launched: 0 });
   const [over, setOver] = useState(false);
+  const [shells, setShells] = useState(0);
 
   useEffect(() => {
     onFailRef.current = onFail;
   }, [onFail]);
+
+  useEffect(() => {
+    hitMarkRef.current = hitMark;
+  }, [hitMark]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -194,6 +271,7 @@ export function ClayGame({
     }
 
     const colors = readColors(box);
+    const uiFont = getComputedStyle(box).fontFamily || "Instrument Sans, sans-serif";
     let width = 0;
     let height = 0;
     let frame = 0;
@@ -204,8 +282,10 @@ export function ClayGame({
     let launched = 0;
     let hits = 0;
     let finished = false;
+    let shellsLeft = 0;
     let nextLaunchAt = performance.now() + 280;
     let recoilAt = 0;
+    let shakeAt = 0;
     let clay: Clay | null = null;
     let aimX = 0;
     let aimY = 0;
@@ -213,13 +293,19 @@ export function ClayGame({
     let finePointer = window.matchMedia("(pointer: fine)").matches;
     let pointerInside = false;
     const shards: Shard[] = [];
-    const misses: MissRing[] = [];
+    const shots: Shot[] = [];
+    const floaters: Floater[] = [];
 
     const publish = () => {
       setScore({ hits, launched });
       if (finished) {
         setOver(true);
       }
+    };
+
+    const clearShake = () => {
+      shakeAt = 0;
+      box.style.transform = "";
     };
 
     const fit = () => {
@@ -237,18 +323,21 @@ export function ClayGame({
     };
 
     const launch = () => {
-      const speed = settings.launchSpeed;
+      const angle = launchAngle + (Math.random() - 0.5) * 0.36;
+      const speed = settings.launchSpeed * (0.88 + Math.random() * 0.24);
       const direction = fromLeft ? 1 : -1;
       clay = {
         x: fromLeft ? -settings.claySize * 0.2 : width + settings.claySize * 0.2,
         y: height * 0.82,
-        vx: Math.cos(launchAngle) * speed * direction,
-        vy: -Math.sin(launchAngle) * speed,
+        vx: Math.cos(angle) * speed * direction,
+        vy: -Math.sin(angle) * speed,
         alive: true,
       };
       fromLeft = !fromLeft;
       launched += 1;
       nextLaunchAt = 0;
+      shellsLeft = 2;
+      setShells(2);
       publish();
     };
 
@@ -262,18 +351,34 @@ export function ClayGame({
       nextLaunchAt = now + settings.pauseBetweenClays;
     };
 
+    const breakClay = (now: number) => {
+      if (!clay) {
+        return;
+      }
+      floaters.push({ x: clay.x, y: clay.y, born: now });
+      shards.push(...createShards(clay));
+      hits += 1;
+      if (settings.shakeStrength > 0) {
+        shakeAt = now;
+      }
+      resolveClay(now);
+      publish();
+    };
+
     const shoot = (x: number, y: number, now: number) => {
+      if (shellsLeft <= 0) {
+        return;
+      }
+      shellsLeft -= 1;
+      setShells(shellsLeft);
       aimX = x;
       aimY = y;
       recoilAt = now;
-      if (clay && hitsClay(clay, x, y)) {
-        shards.push(...createShards(clay));
-        hits += 1;
-        resolveClay(now);
-        publish();
-        return;
-      }
-      misses.push({ x, y, born: now });
+      shots.push({
+        pellets: scatterPellets(x, y),
+        arriveAt: now + settings.shotTravelTime,
+        born: 0,
+      });
     };
 
     const localPoint = (event: PointerEvent) => {
@@ -285,7 +390,12 @@ export function ClayGame({
     };
 
     const onPointerDown = (event: PointerEvent) => {
-      if (event.pointerType === "mouse" && event.button !== 0) {
+      if (event.pointerType === "mouse") {
+        if (event.button !== 0) {
+          return;
+        }
+        const point = localPoint(event);
+        shoot(point.x, point.y, performance.now());
         return;
       }
       pointerDown = { x: event.clientX, y: event.clientY };
@@ -317,17 +427,22 @@ export function ClayGame({
       launched = 0;
       hits = 0;
       finished = false;
+      shellsLeft = 0;
+      setShells(0);
       clay = null;
       shards.length = 0;
-      misses.length = 0;
+      shots.length = 0;
+      floaters.length = 0;
       recoilAt = 0;
+      clearShake();
       nextLaunchAt = performance.now() + 280;
       publish();
       start();
     };
 
     const onPointerUp = (event: PointerEvent) => {
-      if (!pointerDown) {
+      if (event.pointerType === "mouse" || !pointerDown) {
+        pointerDown = null;
         return;
       }
       const dx = event.clientX - pointerDown.x;
@@ -340,25 +455,28 @@ export function ClayGame({
       shoot(point.x, point.y, performance.now());
     };
 
+    const applyShake = (now: number) => {
+      if (settings.shakeStrength <= 0 || shakeAt <= 0) {
+        if (box.style.transform) {
+          box.style.transform = "";
+        }
+        return;
+      }
+      const progress = (now - shakeAt) / shakeTime;
+      if (progress >= 1) {
+        clearShake();
+        return;
+      }
+      const amount = settings.shakeStrength * (1 - progress);
+      const x = Math.sin(progress * 48) * amount;
+      const y = Math.cos(progress * 37) * amount;
+      box.style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)`;
+    };
+
     const draw = (now: number) => {
       ctx.clearRect(0, 0, width, height);
       ctx.fillStyle = colors.field;
       ctx.fillRect(0, 0, width, height);
-
-      for (const miss of misses) {
-        const age = (now - miss.born) / 280;
-        if (age >= 1) {
-          continue;
-        }
-        ctx.save();
-        ctx.globalAlpha = 0.35 * (1 - age);
-        ctx.strokeStyle = colors.ink;
-        ctx.lineWidth = 1.25;
-        ctx.beginPath();
-        ctx.arc(miss.x, miss.y, 7 + age * 16, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
 
       for (const shard of shards) {
         drawShard(ctx, shard, colors.clay);
@@ -368,9 +486,42 @@ export function ClayGame({
         drawClay(ctx, clay, colors);
       }
 
+      for (const shot of shots) {
+        if (shot.born <= 0) {
+          continue;
+        }
+        const age = (now - shot.born) / pelletFade;
+        if (age >= 1) {
+          continue;
+        }
+        ctx.save();
+        ctx.globalAlpha = 1 - age;
+        ctx.fillStyle = colors.ink;
+        for (const pellet of shot.pellets) {
+          ctx.beginPath();
+          ctx.arc(pellet.x, pellet.y, 2.25, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.font = `600 18px ${uiFont}`;
+      ctx.fillStyle = colors.clay;
+      for (const floater of floaters) {
+        const age = (now - floater.born) / floaterTime;
+        if (age >= 1) {
+          continue;
+        }
+        ctx.globalAlpha = 1 - age;
+        ctx.fillText(hitMarkRef.current, floater.x, floater.y - age * 28);
+      }
+      ctx.restore();
+
       const kick = kickAmount(now, recoilAt);
       const handX = width / 2;
-      const handY = height + 8;
+      const handY = height + 20;
       const aim = Math.atan2(aimY - handY, aimX - handX);
       ctx.save();
       ctx.translate(handX, handY);
@@ -393,6 +544,8 @@ export function ClayGame({
         ctx.lineTo(aimX, aimY + 11);
         ctx.stroke();
       }
+
+      applyShake(now);
     };
 
     const tick = (now: number) => {
@@ -402,6 +555,9 @@ export function ClayGame({
       if (document.hidden || !visible) {
         frame = 0;
         last = now;
+        if (box.style.transform) {
+          box.style.transform = "";
+        }
         return;
       }
       frame = window.requestAnimationFrame(tick);
@@ -417,6 +573,23 @@ export function ClayGame({
         clay.vy += settings.gravity * dt;
         clay.x += clay.vx * dt;
         clay.y += clay.vy * dt;
+      }
+
+      for (const shot of shots) {
+        if (shot.born > 0 || now < shot.arriveAt) {
+          continue;
+        }
+        shot.born = now;
+        const target = clay;
+        if (!target) {
+          continue;
+        }
+        if (shot.pellets.some((pellet) => pelletHitsClay(target, pellet))) {
+          breakClay(now);
+        }
+      }
+
+      if (clay) {
         const { rx, ry } = clayRadii();
         const gone =
           clay.y > height + ry ||
@@ -435,9 +608,16 @@ export function ClayGame({
         }
       }
 
-      for (let index = misses.length - 1; index >= 0; index -= 1) {
-        if (now - misses[index].born > 280) {
-          misses.splice(index, 1);
+      for (let index = shots.length - 1; index >= 0; index -= 1) {
+        const shot = shots[index];
+        if (shot.born > 0 && now - shot.born > pelletFade) {
+          shots.splice(index, 1);
+        }
+      }
+
+      for (let index = floaters.length - 1; index >= 0; index -= 1) {
+        if (now - floaters[index].born > floaterTime) {
+          floaters.splice(index, 1);
         }
       }
 
@@ -500,6 +680,7 @@ export function ClayGame({
     return () => {
       stopped = true;
       stop();
+      box.style.transform = "";
       observer.disconnect();
       resize.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
@@ -523,9 +704,13 @@ export function ClayGame({
       <p className="pointer-events-none absolute bottom-4 left-4 max-w-[58%] text-[13px] leading-snug text-muted">
         {hint}
       </p>
+      <div className="pointer-events-none absolute right-4 bottom-4 flex items-end gap-1.5">
+        <Shell full={shells > 0} />
+        <Shell full={shells > 1} />
+      </div>
       {score.launched > 0 ? (
         <p
-          className="pointer-events-none absolute right-4 bottom-4 text-[13px] font-medium text-ink"
+          className="pointer-events-none absolute top-4 right-4 text-[13px] font-medium text-ink"
           aria-live="polite"
         >
           {score.hits} / {score.launched}
@@ -539,6 +724,7 @@ export function ClayGame({
           onClick={() => {
             setScore({ hits: 0, launched: 0 });
             setOver(false);
+            setShells(0);
             const canvas = canvasRef.current;
             canvas?.dispatchEvent(new Event("replay"));
           }}

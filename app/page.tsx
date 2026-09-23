@@ -11,23 +11,20 @@ export default function Home() {
   return (
     <PageFrame>
       <main>
-        <div className="grid grid-cols-1 gap-8 pt-6 min-[900px]:grid-cols-2 min-[900px]:gap-x-16 min-[900px]:pt-8">
-          <h1 className="headline min-[900px]:col-start-1 min-[900px]:row-start-1">
-            {home.title}
-          </h1>
-          <p className="text-base text-muted min-[900px]:col-start-1 min-[900px]:row-start-2">
-            {home.intro}
-          </p>
-          <div className="min-[900px]:col-start-2 min-[900px]:row-start-1 min-[900px]:row-span-3">
+        <div className="pt-6 min-[900px]:pt-8">
+          <h1 className="headline">{home.title}</h1>
+          <p className="mt-4 text-base text-muted">{home.intro}</p>
+          <div className="mx-auto mt-8 w-full max-w-[1100px]">
             <ClayGameHost
               label={home.gameLabel}
               hint={home.gameHint}
               startLabel={home.startLabel}
               replayLabel={home.replayLabel}
               liveLabel={home.gameLiveLabel}
+              hitMark={home.hitMark}
             />
           </div>
-          <div className="border-t border-line pt-6 min-[900px]:col-start-1 min-[900px]:row-start-3 min-[900px]:self-end">
+          <div className="mt-8 border-t border-line pt-6">
             <div className="flex items-baseline gap-4">
               <p className="headline text-clay">{home.receiptsValue}</p>
               <p className="max-w-[11rem] text-sm text-muted">

@@ -13,32 +13,32 @@ export function drawFingerGun(
   ctx.fillStyle = color;
 
   ctx.beginPath();
-  ctx.ellipse(-30, 6, 28, 22, 0.05, 0, Math.PI * 2);
+  ctx.ellipse(-58, 14, 56, 44, 0.05, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.beginPath();
-  ctx.ellipse(-22, 20, 10, 8, 0.4, 0, Math.PI * 2);
-  ctx.ellipse(-34, 22, 9, 7, 0.8, 0, Math.PI * 2);
-  ctx.ellipse(-42, 12, 8, 6, 1.1, 0, Math.PI * 2);
+  ctx.ellipse(-40, 48, 24, 18, 0.4, 0, Math.PI * 2);
+  ctx.ellipse(-68, 44, 20, 15, 0.85, 0, Math.PI * 2);
+  ctx.ellipse(-86, 22, 16, 13, 1.15, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.save();
-  ctx.translate(-6, -8);
-  ctx.rotate(-1.2 + thumbDown * 1.45);
+  ctx.translate(-8, -18);
+  ctx.rotate(-1.15 + thumbDown * 1.5);
   ctx.beginPath();
-  ctx.ellipse(16, 0, 18, 7.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(36, 0, 38, 16, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
   ctx.beginPath();
-  ctx.moveTo(4, -7);
-  ctx.lineTo(84, -5.5);
-  ctx.quadraticCurveTo(96, 0, 84, 6);
-  ctx.lineTo(4, 8);
+  ctx.moveTo(8, -18);
+  ctx.lineTo(168, -16);
+  ctx.quadraticCurveTo(196, 0, 168, 16);
+  ctx.lineTo(8, 18);
   ctx.closePath();
   ctx.fill();
 
   ctx.beginPath();
-  ctx.ellipse(12, 0, 11, 10, 0, 0, Math.PI * 2);
+  ctx.ellipse(24, 0, 24, 22, 0, 0, Math.PI * 2);
   ctx.fill();
 }

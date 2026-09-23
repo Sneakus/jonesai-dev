@@ -203,3 +203,31 @@ Tell me in plain English what changed and what to try.
 ```
 Changed: Added a small clay shooting game that loads after the static scene.
 Files: app/page.tsx, components/clay-game-host.tsx, components/clay-game.tsx, components/finger-gun.ts, components/clay-scene.tsx, content/home.md, lib/content.ts, log/prompts.md
+
+### 2026-09-23 13:31
+Prompt:
+```
+Tweaks to the clay game. Keep everything that already works. Stop and tell me if anything fails.
+
+1. Fix: clicks are missed while the mouse is moving. For a mouse, fire the shot the moment the button is pressed down, with no movement check. Keep the scroll-safe tap check for touch screens only.
+
+2. Layout: make the game the centrepiece of the hero. Title and intro at the top, then the game box centred at the full width of the content area (up to about 1100px wide and about 560px tall on desktop), then the receipts block underneath. On phones keep the same order, full width, about 360px tall.
+
+3. Harder clays: make them about 30% smaller and about 25% faster, and vary the launch angle and speed slightly so no two throws are the same.
+
+4. Leading: the shot takes time to arrive, so you have to aim ahead of a moving clay. When you shoot, the shot reaches the aim point about 100ms later, and it only counts if the clay is inside the shot pattern at the moment it arrives. Put the travel time in the settings object.
+
+5. Shot spread: when the shot arrives, show a small cluster of about 12 pellet dots scattered around the aim point, in the ink colour, fading out over about 400ms. The clay breaks if any pellet touches it. This shows how close the shot was. Put pattern size and pellet count in the settings object.
+
+6. Two shots per clay: show two small shotgun shells side by side in the bottom-right corner. Each shot uses one, and the used shell turns into an empty outline. Both refill when the next clay launches. With no shells left, clicks do nothing. Move the score to the top-right corner.
+
+7. The hand: make it about twice the size, with a bold, clean silhouette, so it reads instantly as a finger gun. Keep it in its own file.
+
+8. Polish: on a hit, a tiny, very quick shake of the game box (a couple of pixels) and a small "+1" that floats up from where the clay broke and fades. Put shake strength in the settings object, with an option to turn it off.
+
+Don't use the built-in browser, I'll play it myself. Check it loads without errors, run gitleaks git -v, commit with "Clay game: harder, leading, shot spread, shells, bigger layout" and push to main.
+
+Tell me in plain English what changed and what to try.
+```
+Changed: Made the clay game bigger and harder, with leading shots, a pellet pattern, two shells, and a larger hand.
+Files: app/page.tsx, components/clay-game-host.tsx, components/clay-game.tsx, components/finger-gun.ts, components/clay-scene.tsx, content/home.md, lib/content.ts, log/prompts.md
