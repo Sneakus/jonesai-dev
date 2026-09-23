@@ -1,5 +1,6 @@
 ---
 draft: true
+order: 4
 title: Meeting plan agent
 slug: meeting-plan-agent
 summary: A tool that turns a customer call transcript into a plan, and flags anything the call didn't cover.

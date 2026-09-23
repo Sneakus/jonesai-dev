@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { Build, SiteContent } from "@/lib/content";
 
 function Tag({
@@ -71,6 +72,29 @@ function ExcerptPanel({
   );
 }
 
+function ExamplePanel({ build }: { build: Build }) {
+  if (!build.example) {
+    return null;
+  }
+
+  const example = build.example;
+
+  return (
+    <aside className="my-8 rounded-2xl border border-line bg-card px-4 py-5 min-[900px]:px-6 min-[900px]:py-6">
+      <p className="text-sm text-muted">{example.label}</p>
+      <blockquote className="mt-4 border-l-2 border-clay pl-3 text-[17px] leading-[1.6]">
+        {example.question}
+      </blockquote>
+      <p className="mt-6 text-sm text-muted">{example.answerLabel}</p>
+      {example.answer.map((line) => (
+        <p key={line} className="mt-2 text-[17px] leading-[1.6]">
+          {line}
+        </p>
+      ))}
+    </aside>
+  );
+}
+
 export function BuildArticle({
   build,
   site,
@@ -78,16 +102,29 @@ export function BuildArticle({
   build: Build;
   site: SiteContent;
 }) {
-  const links = [
-    { href: build.transcript, label: site.transcriptLink },
-    { href: build.plan, label: site.planLink },
-    { href: build.repo, label: site.repoLink },
-  ].filter((link) => link.href);
+  const links =
+    build.links.length > 0
+      ? build.links.map((link) => ({ href: link.url, label: link.label }))
+      : [
+          { href: build.transcript, label: site.transcriptLink },
+          { href: build.plan, label: site.planLink },
+          { href: build.repo, label: site.repoLink },
+        ].filter((link) => link.href);
 
   return (
     <article className="max-w-[640px] pt-8 pb-20">
       <h1 className="build-title">{build.title}</h1>
       <p className="mt-4 text-base text-muted">{build.summary}</p>
+      {build.image ? (
+        <Image
+          src={build.image.src}
+          alt={build.image.alt}
+          width={build.image.width}
+          height={build.image.height}
+          sizes="(min-width: 680px) 640px, 100vw"
+          className="mt-8 h-auto w-full rounded-2xl"
+        />
+      ) : null}
       <div className="mt-10">
         {build.blocks.map((block, index) => {
           if (block.type === "heading") {
@@ -114,6 +151,9 @@ export function BuildArticle({
           }
           if (block.type === "excerpt") {
             return <ExcerptPanel key={`excerpt-${index}`} build={build} site={site} />;
+          }
+          if (block.type === "example") {
+            return <ExamplePanel key={`example-${index}`} build={build} />;
           }
           return (
             <p key={`p-${index}`} className="mt-4 text-[17px] leading-[1.6]">

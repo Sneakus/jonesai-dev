@@ -338,3 +338,31 @@ Tell me in plain English what changed and what to try.
 ```
 Changed: Each clay is checked before it flies, and only a throw you can actually shoot is used.
 Files: components/clay-game.tsx, log/prompts.md
+
+### 2026-09-23 17:35
+Prompt:
+```
+Add three new build pages and make the build page template more flexible. Keep the Meeting plan agent page looking exactly as it does now. Stop and tell me if anything fails.
+
+1. Add this line to .cursor/rules/aj-website.mdc, under "Prompt log":
+- Only log messages AJ sends. Never log your own automatic follow-up messages.
+
+2. I've added content/builds/worldcupmap.md, golf-agent.md and ajob.md, images in public/builds/, and my CV at public/Alex_Jones_CV.pdf. Don't change any text in the content files, and keep draft: true. Don't link the CV anywhere yet.
+
+3. The build page template needs three optional frontmatter fields:
+   - image: show it under the summary at the full width of the text column, with rounded corners, using next/image and its alt text.
+   - example: where the body has <!-- EXAMPLE -->, show a panel in the card colour with a thin border. The label in small muted text, then the question in a quote style with the thin clay-orange line on its left, then answerLabel in small muted text, then each answer line.
+   - links: a list of label and url pairs, shown as the row of plain links at the end, opening in a new tab. If a page has no links, show nothing there. The Meeting plan agent page keeps its current links.
+
+4. On the home page, sort the Builds cards by the order field, lowest first. Add order: 4 to the Meeting plan agent file's frontmatter. Only add that field, change nothing else in it.
+
+5. Page titles: "worldcupmap - AJ", "Golf Agent - AJ" and "AJob - AJ", each with its summary as the description.
+
+6. Check all four build pages load without errors. Don't use the built-in browser, I'll check them visually.
+
+7. Run gitleaks git -v, commit with "Three more build pages" and push to main.
+
+Tell me in plain English what changed and what to look at.
+```
+Changed: Added three build pages, and let a build page show a picture, an example, and its own links.
+Files: .cursor/rules/aj-website.mdc, components/build-article.tsx, lib/content.ts, content/builds/meeting-plan-agent.md, content/builds/worldcupmap.md, content/builds/golf-agent.md, content/builds/ajob.md, public/builds/worldcupmap.webp, public/builds/ajob-email.webp, public/Alex_Jones_CV.pdf, log/prompts.md

@@ -44,10 +44,31 @@ export type BuildBlock =
   | { type: "heading"; text: string }
   | { type: "paragraph"; text: string }
   | { type: "list"; items: string[] }
-  | { type: "excerpt" };
+  | { type: "excerpt" }
+  | { type: "example" };
+
+export type BuildImage = {
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
+};
+
+export type BuildExample = {
+  label: string;
+  question: string;
+  answerLabel: string;
+  answer: string[];
+};
+
+export type BuildLink = {
+  label: string;
+  url: string;
+};
 
 export type Build = {
   draft: boolean;
+  order: number;
   title: string;
   slug: string;
   summary: string;
@@ -56,6 +77,9 @@ export type Build = {
   plan: string;
   excerptLabel: string;
   excerpt: BuildExcerpt | null;
+  image: BuildImage | null;
+  example: BuildExample | null;
+  links: BuildLink[];
   blocks: BuildBlock[];
 };
 
@@ -150,6 +174,11 @@ function parseBlocks(body: string): BuildBlock[] {
       index += 1;
       continue;
     }
+    if (line.trim() === "<!-- EXAMPLE -->") {
+      blocks.push({ type: "example" });
+      index += 1;
+      continue;
+    }
     if (line.startsWith("## ")) {
       blocks.push({ type: "heading", text: line.slice(3).trim() });
       index += 1;
@@ -171,7 +200,8 @@ function parseBlocks(body: string): BuildBlock[] {
       lines[index].trim() !== "" &&
       !lines[index].startsWith("## ") &&
       !lines[index].startsWith("- ") &&
-      lines[index].trim() !== "<!-- EXCERPT -->"
+      lines[index].trim() !== "<!-- EXCERPT -->" &&
+      lines[index].trim() !== "<!-- EXAMPLE -->"
     ) {
       paragraph.push(lines[index].trim());
       index += 1;
@@ -225,6 +255,127 @@ function parseExcerpt(
   };
 }
 
+function readImageSize(src: string, file: string): { width: number; height: number } {
+  const relative = src.replace(/^\/+/, "");
+  const filePath = path.join(process.cwd(), "public", relative);
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`${file} image ${src} is missing`);
+  }
+
+  const data = fs.readFileSync(filePath);
+  const kind = data.toString("ascii", 12, 16);
+  if (data.toString("ascii", 0, 4) !== "RIFF" || data.toString("ascii", 8, 12) !== "WEBP") {
+    throw new Error(`${file} image ${src} could not be read`);
+  }
+
+  if (kind === "VP8 ") {
+    if (data[23] !== 0x9d || data[24] !== 0x01 || data[25] !== 0x2a) {
+      throw new Error(`${file} image ${src} could not be read`);
+    }
+    return {
+      width: data.readUInt16LE(26) & 0x3fff,
+      height: data.readUInt16LE(28) & 0x3fff,
+    };
+  }
+
+  if (kind === "VP8X") {
+    return {
+      width: 1 + data.readUIntLE(24, 3),
+      height: 1 + data.readUIntLE(27, 3),
+    };
+  }
+
+  if (kind === "VP8L" && data[20] === 0x2f) {
+    const bits = data.readUInt32LE(21);
+    return {
+      width: (bits & 0x3fff) + 1,
+      height: ((bits >> 14) & 0x3fff) + 1,
+    };
+  }
+
+  throw new Error(`${file} image ${src} could not be read`);
+}
+
+function parseImage(
+  value: FrontmatterValue | undefined,
+  file: string,
+): BuildImage | null {
+  if (value === undefined) {
+    return null;
+  }
+  if (!isRecord(value)) {
+    throw new Error(`${file} image could not be read`);
+  }
+  const src = requiredString(value, "src", file);
+  const alt = requiredString(value, "alt", file);
+  const size = readImageSize(src, file);
+  return { src, alt, width: size.width, height: size.height };
+}
+
+function parseStringList(
+  value: FrontmatterValue | undefined,
+  file: string,
+  label: string,
+): string[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${file} is missing ${label}`);
+  }
+  return value.map((item) => {
+    if (typeof item !== "string") {
+      throw new Error(`${file} has a ${label} line that could not be read`);
+    }
+    return item;
+  });
+}
+
+function parseExample(
+  value: FrontmatterValue | undefined,
+  file: string,
+): BuildExample | null {
+  if (value === undefined) {
+    return null;
+  }
+  if (!isRecord(value)) {
+    throw new Error(`${file} example could not be read`);
+  }
+  return {
+    label: requiredString(value, "label", file),
+    question: requiredString(value, "question", file),
+    answerLabel: requiredString(value, "answerLabel", file),
+    answer: parseStringList(value.answer, file, "example answer"),
+  };
+}
+
+function parseLinks(value: FrontmatterValue | undefined, file: string): BuildLink[] {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(`${file} links could not be read`);
+  }
+  return value.map((item, itemIndex) => {
+    if (!isRecord(item)) {
+      throw new Error(`${file} link ${itemIndex + 1} could not be read`);
+    }
+    return {
+      label: requiredString(item, "label", file),
+      url: requiredString(item, "url", file),
+    };
+  });
+}
+
+function readOrder(data: { [key: string]: FrontmatterValue }, file: string): number {
+  const value = data.order;
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(`${file} is missing order`);
+  }
+  const order = Number(value);
+  if (!Number.isFinite(order)) {
+    throw new Error(`${file} has an order that could not be read`);
+  }
+  return order;
+}
+
 function readBuildFile(filePath: string): Build {
   const filename = path.basename(filePath);
   const { data, body } = readMarkdown(filePath);
@@ -232,6 +383,7 @@ function readBuildFile(filePath: string): Build {
 
   return {
     draft: data.draft === "true",
+    order: readOrder(data, filename),
     title: requiredString(data, "title", filename),
     slug,
     summary: requiredString(data, "summary", filename),
@@ -240,6 +392,9 @@ function readBuildFile(filePath: string): Build {
     plan: optionalString(data, "plan"),
     excerptLabel: optionalString(data, "excerptLabel"),
     excerpt: parseExcerpt(data.excerpt, filename),
+    image: parseImage(data.image, filename),
+    example: parseExample(data.example, filename),
+    links: parseLinks(data.links, filename),
     blocks: parseBlocks(body),
   };
 }
@@ -253,8 +408,8 @@ export function readBuilds(): Build[] {
   return fs
     .readdirSync(directory)
     .filter((name) => name.endsWith(".md"))
-    .sort()
-    .map((name) => readBuildFile(path.join(directory, name)));
+    .map((name) => readBuildFile(path.join(directory, name)))
+    .sort((a, b) => a.order - b.order || a.slug.localeCompare(b.slug));
 }
 
 export function readBuild(slug: string): Build | null {
