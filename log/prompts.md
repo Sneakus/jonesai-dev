@@ -651,6 +651,14 @@ Briefly inform the user about the task result and perform any follow-up actions 
 Changed: Confirmed the completed result; no website changes were needed.
 Files: log/prompts.md
 
+### 2026-09-24 01:14
+Prompt:
+```
+Switch the site's base address from https://jonesai-dev.vercel.app to https://jonesai.dev. Check the home page and the share image still load, run the code check and gitleaks git -v, commit with "Switch to jonesai.dev" and push to main.
+```
+Changed: Switched page and share-preview links to the jonesai.dev base address.
+Files: lib/site-config.ts, log/prompts.md
+
 ### 2026-09-24 00:24
 Prompt:
 ```
