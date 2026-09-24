@@ -1095,3 +1095,11 @@ Tell me in plain English what changed and what to try.
 ```
 Changed: Replaced the swipe with a weighted club you drag, and kept the range and the results.
 Files: components/golf-range.tsx, lib/golf-physics.ts, lib/golf-range.ts, content/golf-range.md, log/prompts.md
+
+### 2026-09-24 17:35
+Prompt:
+```
+Hide the driving range on the Golf Agent page for now. Don't delete its code. Put it behind a single setting that's switched off, so the page shows the summary, then "How I tested it" and the real example, as before. Check /golf-agent loads with no gap where the game was. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "Golf Agent: hide driving range while it's rebuilt" and push to main.
+```
+Changed: Switched the driving range off so the Golf Agent page reads as it did before.
+Files: components/build-article.tsx, log/prompts.md

@@ -10,6 +10,7 @@ const WorldcupGlobe = dynamic(() =>
 const GolfRange = dynamic(() =>
   import("@/components/golf-range").then((mod) => mod.GolfRange),
 );
+const showDrivingRange = false;
 
 function CallPlanPanel({ build }: { build: Build }) {
   if (!build.callPlan) {
@@ -177,7 +178,7 @@ export function BuildArticle({
           className="mt-8 h-auto w-full rounded-2xl"
         />
       ) : null}
-      {build.slug === "golf-agent" ? <GolfRange copy={readGolfRange()} /> : null}
+      {showDrivingRange && build.slug === "golf-agent" ? <GolfRange copy={readGolfRange()} /> : null}
       <div className="mt-10">
         {build.blocks.map((block, index) => {
           if (block.type === "heading") {
