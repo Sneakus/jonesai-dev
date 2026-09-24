@@ -1043,3 +1043,55 @@ Tell me in plain English what changed and what to try.
 ```
 Changed: Added a simple driving range game under the Golf Agent summary.
 Files: components/golf-range.tsx, components/build-article.tsx, lib/golf-range.ts, log/prompts.md
+
+### 2026-09-24 17:08
+Prompt:
+```
+Rebuild the Golf Agent driving range as a physics swing, like a forgiving version of Normal Golf Game: you drag a weighted club and have to manage its momentum. Easy to make contact, hard to master. Replace the current swipe game completely. Keep the range view, the results panel and the rest of the page. Stop and tell me if anything fails.
+
+1. Content: I've updated content/golf-range.md. Each outcome now has a "cause" line instead of "swipe". Don't change any text, and never show "source" to visitors.
+
+2. Two views in the same box:
+   - Swing view: a stick-figure golfer seen from the front, standing over the ball, as simple jointed ink line art: head, torso, shoulders, upper arms, forearms, hands and club. It moves like a ragdoll with weight.
+   - Range view: the current range and ball flight.
+   Side by side on desktop, with the swing view on the left. On phones, swing view on top and range underneath.
+
+3. The swing, with a mouse or a finger:
+   - Press anywhere in the swing view to take hold of the club. The pointer pulls the clubhead towards it through a spring, not a direct link, so the club lags behind the pointer.
+   - The arms and club are a weighted double pendulum hanging from the shoulders, with gravity and light damping. Jerky movements make the club wobble and overshoot. Smooth movements build speed. Momentum carries the club on after you let go, and the body turns a little with the swing.
+   - A swing is: take the club back and up, then bring it down through the ball. Only gestures that start inside the box count. Page scrolling must never be hijacked.
+   - Write this physics yourself in a small, clear module, no library. If you think a small physics library would be clearly better, stop and ask me first.
+
+4. Reading the shot at the moment the clubhead reaches the ball:
+   - Power: clubhead speed. A smooth, committed swing goes about 220 to 250 yards.
+   - Strike height: where the clubhead is vertically compared with the ball. Too low means it hit the ground first (fat). Slightly high is thin, very high is topped, and missing the ball altogether is an air shot. Be generous around the right height.
+   - Swing path: the angle the clubhead comes down at. Steep from above means across the ball, to the left. Shallow from below means out to the right.
+   - Face: whether the clubhead is behind the hands (face open) or has overtaken them (face shut).
+   - Heel or toe: whether the hands are further from the body than at the start (heel) or pulled in closer (toe).
+   Ball flight uses the same rules as now: it starts about 75% where the face points and 25% where the path goes, and curves by the face compared with the path. Heel adds a little right curve, toe a little left, and both lose some distance.
+
+5. Naming the shot, one per swing, checked in this order: air shot, topped, thin, fat, heel or toe, then pull, push, slice, pull-slice, push-slice and hook from start direction and curve, then straight, draw or fade. Every threshold goes in one settings object. Make the defaults forgiving enough that a first-time visitor makes contact within a couple of tries.
+
+6. Feedback during the swing:
+   - A short fading trail behind the clubhead.
+   - A small speed bar that fills as the club speeds up.
+   - A brief freeze, about 150ms, at impact, with a small flash where club meets ball.
+   - The ball then flies in the range view.
+
+7. Feedback after the shot, a results panel with:
+   - A small launch-monitor readout with four simple gauges: club speed, strike (low, good or high), swing path (left, square or right) and face (open, square or shut).
+   - The shot's name and its cause line.
+   - The tip for faults, a message for good shots, or an air-shot message picked by how fast they swung (hard, normal or slow).
+   - Messages chosen at random, never the same twice in a row.
+   The club resets after about 1.5 seconds.
+
+8. Screen reader label: "Golf driving range game. Optional, just for fun." Reduced motion: skip the animated flight and trail, and show the result straight away.
+
+9. Keep it smooth on phones, pause when off screen, and put every physics and feel setting in the settings object. Canvas only.
+
+10. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "Golf Agent: physics swing driving range" and push to main.
+
+Tell me in plain English what changed and what to try.
+```
+Changed: Replaced the swipe with a weighted club you drag, and kept the range and the results.
+Files: components/golf-range.tsx, lib/golf-physics.ts, lib/golf-range.ts, content/golf-range.md, log/prompts.md

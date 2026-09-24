@@ -2,95 +2,32 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { GolfRangeCopy } from "@/lib/golf-range";
+import {
+  clubheadVelocity,
+  joints,
+  restPose,
+  stepSwing,
+  swingSettings,
+  type SwingPose,
+} from "@/lib/golf-physics";
 
 const paper = "#f3efe6";
 const ink = "#161514";
 const clay = "#e8480c";
 
-const settings = {
-  fullPowerFraction: 0.35,
-  smoothSpeed: 0.55,
-  minYards: 150,
-  fullYards: 235,
-  directionDeadzone: 18,
-  pathGain: 0.35,
-  pathMax: 12,
-  curlDeadzone: 12,
-  curlGain: 0.45,
-  curlMax: 16,
-  centreFraction: 0.07,
-  missFraction: 0.16,
-  tempoSlow: 0.45,
-  tempoRush: 1.75,
-  tempoSnatch: 2.5,
-  startFault: 7,
-  curveFault: 9,
-  goodStart: 7,
-  drawMin: 3,
-  heelCurve: 4,
-  toeCurve: 4,
-  heelKeep: 0.86,
-  toeKeep: 0.86,
-  fatKeep: 0.55,
-  thinKeep: 0.72,
-  topKeep: 0.12,
-  horizonYards: 280,
-  halfWidthYards: 46,
-  flightMs: 1100,
-  bounceMs: 420,
-  reteeMs: 1500,
-  airSlow: 0.35,
-  airHard: 0.75,
-};
-
-type Sample = { x: number; y: number; t: number };
-type Shape = "carry" | "low" | "runner" | "ground" | "none";
 type Shot = {
   key: string;
   yards: number;
   lateral: number;
-  shape: Shape;
-  start: number;
-  curve: number;
+  shape: "carry" | "low" | "runner" | "ground" | "none";
+  speed: number;
+  strike: "low" | "good" | "high";
+  path: "left" | "square" | "right";
+  face: "open" | "square" | "shut";
 };
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
-}
-
-function angleOf(dx: number, dy: number) {
-  return (Math.atan2(dx, -dy) * 180) / Math.PI;
-}
-
-function heading(points: Sample[]) {
-  if (points.length < 2) {
-    return 0;
-  }
-  const first = points[0];
-  const last = points[points.length - 1];
-  return angleOf(last.x - first.x, last.y - first.y);
-}
-
-function pathLength(points: Sample[]) {
-  let total = 0;
-  for (let index = 1; index < points.length; index += 1) {
-    total += Math.hypot(points[index].x - points[index - 1].x, points[index].y - points[index - 1].y);
-  }
-  return total;
-}
-
-function crossX(points: Sample[], ballY: number) {
-  for (let index = 1; index < points.length; index += 1) {
-    const previous = points[index - 1];
-    const current = points[index];
-    if ((previous.y - ballY) * (current.y - ballY) > 0) {
-      continue;
-    }
-    const span = previous.y - current.y;
-    const mix = span === 0 ? 0 : (previous.y - ballY) / span;
-    return previous.x + (current.x - previous.x) * mix;
-  }
-  return null;
 }
 
 function pickMessage(options: string[], previous: string) {
@@ -98,303 +35,328 @@ function pickMessage(options: string[], previous: string) {
   return choices[Math.floor(Math.random() * choices.length)] || "";
 }
 
-function readSwing(samples: Sample[], ballX: number, ballY: number, width: number, height: number): Shot {
-  const bottom = samples.reduce((best, point) => (point.y > best.y ? point : best), samples[0]);
-  const split = samples.findIndex((point) => point === bottom);
-  const back = samples.slice(0, Math.max(split, 1) + 1);
-  const forward = samples.slice(Math.max(split, 1));
-  const backDistance = Math.max(0, bottom.y - samples[0].y);
-  const backTime = Math.max(16, back[back.length - 1].t - back[0].t);
-  const forwardTime = Math.max(16, forward[forward.length - 1].t - forward[0].t);
-  const backSpeed = backDistance / backTime;
-  const forwardSpeed = pathLength(forward) / forwardTime;
-  const depth = clamp(backDistance / (settings.fullPowerFraction * height), 0, 1);
-  const speedNorm = clamp(((backSpeed + forwardSpeed) / 2) / settings.smoothSpeed, 0, 1);
-  const power = clamp(depth * 0.62 + speedNorm * 0.38, 0, 1);
-  let yards = settings.minYards + power * (settings.fullYards - settings.minYards);
-  const ratio = forwardSpeed / Math.max(backSpeed, 0.05);
-  const pass = crossX(forward, ballY);
-  const crossed = pass !== null && forward[forward.length - 1].y < ballY;
-  const centre = width * settings.centreFraction;
-  const miss = width * settings.missFraction;
-  const offset = pass === null ? miss + 1 : pass - ballX;
-  const strike = !crossed || Math.abs(offset) > miss ? "miss" : Math.abs(offset) < centre ? "centre" : offset < 0 ? "heel" : "toe";
-  const near = forward.filter((point) => point.y < ballY + height * 0.08 && point.y > ballY - height * 0.16);
-  const bend = near.length > 3 ? heading(near.slice(Math.floor(near.length / 2))) - heading(near.slice(0, Math.ceil(near.length / 2))) : 0;
-  const through = near.length > 1 ? heading(near) : 0;
-  const path = Math.abs(through) < settings.directionDeadzone ? 0 : clamp(through * settings.pathGain, -settings.pathMax, settings.pathMax);
-  const curl = Math.abs(bend) < settings.curlDeadzone ? 0 : clamp(bend * settings.curlGain, -settings.curlMax, settings.curlMax);
-  const face = path + curl;
-  const start = face * 0.75 + path * 0.25;
-  let curve = face - path;
-  let shape: Shape = "carry";
-  let key = "straight";
-
-  if (strike === "miss") {
-    const pace = power < settings.airSlow ? "slow" : power > settings.airHard ? "hard" : "normal";
-    return { key: `air-${pace}`, yards: 0, lateral: 0, shape: "none", start: 0, curve: 0 };
-  }
-  if (ratio >= settings.tempoSnatch) {
-    key = "topped";
-    yards *= settings.topKeep;
-    shape = "ground";
-  } else if (ratio >= settings.tempoRush) {
-    key = "thin";
-    yards *= settings.thinKeep;
-    shape = "runner";
-  } else if (ratio <= settings.tempoSlow && backDistance > height * 0.08) {
-    key = "fat";
-    yards *= settings.fatKeep;
-    shape = "low";
-  } else if (strike === "heel") {
-    key = "heel";
-    curve += settings.heelCurve;
-    yards *= settings.heelKeep;
-  } else if (strike === "toe") {
-    key = "toe";
-    curve -= settings.toeCurve;
-    yards *= settings.toeKeep;
-  } else if (start < -settings.startFault && curve > settings.curveFault) {
-    key = "pull-slice";
-  } else if (start > settings.startFault && curve > settings.curveFault) {
-    key = "push-slice";
-  } else if (curve > settings.curveFault) {
-    key = "slice";
-  } else if (curve < -settings.curveFault) {
-    key = "hook";
-  } else if (start < -settings.startFault) {
-    key = "pull";
-  } else if (start > settings.startFault) {
-    key = "push";
-  } else if (Math.abs(start) <= settings.goodStart && curve <= -settings.drawMin) {
-    key = "draw";
-  } else if (Math.abs(start) <= settings.goodStart && curve >= settings.drawMin) {
-    key = "fade";
-  } else {
-    key = "straight";
-  }
-
-  const lateral =
-    yards * Math.tan((start * Math.PI) / 180) + yards * Math.tan((curve * Math.PI) / 180) * 0.45;
-  return { key, yards, lateral, shape, start, curve };
-}
-
 function project(yards: number, lateral: number, width: number, height: number) {
   const teeY = height * 0.84;
   const horizonY = height * 0.28;
-  const depth = Math.pow(clamp(yards / settings.horizonYards, 0, 1), 0.82);
+  const depth = Math.pow(clamp(yards / swingSettings.horizonYards, 0, 1), 0.82);
   const y = teeY - (teeY - horizonY) * depth;
   const half = width * 0.46 - (width * 0.46 - width * 0.05) * depth;
-  const x = width / 2 + (lateral / settings.halfWidthYards) * half;
+  const x = width / 2 + (lateral / swingSettings.halfWidthYards) * half;
   return { x, y, depth };
 }
 
+function judge(pose: SwingPose, shoulder: { x: number; y: number }, ball: { x: number; y: number }, addressX: number): Shot {
+  const { hands, head } = joints(pose, shoulder);
+  const velocity = clubheadVelocity(pose);
+  const dx = head.x - ball.x;
+  const dy = head.y - ball.y;
+  const reach = hands.x - shoulder.x;
+  const path = clamp(
+    (Math.atan2(velocity.vx, Math.max(velocity.vy, 1)) * 180) / Math.PI * swingSettings.pathGain,
+    -swingSettings.pathMax,
+    swingSettings.pathMax,
+  );
+  const face = clamp((pose.club - pose.arm) * (180 / Math.PI) * swingSettings.faceGain, -swingSettings.faceMax, swingSettings.faceMax);
+  let start = face * 0.75 + path * 0.25;
+  let curve = face - path;
+  const power = velocity.speed / 1000 / swingSettings.sweetSpeed;
+  let yards = swingSettings.minYards + clamp(power, 0, 1.2) * swingSettings.yardSpan;
+  let shape: Shot["shape"] = "carry";
+  let key = "straight";
+  const strike: Shot["strike"] = dy > swingSettings.fatBelow ? "low" : dy < -swingSettings.thinAbove ? "high" : "good";
+  const missed = Math.hypot(dx, dy) > swingSettings.hitRadius;
+
+  if (missed) {
+    const pace = power < swingSettings.airSlow ? "slow" : power > swingSettings.airHard ? "hard" : "normal";
+    key = `air-${pace}`;
+    yards = 0;
+    shape = "none";
+  } else if (dy < -swingSettings.topAbove) {
+    key = "topped";
+    yards *= swingSettings.topKeep;
+    shape = "ground";
+  } else if (dy < -swingSettings.thinAbove) {
+    key = "thin";
+    yards *= swingSettings.thinKeep;
+    shape = "runner";
+  } else if (dy > swingSettings.fatBelow) {
+    key = "fat";
+    yards *= swingSettings.fatKeep;
+    shape = "low";
+  } else if (reach > addressX + swingSettings.heelOut) {
+    key = "heel";
+    curve += swingSettings.heelCurve;
+    yards *= swingSettings.heelKeep;
+  } else if (reach < addressX - swingSettings.toeIn) {
+    key = "toe";
+    curve -= swingSettings.toeCurve;
+    yards *= swingSettings.toeKeep;
+  } else if (start < -swingSettings.startFault && curve > swingSettings.curveFault) {
+    key = "pull-slice";
+  } else if (start > swingSettings.startFault && curve > swingSettings.curveFault) {
+    key = "push-slice";
+  } else if (curve > swingSettings.curveFault) {
+    key = "slice";
+  } else if (curve < -swingSettings.curveFault) {
+    key = "hook";
+  } else if (start < -swingSettings.startFault) {
+    key = "pull";
+  } else if (start > swingSettings.startFault) {
+    key = "push";
+  } else if (Math.abs(start) <= swingSettings.goodStart && curve <= -swingSettings.drawMin) {
+    key = "draw";
+  } else if (Math.abs(start) <= swingSettings.goodStart && curve >= swingSettings.drawMin) {
+    key = "fade";
+  }
+
+  if (key === "heel" || key === "toe") {
+    start = face * 0.75 + path * 0.25;
+  }
+  const lateral = yards * Math.tan((start * Math.PI) / 180) + yards * Math.tan((curve * Math.PI) / 180) * 0.45;
+  return {
+    key,
+    yards,
+    lateral,
+    shape,
+    speed: velocity.speed,
+    strike,
+    path: path < -swingSettings.pathSquare ? "left" : path > swingSettings.pathSquare ? "right" : "square",
+    face: face > swingSettings.faceSquare ? "open" : face < -swingSettings.faceSquare ? "shut" : "square",
+  };
+}
+
 export function GolfRange({ copy }: { copy: GolfRangeCopy }) {
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const swingRef = useRef<HTMLCanvasElement>(null);
+  const rangeRef = useRef<HTMLCanvasElement>(null);
   const copyRef = useRef(copy);
   const lastMessage = useRef("");
-  const [panel, setPanel] = useState<{ name: string; lines: string[] } | null>(null);
+  const [panel, setPanel] = useState<{ name: string; lines: string[]; shot: Shot } | null>(null);
 
   useEffect(() => {
     copyRef.current = copy;
   }, [copy]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const wrap = wrapRef.current;
-    if (!canvas || !wrap) {
+    const swingCanvas = swingRef.current;
+    const rangeCanvas = rangeRef.current;
+    const box = boxRef.current;
+    if (!swingCanvas || !rangeCanvas || !box) {
       return;
     }
-    const context = canvas.getContext("2d");
-    if (!context) {
+    const swingCtx = swingCanvas.getContext("2d");
+    const rangeCtx = rangeCanvas.getContext("2d");
+    if (!swingCtx || !rangeCtx) {
       return;
     }
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let frame = 0;
     let visible = true;
-    let width = 0;
-    let height = 0;
-    let power = 0;
-    let dragging = false;
-    const samples: Sample[] = [];
+    let last = 0;
+    const pose = restPose();
+    let holding = false;
+    let armed = false;
+    let pointer: { x: number; y: number } | null = null;
+    let raised = false;
+    let addressReach = 0;
+    let impacted = false;
+    let freezeUntil = 0;
     let shot: Shot | null = null;
-    let started = 0;
-    let phase: "ready" | "fly" | "hold" = "ready";
-    let retee = 0;
+    let flownAt = 0;
+    let reteeAt = 0;
     let result = "";
+    const trail: { x: number; y: number; life: number }[] = [];
 
-    const resize = () => {
-      const next = Math.round(wrap.clientWidth);
-      const box = wrap.getBoundingClientRect();
-      if (next < 2 || box.height < 2) {
-        return false;
-      }
-      width = next;
-      height = Math.round(box.height);
+    const fit = (canvas: HTMLCanvasElement) => {
+      const rect = canvas.getBoundingClientRect();
       const ratio = Math.min(2, window.devicePixelRatio || 1);
-      canvas.width = Math.round(width * ratio);
-      canvas.height = Math.round(height * ratio);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-      context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      return true;
+      canvas.width = Math.max(2, Math.round(rect.width * ratio));
+      canvas.height = Math.max(2, Math.round(rect.height * ratio));
+      const context = canvas.getContext("2d");
+      context?.setTransform(ratio, 0, 0, ratio, 0, 0);
+      return { width: rect.width, height: rect.height };
     };
 
-    const ballPoint = () => ({ x: width / 2, y: height * 0.84 });
+    const shoulderOf = (width: number, height: number) => ({
+      x: width * 0.5 + Math.sin(pose.body) * 10,
+      y: height * 0.34,
+    });
 
-    const paint = (now: number) => {
-      if (!resize()) {
-        return;
+    const paintSwing = (now: number) => {
+      const { width, height } = fit(swingCanvas);
+      const shoulder = shoulderOf(width, height);
+      const ball = { x: width * 0.5, y: height * 0.78 };
+      const { hands, elbow, head } = joints(pose, shoulder);
+      const hip = { x: width * 0.5, y: height * 0.58 };
+      swingCtx.clearRect(0, 0, width, height);
+      swingCtx.fillStyle = paper;
+      swingCtx.fillRect(0, 0, width, height);
+      swingCtx.strokeStyle = ink;
+      swingCtx.lineWidth = 1.6;
+      swingCtx.lineCap = "round";
+      swingCtx.beginPath();
+      swingCtx.arc(shoulder.x, shoulder.y - 28, 11, 0, Math.PI * 2);
+      swingCtx.moveTo(shoulder.x, shoulder.y);
+      swingCtx.lineTo(hip.x, hip.y);
+      swingCtx.moveTo(shoulder.x - 16, shoulder.y + 4);
+      swingCtx.lineTo(shoulder.x + 16, shoulder.y + 4);
+      swingCtx.moveTo(hip.x, hip.y);
+      swingCtx.lineTo(hip.x - 16, height * 0.92);
+      swingCtx.moveTo(hip.x, hip.y);
+      swingCtx.lineTo(hip.x + 14, height * 0.92);
+      swingCtx.moveTo(shoulder.x, shoulder.y);
+      swingCtx.lineTo(elbow.x, elbow.y);
+      swingCtx.lineTo(hands.x, hands.y);
+      swingCtx.moveTo(hands.x, hands.y);
+      swingCtx.lineTo(head.x, head.y);
+      swingCtx.stroke();
+      if (!reduced) {
+        trail.forEach((bit) => {
+          swingCtx.globalAlpha = bit.life;
+          swingCtx.fillStyle = ink;
+          swingCtx.beginPath();
+          swingCtx.arc(bit.x, bit.y, 2, 0, Math.PI * 2);
+          swingCtx.fill();
+        });
+        swingCtx.globalAlpha = 1;
       }
-      const ball = ballPoint();
-      context.clearRect(0, 0, width, height);
-      context.fillStyle = paper;
-      context.fillRect(0, 0, width, height);
+      swingCtx.fillStyle = ink;
+      swingCtx.beginPath();
+      swingCtx.arc(ball.x, ball.y, 5, 0, Math.PI * 2);
+      swingCtx.fill();
+      const speed = clubheadVelocity(pose).speed / 1000 / swingSettings.sweetSpeed;
+      swingCtx.strokeRect(16, 16, 70, 8);
+      swingCtx.fillStyle = clay;
+      swingCtx.fillRect(16, 16, 70 * clamp(speed, 0, 1), 8);
+      if (now < freezeUntil) {
+        swingCtx.fillStyle = clay;
+        swingCtx.globalAlpha = 0.85;
+        swingCtx.beginPath();
+        swingCtx.arc(ball.x, ball.y, 14, 0, Math.PI * 2);
+        swingCtx.fill();
+        swingCtx.globalAlpha = 1;
+      }
+    };
+
+    const paintRange = (now: number) => {
+      const { width, height } = fit(rangeCanvas);
       const horizon = height * 0.28;
-      context.strokeStyle = ink;
-      context.lineWidth = 1.25;
-      context.beginPath();
-      context.moveTo(width * 0.08, horizon);
-      context.lineTo(width * 0.92, horizon);
-      context.stroke();
-      context.beginPath();
-      context.moveTo(width * 0.08, horizon);
-      context.lineTo(width * 0.18, height);
-      context.moveTo(width * 0.92, horizon);
-      context.lineTo(width * 0.82, height);
-      context.stroke();
+      rangeCtx.clearRect(0, 0, width, height);
+      rangeCtx.fillStyle = paper;
+      rangeCtx.fillRect(0, 0, width, height);
+      rangeCtx.strokeStyle = ink;
+      rangeCtx.lineWidth = 1.25;
+      rangeCtx.beginPath();
+      rangeCtx.moveTo(width * 0.08, horizon);
+      rangeCtx.lineTo(width * 0.92, horizon);
+      rangeCtx.moveTo(width * 0.08, horizon);
+      rangeCtx.lineTo(width * 0.18, height);
+      rangeCtx.moveTo(width * 0.92, horizon);
+      rangeCtx.lineTo(width * 0.82, height);
+      rangeCtx.stroke();
       for (const yards of [50, 100, 150, 200, 250]) {
-        const left = project(yards, -settings.halfWidthYards, width, height);
-        const right = project(yards, settings.halfWidthYards, width, height);
-        context.strokeStyle = "rgba(22, 21, 20, 0.35)";
-        context.lineWidth = 1;
-        context.beginPath();
-        context.moveTo(left.x, left.y);
-        context.lineTo(right.x, right.y);
-        context.stroke();
-        context.strokeStyle = ink;
-        context.strokeRect(left.x - 16, left.y - 9, 32, 14);
-        context.fillStyle = ink;
-        context.font = "11px Instrument Sans, Arial, sans-serif";
-        context.textAlign = "center";
-        context.fillText(String(yards), left.x, left.y + 3);
+        const left = project(yards, -swingSettings.halfWidthYards, width, height);
+        const right = project(yards, swingSettings.halfWidthYards, width, height);
+        rangeCtx.strokeStyle = "rgba(22, 21, 20, 0.35)";
+        rangeCtx.beginPath();
+        rangeCtx.moveTo(left.x, left.y);
+        rangeCtx.lineTo(right.x, right.y);
+        rangeCtx.stroke();
+        rangeCtx.strokeStyle = ink;
+        rangeCtx.strokeRect(left.x - 14, left.y - 8, 28, 12);
+        rangeCtx.font = "11px Instrument Sans, Arial, sans-serif";
+        rangeCtx.textAlign = "center";
+        rangeCtx.fillStyle = ink;
+        rangeCtx.fillText(String(yards), left.x, left.y + 2);
         if (yards === 200) {
           const flag = project(200, 8, width, height);
-          context.beginPath();
-          context.moveTo(flag.x, flag.y);
-          context.lineTo(flag.x, flag.y - 28 * (1 - flag.depth));
-          context.stroke();
-          context.beginPath();
-          context.moveTo(flag.x, flag.y - 28 * (1 - flag.depth));
-          context.lineTo(flag.x + 12, flag.y - 22 * (1 - flag.depth));
-          context.lineTo(flag.x, flag.y - 16 * (1 - flag.depth));
-          context.stroke();
+          rangeCtx.beginPath();
+          rangeCtx.moveTo(flag.x, flag.y);
+          rangeCtx.lineTo(flag.x, flag.y - 26 * (1 - flag.depth));
+          rangeCtx.moveTo(flag.x, flag.y - 26 * (1 - flag.depth));
+          rangeCtx.lineTo(flag.x + 10, flag.y - 20 * (1 - flag.depth));
+          rangeCtx.lineTo(flag.x, flag.y - 14 * (1 - flag.depth));
+          rangeCtx.stroke();
         }
       }
-
-      if (power > 0 && phase === "ready") {
-        context.strokeStyle = "rgba(22, 21, 20, 0.28)";
-        context.lineWidth = 3;
-        context.beginPath();
-        context.arc(ball.x, ball.y, 36 + power * 28, Math.PI * 0.15, Math.PI * (0.15 + 0.7 * power), false);
-        context.stroke();
-      }
-
-      let progress = 0;
-      if (shot && phase !== "ready") {
-        const elapsed = now - started;
-        progress = reduced ? 1 : clamp(elapsed / (settings.flightMs + settings.bounceMs), 0, 1);
-      }
+      const progress = !shot || shot.shape === "none" ? 0 : reduced ? 1 : clamp((now - flownAt) / swingSettings.flightMs, 0, 1);
       if (shot && shot.shape !== "none" && progress > 0) {
-        const points: { x: number; y: number; ground: number }[] = [];
-        const steps = 28;
-        for (let step = 0; step <= steps; step += 1) {
-          const along = step / steps;
-          const flying = Math.min(along / 0.82, 1);
-          const rolling = along > 0.82 ? (along - 0.82) / 0.18 : 0;
-          const yards = shot.yards * (0.9 * flying + 0.1 * rolling);
-          const lateral = shot.lateral * flying * flying;
-          const place = project(yards, lateral, width, height);
-          const hop = rolling > 0 ? Math.sin(rolling * Math.PI * 2) * (1 - rolling) * 8 : 0;
-          const lift =
-            shot.shape === "ground"
-              ? hop
-              : Math.sin(flying * Math.PI) *
-                  (shot.shape === "carry" ? 70 : shot.shape === "low" ? 28 : 12) *
-                  (1 - place.depth) +
-                hop;
-          points.push({ x: place.x, y: place.y - lift, ground: place.y });
-        }
+        const steps = 24;
         const drawn = Math.max(1, Math.floor(progress * steps));
-        context.strokeStyle = "rgba(22, 21, 20, 0.18)";
-        context.lineCap = "round";
         for (let index = 1; index <= drawn; index += 1) {
-          context.lineWidth = 2.2 * (1 - index / steps) + 0.6;
-          context.beginPath();
-          context.moveTo(points[index - 1].x, points[index - 1].ground);
-          context.lineTo(points[index].x, points[index].ground);
-          context.stroke();
-          context.strokeStyle = clay;
-          context.beginPath();
-          context.moveTo(points[index - 1].x, points[index - 1].y);
-          context.lineTo(points[index].x, points[index].y);
-          context.stroke();
-          context.strokeStyle = "rgba(22, 21, 20, 0.18)";
+          const before = (index - 1) / steps;
+          const along = index / steps;
+          const pointAt = (t: number) => {
+            const flying = Math.min(t / 0.82, 1);
+            const rolling = t > 0.82 ? (t - 0.82) / 0.18 : 0;
+            const yards = shot!.yards * (0.9 * flying + 0.1 * rolling);
+            const place = project(yards, shot!.lateral * flying * flying, width, height);
+            const hop = rolling > 0 ? Math.sin(rolling * Math.PI * 2) * (1 - rolling) * 8 : 0;
+            const lift =
+              shot!.shape === "ground"
+                ? hop
+                : Math.sin(flying * Math.PI) * (shot!.shape === "carry" ? 64 : shot!.shape === "low" ? 26 : 12) * (1 - place.depth) + hop;
+            return { x: place.x, y: place.y - lift, ground: place.y };
+          };
+          const from = pointAt(before);
+          const to = pointAt(along);
+          rangeCtx.strokeStyle = "rgba(22, 21, 20, 0.18)";
+          rangeCtx.lineWidth = 1.4;
+          rangeCtx.beginPath();
+          rangeCtx.moveTo(from.x, from.ground);
+          rangeCtx.lineTo(to.x, to.ground);
+          rangeCtx.stroke();
+          rangeCtx.strokeStyle = clay;
+          rangeCtx.lineWidth = 2.4 * (1 - along) + 0.5;
+          rangeCtx.beginPath();
+          rangeCtx.moveTo(from.x, from.y);
+          rangeCtx.lineTo(to.x, to.y);
+          rangeCtx.stroke();
         }
-        const tip = points[drawn];
-        context.fillStyle = clay;
-        context.beginPath();
-        context.arc(tip.x, tip.y, 3.2 * (1 - (shot.yards / settings.horizonYards) * progress), 0, Math.PI * 2);
-        context.fill();
-        if (progress >= 1) {
-          context.fillStyle = ink;
-          context.font = "14px Instrument Sans, Arial, sans-serif";
-          context.textAlign = "center";
-          context.fillText(result, width / 2, horizon - 16);
+        if (progress >= 1 && result) {
+          rangeCtx.fillStyle = ink;
+          rangeCtx.font = "14px Instrument Sans, Arial, sans-serif";
+          rangeCtx.textAlign = "center";
+          rangeCtx.fillText(result, width / 2, horizon - 12);
         }
       }
-
-      if (!shot || shot.shape === "none" || progress < 0.15) {
-        context.fillStyle = ink;
-        context.beginPath();
-        context.arc(ball.x, ball.y, 5, 0, Math.PI * 2);
-        context.fill();
-        context.strokeStyle = ink;
-        context.beginPath();
-        context.moveTo(ball.x, ball.y + 5);
-        context.lineTo(ball.x, ball.y + 16);
-        context.stroke();
+      if (!shot || shot.shape === "none") {
+        const tee = project(0, 0, width, height);
+        rangeCtx.fillStyle = ink;
+        rangeCtx.beginPath();
+        rangeCtx.arc(tee.x, tee.y, 4, 0, Math.PI * 2);
+        rangeCtx.fill();
       }
     };
 
-    const showOutcome = (next: Shot) => {
+    const finish = (next: Shot) => {
       const book = copyRef.current;
       const good = book.good.find((item) => item.key === next.key);
       const fault = book.faults.find((item) => item.key === next.key);
       let name = next.key;
-      let lines: string[] = [];
+      const lines: string[] = [];
       if (next.key.startsWith("air-")) {
         const pace = next.key.slice(4) as "hard" | "normal" | "slow";
         name = book.air.name;
-        lines = [pickMessage(book.air[pace], lastMessage.current)];
+        const message = pickMessage(book.air[pace], lastMessage.current);
+        lines.push(book.air.cause, message);
+        lastMessage.current = message;
       } else if (good) {
         name = good.name;
-        lines = [pickMessage(good.messages, lastMessage.current)];
+        lines.push(good.cause);
+        const message = pickMessage(good.messages, lastMessage.current);
+        lines.push(message);
+        lastMessage.current = message;
       } else if (fault) {
         name = fault.name;
-        lines = [fault.swipe, fault.tip];
+        lines.push(fault.cause, fault.tip);
       }
-      lastMessage.current = lines[0] || "";
-      const side = next.lateral < -0.5 ? "left" : next.lateral > 0.5 ? "right" : "left";
-      const offline = Math.abs(Math.round(next.lateral));
-      result = next.shape === "none" ? "" : `${Math.round(next.yards)} yds, ${offline} ${side}`;
-      setPanel({ name, lines });
+      const side = next.lateral < -0.5 ? "left" : "right";
+      result = next.shape === "none" ? "" : `${Math.round(next.yards)} yds, ${Math.abs(Math.round(next.lateral))} ${side}`;
       shot = next;
-      started = performance.now();
-      phase = "fly";
-      retee = 0;
+      flownAt = performance.now();
+      setPanel({ name, lines: lines.filter(Boolean), shot: next });
     };
 
     const kick = () => {
@@ -408,75 +370,103 @@ export function GolfRange({ copy }: { copy: GolfRangeCopy }) {
       if (!visible) {
         return;
       }
-      paint(now);
-      if (phase === "fly" && (reduced || now - started > settings.flightMs + settings.bounceMs)) {
-        phase = "hold";
-        retee = now + settings.reteeMs;
+      const dt = last ? Math.min(0.032, (now - last) / 1000) : 0.016;
+      last = now;
+      const swingSize = swingCanvas.getBoundingClientRect();
+      const shoulder = shoulderOf(swingSize.width, swingSize.height);
+      const ball = { x: swingSize.width * 0.5, y: swingSize.height * 0.78 };
+      if (now >= freezeUntil && !impacted) {
+        stepSwing(pose, shoulder, holding ? pointer : null, dt);
+        const { head } = joints(pose, shoulder);
+        if (!reduced) {
+          trail.push({ x: head.x, y: head.y, life: 0.7 });
+          trail.forEach((bit) => {
+            bit.life -= dt * 1.8;
+          });
+          while (trail.length && trail[0].life <= 0) {
+            trail.shift();
+          }
+        }
+        if (head.y < ball.y - swingSettings.raised) {
+          raised = true;
+        }
+        const velocity = clubheadVelocity(pose);
+        if (armed && raised && velocity.vy > 0 && !impacted) {
+          const distance = Math.hypot(head.x - ball.x, head.y - ball.y);
+          const passing = distance < swingSettings.hitRadius || (head.y > ball.y - 8 && Math.abs(head.x - ball.x) < swingSettings.hitRadius);
+          if (passing) {
+            impacted = true;
+            freezeUntil = now + (reduced ? 0 : swingSettings.freezeMs);
+            const next = judge(pose, shoulder, ball, addressReach);
+            finish(next);
+            reteeAt = freezeUntil + swingSettings.flightMs + swingSettings.reteeMs;
+            if (reduced) {
+              reteeAt = now + swingSettings.reteeMs;
+            }
+          }
+        }
       }
-      if (phase === "hold" && now > retee) {
-        phase = "ready";
+      if (impacted && now > reteeAt) {
+        Object.assign(pose, restPose());
+        holding = false;
+        pointer = null;
+        raised = false;
+        armed = false;
+        impacted = false;
         shot = null;
-        power = 0;
         result = "";
+        trail.length = 0;
         setPanel(null);
       }
-      if (phase !== "ready" || dragging || power > 0) {
-        frame = requestAnimationFrame(tick);
-      }
+      paintSwing(now);
+      paintRange(now);
+      frame = requestAnimationFrame(tick);
+    };
+
+    const local = (event: PointerEvent) => {
+      const rect = swingCanvas.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
     };
 
     const onDown = (event: PointerEvent) => {
-      if (phase !== "ready") {
+      if (impacted) {
         return;
       }
-      dragging = true;
-      power = 0;
-      samples.length = 0;
-      samples.push({ x: event.offsetX, y: event.offsetY, t: event.timeStamp });
-      canvas.setPointerCapture(event.pointerId);
+      holding = true;
+      armed = true;
+      pointer = local(event);
+      const size = swingCanvas.getBoundingClientRect();
+      const shoulder = shoulderOf(size.width, size.height);
+      addressReach = joints(pose, shoulder).hands.x - shoulder.x;
+      swingCanvas.setPointerCapture(event.pointerId);
       kick();
     };
-
     const onMove = (event: PointerEvent) => {
-      if (!dragging) {
+      if (!holding) {
         return;
       }
-      samples.push({ x: event.offsetX, y: event.offsetY, t: event.timeStamp });
-      const first = samples[0];
-      power = clamp((event.offsetY - first.y) / (settings.fullPowerFraction * height), 0, 1);
-      kick();
+      pointer = local(event);
     };
-
-    const onUp = (event: PointerEvent) => {
-      if (!dragging) {
-        return;
-      }
-      dragging = false;
-      samples.push({ x: event.offsetX, y: event.offsetY, t: event.timeStamp });
-      const ball = ballPoint();
-      if (samples.length > 3) {
-        showOutcome(readSwing(samples, ball.x, ball.y, width, height));
-      }
-      power = 0;
-      kick();
+    const onUp = () => {
+      holding = false;
+      pointer = null;
     };
 
     const observer = new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting;
       if (visible) {
+        last = 0;
         kick();
       } else if (frame) {
         cancelAnimationFrame(frame);
         frame = 0;
       }
     });
-    const resizeObserver = new ResizeObserver(() => kick());
-    observer.observe(wrap);
-    resizeObserver.observe(wrap);
-    canvas.addEventListener("pointerdown", onDown);
-    canvas.addEventListener("pointermove", onMove);
-    canvas.addEventListener("pointerup", onUp);
-    canvas.addEventListener("pointercancel", onUp);
+    observer.observe(box);
+    swingCanvas.addEventListener("pointerdown", onDown);
+    swingCanvas.addEventListener("pointermove", onMove);
+    swingCanvas.addEventListener("pointerup", onUp);
+    swingCanvas.addEventListener("pointercancel", onUp);
     kick();
 
     return () => {
@@ -484,33 +474,42 @@ export function GolfRange({ copy }: { copy: GolfRangeCopy }) {
         cancelAnimationFrame(frame);
       }
       observer.disconnect();
-      resizeObserver.disconnect();
-      canvas.removeEventListener("pointerdown", onDown);
-      canvas.removeEventListener("pointermove", onMove);
-      canvas.removeEventListener("pointerup", onUp);
-      canvas.removeEventListener("pointercancel", onUp);
+      swingCanvas.removeEventListener("pointerdown", onDown);
+      swingCanvas.removeEventListener("pointermove", onMove);
+      swingCanvas.removeEventListener("pointerup", onUp);
+      swingCanvas.removeEventListener("pointercancel", onUp);
     };
   }, []);
 
   return (
     <div
+      ref={boxRef}
       className="mt-8 w-full rounded-2xl bg-field p-3"
       role="group"
       aria-label="Golf driving range game. Optional, just for fun."
     >
-      <div ref={wrapRef} className="relative aspect-[3/4] w-full min-[900px]:aspect-[16/10]">
-        <canvas ref={canvasRef} className="block h-full w-full rounded-xl" style={{ touchAction: "none" }} />
-        {panel ? (
-          <div className="pointer-events-none absolute right-3 bottom-3 left-3 rounded-lg border border-line bg-card px-3 py-2 text-sm leading-snug text-ink min-[900px]:left-auto min-[900px]:max-w-[260px]">
-            <p className="font-semibold">{panel.name}</p>
-            {panel.lines.map((line) => (
-              <p key={line} className="text-muted">
-                {line}
-              </p>
-            ))}
-          </div>
-        ) : null}
+      <div className="grid grid-cols-1 gap-2 min-[900px]:grid-cols-2">
+        <div className="relative aspect-[4/5] w-full">
+          <canvas ref={swingRef} className="block h-full w-full rounded-xl" style={{ touchAction: "none" }} />
+        </div>
+        <div className="relative aspect-[4/5] w-full min-[900px]:aspect-[4/5]">
+          <canvas ref={rangeRef} className="pointer-events-none block h-full w-full rounded-xl" />
+        </div>
       </div>
+      {panel ? (
+        <div className="mt-2 rounded-lg border border-line bg-card px-3 py-2 text-sm leading-snug text-ink">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-muted min-[900px]:grid-cols-4">
+            <p>Club speed {Math.round((panel.shot.speed / 1000 / swingSettings.sweetSpeed) * 100)}</p>
+            <p>Strike {panel.shot.strike}</p>
+            <p>Path {panel.shot.path}</p>
+            <p>Face {panel.shot.face}</p>
+          </div>
+          <p className="mt-2 font-semibold">{panel.name}</p>
+          {panel.lines.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

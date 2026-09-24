@@ -5,19 +5,21 @@ import { parseFrontmatter, type FrontmatterValue } from "@/lib/frontmatter";
 export type GoodShot = {
   key: string;
   name: string;
+  cause: string;
   messages: string[];
 };
 
 export type FaultShot = {
   key: string;
   name: string;
-  swipe: string;
+  cause: string;
   tip: string;
 };
 
 export type AirShot = {
   key: string;
   name: string;
+  cause: string;
   hard: string[];
   normal: string[];
   slow: string[];
@@ -61,6 +63,7 @@ export function readGolfRange(): GolfRangeCopy {
     return {
       key: asString(row?.key),
       name: asString(row?.name),
+      cause: asString(row?.cause),
       messages: stringList(row?.messages),
     };
   });
@@ -76,6 +79,7 @@ export function readGolfRange(): GolfRangeCopy {
       air = {
         key: "air-shot",
         name: asString(row.name),
+        cause: asString(row.cause),
         hard: stringList(messages?.hard),
         normal: stringList(messages?.normal),
         slow: stringList(messages?.slow),
@@ -85,7 +89,7 @@ export function readGolfRange(): GolfRangeCopy {
     faults.push({
       key: asString(row.key),
       name: asString(row.name),
-      swipe: asString(row.swipe),
+      cause: asString(row.cause),
       tip: asString(row.tip),
     });
   }

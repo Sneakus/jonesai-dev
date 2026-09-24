@@ -1,85 +1,85 @@
 ---
 draft: true
 # Driving range outcomes for the Golf Agent page.
-# "swipe" says what the visitor's swipe did (drafted by Claude).
+# "cause" says what happened in the swing, in plain words (drafted by Claude).
 # "tip" is a plain-English version of a fix from AJ's Golf Agent notes (golf-fault-corpus-v3.md), same meaning, simpler words.
 # "source" is the entry it came from. Never shown to visitors.
 good:
   - key: straight
     name: Straight
-    swipe: A straight swipe through the middle of the ball.
+    cause: "Smooth tempo, the club at the right height, and the face and swing lined up."
     messages:
       - "Pure. Frame that one."
       - "Right down the middle."
   - key: draw
     name: Draw
-    swipe: Your swipe curled slightly left at the end.
+    cause: "The clubhead came through a touch early, curving it gently left."
     messages:
       - "A tidy little draw."
   - key: fade
     name: Fade
-    swipe: Your swipe curled slightly right at the end.
+    cause: "The clubhead came through a touch late, curving it gently right."
     messages:
       - "A gentle fade. Very controlled."
 faults:
   - key: pull
     name: Pull
-    swipe: You swiped up and to the left, in a straight line.
+    cause: "You came down steep, across the ball, with the face pointing the same way."
     tip: "Check where you're aiming before changing your swing. This one is usually an aim problem."
     source: F005
   - key: push
     name: Push
-    swipe: You swiped up and to the right, in a straight line.
+    cause: "You came from underneath, out to the right, with the face pointing the same way."
     tip: "Check where you're aiming first."
     source: F006
   - key: slice
     name: Slice
-    swipe: Your swipe curled hard right at the end.
+    cause: "The club lagged behind your hands at impact, so the face was open."
     tip: "Feel the clubhead swing out to the right of the target as it hits the ball."
     source: F001
   - key: pull-slice
     name: Pull-slice
-    swipe: You swiped up and to the left, then curled right at the end.
+    cause: "You came down steep across the ball, and the club lagged behind your hands."
     tip: "Swing more out to the right, but keep the clubface pointing at the target, or it'll just fly straight left instead."
     source: F002
   - key: push-slice
     name: Push-slice
-    swipe: You swiped up and to the right, then curled right at the end.
+    cause: "You came from underneath, and the club lagged behind your hands."
     tip: "Let the clubface close a little earlier as you hit the ball."
     source: F003
   - key: hook
     name: Hook
-    swipe: Your swipe curled hard left at the end.
+    cause: "The clubhead overtook your hands before impact, so the face shut."
     tip: "Keep your chest turning through the ball, instead of letting your hands flick it."
     source: F004
   - key: heel
     name: Heel strike
-    swipe: You caught the ball on the side nearest you.
+    cause: "Your hands drifted away from your body, so you caught it near the heel of the club."
     tip: "Check how far you're standing from the ball before you change anything in your swing."
     source: F013
   - key: toe
     name: Toe strike
-    swipe: You caught the ball on the side furthest from you.
+    cause: "You pulled your arms in, so you caught it near the tip of the club."
     tip: "Keep your chest turning through, instead of pulling your arms in."
     source: F014
   - key: fat
     name: Fat
-    swipe: You slowed down just before the ball.
+    cause: "The club hit the ground before it reached the ball."
     tip: "Get your hands slightly ahead of the club as you hit the ball."
     source: F007
   - key: thin
     name: Thin
-    swipe: You rushed the swing through the ball.
+    cause: "The club came in too high and caught the middle of the ball."
     tip: "Feel the club brush the grass just after the ball."
     source: F008
   - key: topped
     name: Topped
-    swipe: You snatched at it, really fast.
+    cause: "The club came in way too high and only caught the top of the ball."
     tip: "Keep your chest over the ball as you hit it."
     source: F008 (F009 says "Same as F008")
   - key: air-shot
     name: Air shot
-    swipe: Your swipe missed the ball completely.
+    cause: "The club missed the ball completely."
     # Picked by how hard they swung. No tip from the notes, these are jokes with a nudge.
     messages:
       hard:
