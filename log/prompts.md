@@ -932,3 +932,24 @@ Tell me in plain English what changed and what to look at.
 ```
 Changed: Dots now glow in city clusters, stay on the near side of the globe, and no longer sit in the sea.
 Files: components/worldcup-globe.tsx, scripts/build-globe-dots.py, data/worldcup-dots.json, log/prompts.md
+
+### 2026-09-24 15:56
+Prompt:
+```
+Three changes to the /worldcupmap globe. Keep everything else as it is. Stop and tell me if anything fails.
+
+1. The dots are now too faint to notice. Make them clearly visible again while keeping the glow: single dots faint but noticeable, city clusters clearly bright. Start at about 3 times the current strength.
+   Add a temporary tuning panel that only appears when the page address ends in ?tune, with sliders for dot strength, dot size and halo size, each showing its current number. I'll use it to find the right values and then tell you the numbers. Nothing about the panel should show for normal visitors.
+
+2. Zoom with the plain mouse scroll wheel over the globe: scrolling up zooms in, scrolling down zooms out, smoothly, centred on the pointer.
+   - So people scrolling down the page don't get stuck: when fully zoomed out, scrolling down passes through to the page. When fully zoomed in, scrolling up passes through too.
+   - Touch stays as it is: pinch to zoom, and an up-and-down swipe scrolls the page.
+
+3. Remove the "1x" button. Keep plus and minus.
+
+4. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "worldcupmap: stronger dots, scroll zoom, tuning panel" and push to main.
+
+Tell me in plain English what changed and how to use the tuning panel.
+```
+Changed: Made the dots stronger, zoom follows the scroll wheel, and added a hidden tuning panel.
+Files: components/worldcup-globe.tsx, log/prompts.md

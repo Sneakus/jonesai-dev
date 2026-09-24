@@ -2,7 +2,8 @@
 
 import { geoContains, geoOrthographic, geoPath, type GeoPermissibleObjects } from "d3-geo";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { feature, type GeometryCollection } from "topojson-client";
 import picksFile from "@/data/worldcup-picks.json";
 import nationsFile from "@/data/uk-nations.json";
@@ -92,6 +93,44 @@ function boundsOf(geometry: { coordinates?: unknown }) {
   return [minLon, minLat, maxLon, maxLat] as [number, number, number, number];
 }
 
+function TunePanel({
+  tune,
+  onChange,
+}: {
+  tune: { strength: number; size: number; halo: number };
+  onChange: (key: "strength" | "size" | "halo", value: number) => void;
+}) {
+  if (useSearchParams().toString() !== "tune") {
+    return null;
+  }
+  const rows = [
+    ["strength", "Strength", 0.1, 2, 0.01],
+    ["size", "Size", 1, 10, 0.1],
+    ["halo", "Halo", 0.4, 2.5, 0.05],
+  ] as const;
+  return (
+    <div className="mx-auto mt-4 max-w-sm rounded-lg border border-line bg-card p-3 text-sm text-ink">
+      {rows.map(([key, label, min, max, step]) => (
+        <label key={key} className="mt-2 block first:mt-0">
+          <span className="flex justify-between">
+            {label}
+            <span>{tune[key].toFixed(2)}</span>
+          </span>
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={tune[key]}
+            className="w-full"
+            onChange={(event) => onChange(key, Number(event.target.value))}
+          />
+        </label>
+      ))}
+    </div>
+  );
+}
+
 export function WorldcupGlobe({
   caption,
   fallback,
@@ -107,8 +146,17 @@ export function WorldcupGlobe({
   const teamRef = useRef<HTMLParagraphElement>(null);
   const countRef = useRef<HTMLParagraphElement>(null);
   const zoomRef = useRef<(factor: number, absolute?: boolean) => void>(() => {});
+  const tuneRef = useRef({ strength: 0.84, size: 2.6, halo: 1 });
+  const redrawRef = useRef<() => void>(() => {});
   const [showFallback, setShowFallback] = useState(false);
+  const [tune, setTune] = useState({ strength: 0.84, size: 2.6, halo: 1 });
   const drawnRef = useRef(false);
+
+  const setTuneValue = (key: "strength" | "size" | "halo", value: number) => {
+    tuneRef.current = { ...tuneRef.current, [key]: value };
+    setTune(tuneRef.current);
+    redrawRef.current();
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -178,8 +226,8 @@ export function WorldcupGlobe({
     );
     const fragment = compile(
       gl?.FRAGMENT_SHADER || 0,
-      `precision mediump float; varying vec3 vCol; uniform float uStrength;
-       void main() { float d = length(gl_PointCoord - vec2(0.5)); if (d > 0.5) discard; float core = smoothstep(0.18, 0.0, d); float halo = smoothstep(0.5, 0.05, d); vec3 color = mix(vCol, vec3(1.0), core * 0.85); float alpha = (halo * 0.55 + core * 0.45) * uStrength; gl_FragColor = vec4(color, alpha); }`,
+      `precision mediump float; varying vec3 vCol; uniform float uStrength; uniform float uHalo;
+       void main() { float d = length(gl_PointCoord - vec2(0.5)); if (d > 0.5) discard; float spread = max(uHalo, 0.2); float core = smoothstep(0.18 / spread, 0.0, d); float halo = smoothstep(0.5, 0.05 / spread, d); vec3 color = mix(vCol, vec3(1.0), core * 0.85); float alpha = (halo * 0.55 + core * 0.45) * uStrength; gl_FragColor = vec4(color, alpha); }`,
     );
     let posBuffer: WebGLBuffer | null = null;
     let colBuffer: WebGLBuffer | null = null;
@@ -189,6 +237,7 @@ export function WorldcupGlobe({
     let heightLoc: WebGLUniformLocation | null = null;
     let sizeLoc: WebGLUniformLocation | null = null;
     let strengthLoc: WebGLUniformLocation | null = null;
+    let haloLoc: WebGLUniformLocation | null = null;
     if (gl && program && vertex && fragment) {
       gl.attachShader(program, vertex);
       gl.attachShader(program, fragment);
@@ -202,6 +251,7 @@ export function WorldcupGlobe({
       heightLoc = gl.getUniformLocation(program, "uH");
       sizeLoc = gl.getUniformLocation(program, "uSize");
       strengthLoc = gl.getUniformLocation(program, "uStrength");
+      haloLoc = gl.getUniformLocation(program, "uHalo");
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
     }
@@ -301,11 +351,13 @@ export function WorldcupGlobe({
         gl.enableVertexAttribArray(colLoc);
         gl.vertexAttribPointer(colLoc, 3, gl.FLOAT, false, 0, 0);
         const ratio = Math.min(2, window.devicePixelRatio || 1);
-        const pointSize = (2.6 + (view.zoom - 1) * 1.3) * ratio;
+        const look = tuneRef.current;
+        const pointSize = look.size * (1 + (view.zoom - 1) * 0.5) * look.halo * ratio;
         gl.uniform1f(widthLoc, size);
         gl.uniform1f(heightLoc, size);
         gl.uniform1f(sizeLoc, pointSize);
-        gl.uniform1f(strengthLoc, 0.28);
+        gl.uniform1f(strengthLoc, look.strength);
+        gl.uniform1f(haloLoc, look.halo);
         gl.drawArrays(gl.POINTS, 0, count);
       }
       context.beginPath();
@@ -396,6 +448,10 @@ export function WorldcupGlobe({
 
     zoomRef.current = (factor: number, absolute = false) => {
       view.zoom = Math.min(maxZoom, Math.max(minZoom, absolute ? factor : view.zoom * factor));
+      dirty = true;
+      kick();
+    };
+    redrawRef.current = () => {
       dirty = true;
       kick();
     };
@@ -537,11 +593,35 @@ export function WorldcupGlobe({
     };
 
     const onWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey && !event.metaKey) {
+      const delta = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
+      if (delta === 0) {
+        return;
+      }
+      const zoomingIn = delta < 0;
+      if (zoomingIn && view.zoom >= maxZoom - 0.001) {
+        return;
+      }
+      if (!zoomingIn && view.zoom <= minZoom + 0.001) {
         return;
       }
       event.preventDefault();
-      zoomRef.current(event.deltaY < 0 ? 1.12 : 1 / 1.12);
+      const bounds = canvas.getBoundingClientRect();
+      const x = event.clientX - bounds.left;
+      const y = event.clientY - bounds.top;
+      projection.rotate([view.lambda, view.phi, 0]);
+      const before = projection.invert?.([x, y]);
+      view.zoom = Math.min(
+        maxZoom,
+        Math.max(minZoom, view.zoom * Math.exp(-delta * 0.0015)),
+      );
+      projection.scale(wrap.clientWidth * 0.46 * view.zoom);
+      const after = projection.invert?.([x, y]);
+      if (before && after) {
+        view.lambda += before[0] - after[0];
+        view.phi = Math.max(-70, Math.min(70, view.phi + before[1] - after[1]));
+      }
+      dirty = true;
+      kick();
     };
 
     const onDouble = () => {
@@ -639,14 +719,6 @@ export function WorldcupGlobe({
           >
             -
           </button>
-          <button
-            type="button"
-            aria-label="Reset zoom"
-            className="h-8 w-8 rounded-md border border-line bg-card text-xs text-ink"
-            onClick={() => zoomRef.current(1, true)}
-          >
-            1x
-          </button>
         </div>
         <div
           ref={labelRef}
@@ -659,6 +731,9 @@ export function WorldcupGlobe({
         </div>
       </div>
       <p className="mt-3 text-center text-sm text-muted">{caption}</p>
+      <Suspense fallback={null}>
+        <TunePanel tune={tune} onChange={setTuneValue} />
+      </Suspense>
     </div>
   );
 }
