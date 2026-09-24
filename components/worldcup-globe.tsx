@@ -1,8 +1,13 @@
 "use client";
 
 import { geoContains, geoOrthographic, geoPath, type GeoPermissibleObjects } from "d3-geo";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { feature, type GeometryCollection } from "topojson-client";
+import picksFile from "@/data/worldcup-picks.json";
+import nationsFile from "@/data/uk-nations.json";
+import atlasFile from "@/public/globe/countries-110m.json";
+import idsFile from "@/public/globe/country-ids.json";
 
 const paper = [243, 239, 230];
 const ink = "#161514";
@@ -58,18 +63,30 @@ function soften(hex: string) {
 }
 
 function countryName(iso: string, fallback: string) {
-  if (fallback) {
-    return fallback;
+  if (!/^[A-Z]{2}$/.test(iso)) {
+    return fallback || iso;
   }
-  const names = new Intl.DisplayNames(["en"], { type: "region" });
-  return names.of(iso) || iso;
+  try {
+    const names = new Intl.DisplayNames(["en"], { type: "region" });
+    return names.of(iso) || fallback || iso;
+  } catch {
+    return fallback || iso;
+  }
 }
 
-export function WorldcupGlobe({ caption }: { caption: string }) {
+export function WorldcupGlobe({
+  caption,
+  fallback,
+}: {
+  caption: string;
+  fallback: { src: string; alt: string; width: number; height: number };
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [label, setLabel] = useState<Label | null>(null);
+  const [showFallback, setShowFallback] = useState(false);
   const labelRef = useRef<Label | null>(null);
+  const drawnRef = useRef(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -81,7 +98,6 @@ export function WorldcupGlobe({ caption }: { caption: string }) {
     if (!context) {
       return;
     }
-    let cancelled = false;
     let frame = 0;
     let visible = true;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -101,7 +117,10 @@ export function WorldcupGlobe({ caption }: { caption: string }) {
     const drawPath = geoPath(projection, context);
 
     const resize = () => {
-      const size = Math.max(1, Math.round(wrap.clientWidth));
+      const size = Math.round(wrap.clientWidth);
+      if (size < 2) {
+        return false;
+      }
       const ratio = Math.min(2, window.devicePixelRatio || 1);
       canvas.width = Math.round(size * ratio);
       canvas.height = Math.round(size * ratio);
@@ -109,6 +128,7 @@ export function WorldcupGlobe({ caption }: { caption: string }) {
       canvas.style.height = `${size}px`;
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       projection.translate([size / 2, size / 2]).scale(size * 0.46);
+      return true;
     };
 
     const paint = () => {
@@ -137,6 +157,7 @@ export function WorldcupGlobe({ caption }: { caption: string }) {
       context.strokeStyle = "rgba(22, 21, 20, 0.35)";
       context.lineWidth = 1.25;
       context.stroke();
+      drawnRef.current = true;
     };
 
     const hit = (event: PointerEvent) => {
@@ -176,7 +197,12 @@ export function WorldcupGlobe({ caption }: { caption: string }) {
         nudge *= Math.exp(-step / 260);
       }
       lastTime = now;
-      paint();
+      try {
+        paint();
+      } catch {
+        setShowFallback(true);
+        return;
+      }
       frame = requestAnimationFrame(tick);
     };
 
@@ -255,49 +281,59 @@ export function WorldcupGlobe({ caption }: { caption: string }) {
       { threshold: 0.05 },
     );
 
-    const boot = async () => {
-      const [picksFile, atlas, nations, ids] = await Promise.all([
-        import("@/data/worldcup-picks.json").then((mod) => mod.default as PicksFile),
-        fetch("/globe/countries-110m.json").then((response) => response.json() as Promise<Atlas>),
-        fetch("/globe/uk-nations.geojson").then(
-          (response) => response.json() as Promise<{ features: NationFeature[] }>,
-        ),
-        fetch("/globe/country-ids.json").then(
-          (response) => response.json() as Promise<Record<string, string>>,
-        ),
-      ]);
-      if (cancelled) {
-        return;
+    const boot = () => {
+      try {
+        const data = picksFile as PicksFile;
+        const atlas = atlasFile as unknown as Atlas;
+        const nations = nationsFile as { features: NationFeature[] };
+        const ids = idsFile as Record<string, string>;
+        picks = new Map(data.countries.map((row) => [row.iso, row]));
+        fills = new Map(
+          data.countries.map((row) => [row.iso, soften(data.teamColors[row.topPick])]),
+        );
+        const countries = feature(atlas as never, atlas.objects.countries);
+        const shapes = countries.features
+          .filter((item: { id?: string | number }) => String(item.id ?? "") !== ukId)
+          .map((item: { id?: string | number; properties?: { name?: string } }) => {
+            const iso = ids[String(item.id ?? "")] || "";
+            return {
+              iso,
+              name: countryName(iso, item.properties?.name || ""),
+              shape: item as GeoPermissibleObjects,
+            };
+          });
+        const homeNations = nations.features.map((item) => ({
+          iso: item.properties.iso2,
+          name: item.properties.name,
+          shape: item.geometry,
+        }));
+        lands = [...shapes, ...homeNations];
+        if (resize()) {
+          paint();
+        }
+        observer.observe(wrap);
+        start();
+      } catch {
+        setShowFallback(true);
       }
-      const data = picksFile;
-      picks = new Map(data.countries.map((row) => [row.iso, row]));
-      fills = new Map(
-        data.countries.map((row) => [row.iso, soften(data.teamColors[row.topPick])]),
-      );
-      const countries = feature(atlas as never, atlas.objects.countries);
-      const shapes = countries.features
-        .filter((item: { id?: string | number }) => String(item.id ?? "") !== ukId)
-        .map((item: { id?: string | number }) => {
-          const iso = ids[String(item.id ?? "")] || "";
-          return {
-            iso,
-            name: countryName(iso, ""),
-            shape: item as GeoPermissibleObjects,
-          };
-        });
-      const homeNations = nations.features.map((item) => ({
-        iso: item.properties.iso2,
-        name: item.properties.name,
-        shape: item.geometry,
-      }));
-      lands = [...shapes, ...homeNations];
-      resize();
-      observer.observe(wrap);
-      start();
     };
 
-    void boot();
-    const onResize = () => resize();
+    const giveUp = window.setTimeout(() => {
+      if (!drawnRef.current) {
+        setShowFallback(true);
+      }
+    }, 3000);
+
+    boot();
+    const onResize = () => {
+      if (resize() && lands.length > 0) {
+        try {
+          paint();
+        } catch {
+          setShowFallback(true);
+        }
+      }
+    };
     window.addEventListener("resize", onResize);
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
@@ -305,7 +341,7 @@ export function WorldcupGlobe({ caption }: { caption: string }) {
     canvas.addEventListener("pointercancel", onUp);
 
     return () => {
-      cancelled = true;
+      window.clearTimeout(giveUp);
       stop();
       observer.disconnect();
       window.removeEventListener("resize", onResize);
@@ -319,12 +355,24 @@ export function WorldcupGlobe({ caption }: { caption: string }) {
   return (
     <div className="mx-auto mt-8 w-[86%] min-[900px]:w-full">
       <div ref={wrapRef} className="relative aspect-square w-full">
+        {showFallback ? (
+          <Image
+            src={fallback.src}
+            alt={fallback.alt}
+            width={fallback.width}
+            height={fallback.height}
+            quality={90}
+            unoptimized
+            className="h-full w-full rounded-2xl object-cover"
+          />
+        ) : (
         <canvas
           ref={canvasRef}
           className="block h-full w-full"
           style={{ touchAction: "pan-y" }}
           aria-hidden="true"
         />
+        )}
         {label ? (
           <div
             className="pointer-events-none absolute z-10 max-w-[220px] rounded-lg border border-line bg-card px-3 py-2 text-sm leading-snug text-ink"

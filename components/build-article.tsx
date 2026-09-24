@@ -150,7 +150,15 @@ export function BuildArticle({
       <h1 className="build-title">{build.title}</h1>
       <p className="mt-4 text-base text-muted">{build.summary}</p>
       {build.slug === "worldcupmap" ? (
-        <WorldcupGlobe caption={build.globeCaption} />
+        <WorldcupGlobe
+          caption={build.globeCaption}
+          fallback={{
+            src: build.image?.src || "/builds/worldcupmap.webp",
+            alt: build.image?.alt || "",
+            width: build.image?.width || 1200,
+            height: build.image?.height || 800,
+          }}
+        />
       ) : build.funnel ? (
         <JobFunnel funnel={build.funnel} />
       ) : build.image ? (

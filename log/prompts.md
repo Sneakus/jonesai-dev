@@ -845,3 +845,32 @@ Tell me in plain English what changed.
 ```
 Changed: Made the call look like a transcript and the plan like the document that comes out of it, and updated one sentence.
 Files: components/build-article.tsx, content/builds/meeting-plan-agent.md, log/prompts.md
+
+### 2026-09-24 15:24
+Prompt:
+```
+The globe on /worldcupmap shows only an empty space on the live site. Find out why and fix it. Stop and tell me what you find before making any big changes.
+
+1. Check, in this order:
+   - Everything the globe needs is bundled with the site: the picks data, the world outlines and the UK nations shapes. Nothing should be fetched from another website while the page runs.
+   - The canvas gets a real size when it first draws, not 0 by 0, including when the globe starts below the fold.
+   - The globe code actually starts in the production build, not just locally. Check the lazy loading and any client-only setup.
+   - Every error while loading or drawing is caught.
+
+2. Add a safety net: if the globe hasn't drawn within about 3 seconds, or it throws an error, show the old worldcupmap screenshot in its place, so the page never shows an empty space.
+
+3. Run a production build locally and confirm the globe code starts without errors. Don't use the built-in browser.
+
+4. Run the code check and gitleaks git -v, commit with "worldcupmap: fix blank globe, add screenshot fallback" and push to main.
+
+Tell me in plain English what was wrong and what changed.
+
+Console errors from the live page:
+Uncaught (in promise) RangeError: invalid_argument
+    at DisplayNames.of (<anonymous>)
+    at 2dx8t8xqcfnzv.js:1:25697
+    at Array.map (<anonymous>)
+    at 2dx8t8xqcfnzv.js:1:25595
+```
+Changed: Stopped the globe crashing on unnamed countries, bundled its map files, and showed the old screenshot if it still fails.
+Files: components/build-article.tsx, components/worldcup-globe.tsx, data/uk-nations.json, log/prompts.md
