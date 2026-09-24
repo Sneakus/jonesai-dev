@@ -981,3 +981,18 @@ Tell me in plain English what changed.
 ```
 Changed: Each country now has one dot per vote, and the globe caption is gone.
 Files: components/worldcup-globe.tsx, components/build-article.tsx, lib/content.ts, content/builds/worldcupmap.md, scripts/build-globe-dots.py, data/worldcup-dots.json, data/worldcup-predictions-by-country.csv, log/prompts.md
+
+### 2026-09-24 16:41
+Prompt:
+```
+Add a caption under the /worldcupmap globe. Keep everything else as it is.
+
+1. In content/builds/worldcupmap.md, add this to the frontmatter exactly as written, keeping draft: true:
+globeCaption: Each country is coloured by the team its people voted for most to win the World Cup. Each dot is one vote.
+
+2. Show it under the globe in small muted text, centred, the same style the old placeholder had, reading from the content file.
+
+3. Check /worldcupmap at 375px and 1280px wide. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "worldcupmap: globe caption" and push to main.
+```
+Changed: Added the globe caption under the map, read from the content file.
+Files: content/builds/worldcupmap.md, components/worldcup-globe.tsx, components/build-article.tsx, lib/content.ts, log/prompts.md

@@ -93,8 +93,10 @@ function boundsOf(geometry: { coordinates?: unknown }) {
 }
 
 export function WorldcupGlobe({
+  caption,
   fallback,
 }: {
+  caption: string;
   fallback: { src: string; alt: string; width: number; height: number };
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -672,6 +674,7 @@ export function WorldcupGlobe({
           <p ref={countRef} />
         </div>
       </div>
+      {caption ? <p className="mt-3 text-center text-sm text-muted">{caption}</p> : null}
     </div>
   );
 }

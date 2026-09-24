@@ -151,6 +151,7 @@ export function BuildArticle({
       <p className="mt-4 text-base text-muted">{build.summary}</p>
       {build.slug === "worldcupmap" ? (
         <WorldcupGlobe
+          caption={build.globeCaption}
           fallback={{
             src: build.image?.src || "/builds/worldcupmap.webp",
             alt: build.image?.alt || "",

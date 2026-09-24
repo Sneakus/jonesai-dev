@@ -7,6 +7,7 @@ summary: A live World Cup prediction map. You pick a winner and the map shows ho
 image:
   src: /builds/worldcupmap.webp
   alt: The worldcupmap.io world map, with each country coloured by the team its fans picked to win
+globeCaption: Each country is coloured by the team its people voted for most to win the World Cup. Each dot is one vote.
 links:
   - label: Visit worldcupmap.io
     url: https://worldcupmap.io
