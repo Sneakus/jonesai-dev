@@ -953,3 +953,11 @@ Tell me in plain English what changed and how to use the tuning panel.
 ```
 Changed: Made the dots stronger, zoom follows the scroll wheel, and added a hidden tuning panel.
 Files: components/worldcup-globe.tsx, log/prompts.md
+
+### 2026-09-24 16:04
+Prompt:
+```
+The globe dots look right as they are now. Lock in the current dot strength, size and halo values as the defaults, and remove the ?tune tuning panel and all its code. It never appeared at /worldcupmap?tune, so don't try to fix it. Check the page still loads, run the code check and gitleaks git -v, commit with "worldcupmap: lock dot settings, remove tuning panel" and push to main.
+```
+Changed: Locked the current dot look and removed the tuning panel.
+Files: components/worldcup-globe.tsx, log/prompts.md
