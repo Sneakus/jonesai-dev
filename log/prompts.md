@@ -996,3 +996,50 @@ globeCaption: Each country is coloured by the team its people voted for most to 
 ```
 Changed: Added the globe caption under the map, read from the content file.
 Files: content/builds/worldcupmap.md, components/worldcup-globe.tsx, components/build-article.tsx, lib/content.ts, log/prompts.md
+
+### 2026-09-24 16:55
+Prompt:
+```
+Build a small driving range game on the Golf Agent page. It should feel like a simple, forgiving version of Normal Golf Game: the swing is a gesture, not a power meter. A first-time visitor should make contact within their first couple of tries. Keep the rest of the page as it is. Stop and tell me if anything fails.
+
+1. Content: content/golf-range.md has every outcome: the good shots with messages, the faults with what the swipe did and a tip, and air-shot messages by swing speed. Don't change any text. Never show the "source" field to visitors.
+
+2. Placement: on /golf-agent, under the summary and above "How I tested it", in a rounded box in the field colour, the full width of the text column. Landscape on desktop, taller on phones.
+
+3. The view: from behind the golfer, looking down a driving range, drawn in the site's style. Simple ink line art on paper: the horizon, the range narrowing into the distance, yardage boards at 50, 100, 150, 200 and 250 yards, and a flag at 200. The ball sits on a tee at the bottom centre. The ball's flight is a clay-orange line that shrinks with distance, with a faint shadow on the ground. It lands, bounces and rolls a little, then shows the distance and how far left or right it finished, for example "212 yds, 18 left".
+
+4. The swing, with a mouse or a finger. Press anywhere in the box, drag down to wind up (show a faint arc filling as power builds), then drag up through the ball. Only gestures that start inside the box count, and page scrolling must never be hijacked. The swipe gives five readings:
+   - Power: how far you dragged down (full power at about 35% of the box height), plus how fast you went back and forward. A smooth full swing goes about 220 to 250 yards.
+   - Direction: the angle of the upward swipe as it passes the ball: up-left, straight up or up-right.
+   - Curl: how the swipe bends in its last stretch through the ball: left, none or right.
+   - Strike: how far the swipe passes from the ball's centre, sideways: centre, the near side (left of centre), the far side (right of centre), or missing the ball.
+   - Tempo: the forward speed compared with the backswing: slowed down into the ball, smooth, rushed, or very rushed.
+
+5. Ball flight follows the real rules. Swing path comes from direction. The face compared with the path comes from curl. The face points where the path points, plus the curl. The ball starts about 75% where the face points and 25% where the path goes, and curves by the face compared with the path. A near-side strike adds a bit of right curve and loses distance. A far-side strike adds a bit of left curve and loses distance. Fat goes short and low, thin is a low runner, topped dribbles along the ground, and an air shot doesn't move.
+
+6. Naming the shot, with exactly one outcome per swing, checked in this order:
+   1. Air shot
+   2. Topped (very rushed)
+   3. Thin (rushed)
+   4. Fat (slowed down)
+   5. Heel strike or toe strike
+   6. The direction faults from where it started and how much it curved: pull, push, slice, pull-slice, push-slice, hook
+   7. The good shots: straight, draw or fade, for a small curve and a start near the middle
+   Put every threshold in one settings object, and make the default settings forgiving, so a smooth, roughly straight swipe gives a good shot.
+
+8. After each shot, show a small panel: the shot's name, then:
+   - For a fault: its "swipe" line and its tip.
+   - For a good shot: one of its messages.
+   - For an air shot: a message from the hard, normal or slow list, depending on how fast they swung.
+   Pick messages at random, never the same one twice in a row. The ball re-tees after about 1.5 seconds, ready for the next swing.
+
+9. Screen reader label for the box: "Golf driving range game. Optional, just for fun." Reduced motion: no animated flight. Draw the finished flight line straight away and show the panel.
+
+10. Canvas only, no new libraries. Keep it smooth on phones, and pause when off screen. Put every feel setting in the settings object.
+
+11. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "Golf Agent: driving range game" and push to main.
+
+Tell me in plain English what changed and what to try.
+```
+Changed: Added a simple driving range game under the Golf Agent summary.
+Files: components/golf-range.tsx, components/build-article.tsx, lib/golf-range.ts, log/prompts.md
