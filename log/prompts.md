@@ -825,3 +825,23 @@ Tell me in plain English what changed and what to try.
 ```
 Changed: Replaced the worldcupmap screenshot with a spinning globe coloured by real picks.
 Files: components/build-article.tsx, components/worldcup-globe.tsx, content/builds/worldcupmap.md, data/worldcup-picks.json, lib/content.ts, log/prompts.md, package.json, package-lock.json, public/globe/countries-110m.json, public/globe/country-ids.json, public/globe/uk-nations.geojson, types/globe.d.ts
+
+### 2026-09-24 15:19
+Prompt:
+```
+Make the Meeting plan agent example easier to read, and change one line. Stop and tell me if anything fails.
+
+1. In content/builds/meeting-plan-agent.md, replace "It took about 90 minutes. I didn't want the work to go to waste." with "It took about 90 minutes for me to build." Change nothing else in the text.
+
+2. Make the reading order obvious: the call goes in, the plan comes out.
+   - Put a small clay-orange "1" before the call's label and a "2" before the plan's label.
+   - Make them look like two different things. The call looks like a transcript: the field colour background, slightly smaller text in muted ink, and a narrower column. The plan looks like the finished document: the card colour, full ink, a little more padding, and a stronger border or a soft shadow so it sits in front of the call.
+   - Between them, a small clay-orange arrow pointing from the call to the plan: right on desktop, down on phones.
+   - On desktop, the call takes about 40% of the width and the plan about 60%.
+
+3. Check the page at 375px and 1280px wide. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "Meeting plan agent: clearer call-to-plan layout" and push to main.
+
+Tell me in plain English what changed.
+```
+Changed: Made the call look like a transcript and the plan like the document that comes out of it, and updated one sentence.
+Files: components/build-article.tsx, content/builds/meeting-plan-agent.md, log/prompts.md

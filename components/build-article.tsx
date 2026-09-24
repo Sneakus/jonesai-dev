@@ -15,26 +15,43 @@ function CallPlanPanel({ build }: { build: Build }) {
   const plan = build.callPlan;
 
   return (
-    <aside className="my-8 w-[calc(100vw-2.5rem)] max-w-[calc(1200px-2.5rem)] rounded-2xl border border-line bg-card px-4 py-6 min-[900px]:w-[calc(100vw-4rem)] min-[900px]:max-w-[calc(1200px-4rem)] min-[900px]:px-8 min-[900px]:py-8">
-      <div className="grid gap-10 min-[900px]:grid-cols-2 min-[900px]:gap-12">
-        <div>
-          <p className="text-sm text-muted">{plan.callLabel}</p>
-          <div className="mt-5 flex flex-col gap-5">
+    <aside className="my-8 w-[calc(100vw-2.5rem)] max-w-[calc(1200px-2.5rem)] min-[900px]:w-[calc(100vw-4rem)] min-[900px]:max-w-[calc(1200px-4rem)]">
+      <div className="grid items-center gap-4 min-[900px]:grid-cols-[minmax(0,2fr)_auto_minmax(0,3fr)] min-[900px]:gap-5">
+        <div className="rounded-2xl border border-line bg-field px-4 py-5">
+          <p className="text-sm text-muted">
+            <span className="mr-2 font-semibold text-clay">1</span>
+            {plan.callLabel}
+          </p>
+          <div className="mt-4 flex flex-col gap-4">
             {plan.call.map((line, index) => (
               <div
                 key={`${line.who}-${index}`}
-                className={line.who === "Rosie" ? "pl-4" : undefined}
+                className={line.who === "Rosie" ? "pl-3" : undefined}
               >
-                <p className="text-[17px] leading-[1.6]">
+                <p className="text-[15px] leading-[1.55] text-muted">
                   <span className="font-semibold">{line.who}</span>
                 </p>
-                <p className="text-[17px] leading-[1.6]">{line.said}</p>
+                <p className="text-[15px] leading-[1.55] text-muted">{line.said}</p>
               </div>
             ))}
           </div>
         </div>
-        <div>
-          <p className="text-sm text-muted">{plan.planLabel}</p>
+        <div className="flex justify-center text-clay" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-5 w-5 rotate-90 min-[900px]:rotate-0"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M4 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <div className="relative z-10 rounded-2xl border-2 border-line bg-card px-5 py-6 shadow-[0_10px_28px_rgba(22,21,20,0.08)] min-[900px]:px-6 min-[900px]:py-7">
+          <p className="text-sm text-muted">
+            <span className="mr-2 font-semibold text-clay">2</span>
+            {plan.planLabel}
+          </p>
           <div className="mt-5 flex flex-col gap-6">
             {plan.groups.map((group) => (
               <div key={group.label}>

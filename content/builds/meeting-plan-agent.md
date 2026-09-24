@@ -58,7 +58,7 @@ links:
 
 ## Where it came from
 
-It started as a take-home for an AI agency. The brief was verbal and left vague on purpose: after calls with customers, their team was taking too long to work out a plan. It took about 90 minutes. I didn't want the work to go to waste.
+It started as a take-home for an AI agency. The brief was verbal and left vague on purpose: after calls with customers, their team was taking too long to work out a plan. It took about 90 minutes for me to build.
 
 <!-- CALLPLAN -->
 
