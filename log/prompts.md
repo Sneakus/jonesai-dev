@@ -771,3 +771,25 @@ Tell me in plain English what changed and what to look at.
 ```
 Changed: Replaced the AJob email screenshot with an animated picture of that day's job checks.
 Files: components/build-article.tsx, components/job-funnel.tsx, content/builds/ajob.md, lib/content.ts, log/prompts.md
+
+### 2026-09-24 14:54
+Prompt:
+```
+Rebuild the Meeting plan agent page around a short example call. Stop and tell me if anything fails.
+
+1. I've replaced content/builds/meeting-plan-agent.md. Don't change any of its text, and keep draft: true. It no longer uses the old excerpt fields, so remove the old excerpt panel code if nothing else uses it.
+
+2. Where the body has <!-- CALLPLAN -->, show a two-part panel from the callPlan frontmatter:
+   - The call: callLabel in small muted text, then the call as a simple chat, each speaker's name in 600 weight, with Rosie's lines set slightly apart from Sam's so it's easy to follow.
+   - The plan: planLabel in small muted text, then each group with its label in 600 weight and its items underneath. Where an item has a quote, show the quote under it with the thin clay-orange line on its left.
+   - Side by side on desktop, with the plan on the right. On phones, the call first, then the plan.
+   - Card colour background, thin border, rounded corners, generous spacing.
+
+3. Show the links row from the links frontmatter, as on the other build pages.
+
+4. Check the page at 375px and 1280px wide. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "Meeting plan agent: simpler example with a made-up call" and push to main.
+
+Tell me in plain English what changed.
+```
+Changed: Rebuilt the Meeting plan agent page around the made-up call and the plan beside it.
+Files: components/build-article.tsx, content/builds/meeting-plan-agent.md, lib/content.ts, lib/frontmatter.ts, log/prompts.md

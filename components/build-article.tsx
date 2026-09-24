@@ -2,72 +2,54 @@ import Image from "next/image";
 import { JobFunnel } from "@/components/job-funnel";
 import type { Build, SiteContent } from "@/lib/content";
 
-function Tag({
-  children,
-  tone,
-}: {
-  children: string;
-  tone: "quoted" | "gap" | "judgement";
-}) {
-  const toneClass = {
-    quoted: "border-line text-muted",
-    gap: "border-line bg-field text-muted",
-    judgement: "border-clay/50 text-clay",
-  }[tone];
-
-  return (
-    <span
-      className={`inline-block rounded-full border px-2 py-0.5 text-xs leading-none ${toneClass}`}
-    >
-      {children}
-    </span>
-  );
-}
-
-function ExcerptPanel({
-  build,
-  site,
-}: {
-  build: Build;
-  site: SiteContent;
-}) {
-  if (!build.excerpt) {
+function CallPlanPanel({ build }: { build: Build }) {
+  if (!build.callPlan) {
     return null;
   }
 
-  const excerpt = build.excerpt;
+  const plan = build.callPlan;
 
   return (
-    <aside className="my-8 rounded-2xl border border-line bg-card px-4 py-5 min-[900px]:px-6 min-[900px]:py-6">
-      <p className="text-sm text-muted">{build.excerptLabel}</p>
-      <div className="mt-5 flex flex-col gap-6">
-        {excerpt.findings.map((finding) => (
-          <div key={finding.claim}>
-            <Tag tone="quoted">{site.quotedTag}</Tag>
-            <p className="mt-2 text-[17px] leading-[1.6]">{finding.claim}</p>
-            <blockquote className="mt-2 border-l-2 border-clay pl-3 text-[17px] leading-[1.6] whitespace-pre-line">
-              {finding.quote}
-            </blockquote>
+    <aside className="my-8 w-[calc(100vw-2.5rem)] max-w-[calc(1200px-2.5rem)] rounded-2xl border border-line bg-card px-4 py-6 min-[900px]:w-[calc(100vw-4rem)] min-[900px]:max-w-[calc(1200px-4rem)] min-[900px]:px-8 min-[900px]:py-8">
+      <div className="grid gap-10 min-[900px]:grid-cols-2 min-[900px]:gap-12">
+        <div>
+          <p className="text-sm text-muted">{plan.callLabel}</p>
+          <div className="mt-5 flex flex-col gap-5">
+            {plan.call.map((line, index) => (
+              <div
+                key={`${line.who}-${index}`}
+                className={line.who === "Rosie" ? "pl-4" : undefined}
+              >
+                <p className="text-[17px] leading-[1.6]">
+                  <span className="font-semibold">{line.who}</span>
+                </p>
+                <p className="text-[17px] leading-[1.6]">{line.said}</p>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <div className="mt-6">
-        <Tag tone="gap">{site.gapTag}</Tag>
-        <p className="mt-2 text-[17px] leading-[1.6] whitespace-pre-line">
-          {excerpt.gap}
-        </p>
-        <ul className="mt-3 list-disc space-y-2 pl-5 text-[17px] leading-[1.6] marker:text-muted">
-          {excerpt.questions.map((question) => (
-            <li key={question}>{question}</li>
-          ))}
-        </ul>
-      </div>
-      <div className="mt-6">
-        <Tag tone="judgement">{site.judgementTag}</Tag>
-        <p className="mt-2 text-sm text-muted italic">{excerpt.judgementLabel}</p>
-        <p className="mt-2 text-[17px] leading-[1.6] whitespace-pre-line">
-          {excerpt.judgement}
-        </p>
+        </div>
+        <div>
+          <p className="text-sm text-muted">{plan.planLabel}</p>
+          <div className="mt-5 flex flex-col gap-6">
+            {plan.groups.map((group) => (
+              <div key={group.label}>
+                <p className="text-[17px] font-semibold leading-[1.6]">{group.label}</p>
+                <div className="mt-3 flex flex-col gap-4">
+                  {group.items.map((item) => (
+                    <div key={item.text}>
+                      <p className="text-[17px] leading-[1.6]">{item.text}</p>
+                      {item.quote ? (
+                        <blockquote className="mt-2 border-l-2 border-clay pl-3 text-[17px] leading-[1.6]">
+                          {item.quote}
+                        </blockquote>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </aside>
   );
@@ -183,8 +165,8 @@ export function BuildArticle({
               </ul>
             );
           }
-          if (block.type === "excerpt") {
-            return <ExcerptPanel key={`excerpt-${index}`} build={build} site={site} />;
+          if (block.type === "callPlan") {
+            return <CallPlanPanel key={`call-plan-${index}`} build={build} />;
           }
           if (block.type === "example") {
             return <ExamplePanel key={`example-${index}`} build={build} />;

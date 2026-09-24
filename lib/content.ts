@@ -41,32 +41,38 @@ export type ContactContent = {
 
 export type SiteContent = {
   buildsHeading: string;
-  quotedTag: string;
-  gapTag: string;
-  judgementTag: string;
   transcriptLink: string;
   planLink: string;
   repoLink: string;
 };
 
-export type Finding = {
-  claim: string;
+export type CallLine = {
+  who: string;
+  said: string;
+};
+
+export type PlanItem = {
+  text: string;
   quote: string;
 };
 
-export type BuildExcerpt = {
-  findings: Finding[];
-  gap: string;
-  questions: string[];
-  judgementLabel: string;
-  judgement: string;
+export type PlanGroup = {
+  label: string;
+  items: PlanItem[];
+};
+
+export type CallPlan = {
+  callLabel: string;
+  call: CallLine[];
+  planLabel: string;
+  groups: PlanGroup[];
 };
 
 export type BuildBlock =
   | { type: "heading"; text: string }
   | { type: "paragraph"; text: string }
   | { type: "list"; items: string[] }
-  | { type: "excerpt" }
+  | { type: "callPlan" }
   | { type: "example" };
 
 export type BuildImage = {
@@ -109,9 +115,8 @@ export type Build = {
   repo: string;
   transcript: string;
   plan: string;
-  excerptLabel: string;
-  excerpt: BuildExcerpt | null;
   image: BuildImage | null;
+  callPlan: CallPlan | null;
   example: BuildExample | null;
   funnel: BuildFunnel | null;
   links: BuildLink[];
@@ -236,9 +241,6 @@ export function readSite(): SiteContent {
 
   return {
     buildsHeading: requiredString(data, "buildsHeading", file),
-    quotedTag: requiredString(data, "quotedTag", file),
-    gapTag: requiredString(data, "gapTag", file),
-    judgementTag: requiredString(data, "judgementTag", file),
     transcriptLink: requiredString(data, "transcriptLink", file),
     planLink: requiredString(data, "planLink", file),
     repoLink: requiredString(data, "repoLink", file),
@@ -256,8 +258,8 @@ function parseBlocks(body: string): BuildBlock[] {
       index += 1;
       continue;
     }
-    if (line.trim() === "<!-- EXCERPT -->") {
-      blocks.push({ type: "excerpt" });
+    if (line.trim() === "<!-- CALLPLAN -->") {
+      blocks.push({ type: "callPlan" });
       index += 1;
       continue;
     }
@@ -287,7 +289,7 @@ function parseBlocks(body: string): BuildBlock[] {
       lines[index].trim() !== "" &&
       !lines[index].startsWith("## ") &&
       !lines[index].startsWith("- ") &&
-      lines[index].trim() !== "<!-- EXCERPT -->" &&
+      lines[index].trim() !== "<!-- CALLPLAN -->" &&
       lines[index].trim() !== "<!-- EXAMPLE -->"
     ) {
       paragraph.push(lines[index].trim());
@@ -299,46 +301,53 @@ function parseBlocks(body: string): BuildBlock[] {
   return blocks;
 }
 
-function parseExcerpt(
+function parseCallPlan(
   value: FrontmatterValue | undefined,
   file: string,
-): BuildExcerpt | null {
-  if (!isRecord(value)) {
+): CallPlan | null {
+  if (value === undefined) {
     return null;
   }
-
-  const findingsValue = value.findings;
-  if (!Array.isArray(findingsValue)) {
-    throw new Error(`${file} is missing excerpt findings`);
+  if (!isRecord(value)) {
+    throw new Error(`${file} call plan could not be read`);
   }
-
-  const findings = findingsValue.map((item, itemIndex) => {
+  if (!Array.isArray(value.call)) {
+    throw new Error(`${file} is missing call plan lines`);
+  }
+  const call = value.call.map((item, itemIndex) => {
     if (!isRecord(item)) {
-      throw new Error(`${file} finding ${itemIndex + 1} could not be read`);
+      throw new Error(`${file} call line ${itemIndex + 1} could not be read`);
     }
     return {
-      claim: requiredString(item, "claim", file),
-      quote: requiredString(item, "quote", file),
+      who: requiredString(item, "who", file),
+      said: requiredString(item, "said", file),
     };
   });
-
-  const questionsValue = value.questions;
-  if (!Array.isArray(questionsValue)) {
-    throw new Error(`${file} is missing excerpt questions`);
+  if (!Array.isArray(value.groups)) {
+    throw new Error(`${file} is missing call plan groups`);
   }
-  const questions = questionsValue.map((item) => {
-    if (typeof item !== "string") {
-      throw new Error(`${file} has a question that could not be read`);
+  const groups = value.groups.map((group, groupIndex) => {
+    if (!isRecord(group) || !Array.isArray(group.items)) {
+      throw new Error(`${file} call plan group ${groupIndex + 1} could not be read`);
     }
-    return item;
+    return {
+      label: requiredString(group, "label", file),
+      items: group.items.map((item, itemIndex) => {
+        if (!isRecord(item)) {
+          throw new Error(`${file} plan item ${itemIndex + 1} could not be read`);
+        }
+        return {
+          text: requiredString(item, "text", file),
+          quote: optionalString(item, "quote"),
+        };
+      }),
+    };
   });
-
   return {
-    findings,
-    gap: requiredString(value, "gap", file),
-    questions,
-    judgementLabel: requiredString(value, "judgementLabel", file),
-    judgement: requiredString(value, "judgement", file),
+    callLabel: requiredString(value, "callLabel", file),
+    call,
+    planLabel: requiredString(value, "planLabel", file),
+    groups,
   };
 }
 
@@ -520,9 +529,8 @@ function readBuildFile(filePath: string): Build {
     repo: optionalString(data, "repo"),
     transcript: optionalString(data, "transcript"),
     plan: optionalString(data, "plan"),
-    excerptLabel: optionalString(data, "excerptLabel"),
-    excerpt: parseExcerpt(data.excerpt, filename),
     image: parseImage(data.image, filename),
+    callPlan: parseCallPlan(data.callPlan, filename),
     example: parseExample(data.example, filename),
     funnel: parseFunnel(data.funnel, filename),
     links: parseLinks(data.links, filename),

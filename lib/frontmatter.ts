@@ -184,12 +184,30 @@ function parseList(
 
       const nextKey = nextTrimmed.slice(0, nextColon).trim();
       const nextRest = nextTrimmed.slice(nextColon + 1).trim();
+      const keyIndent = indentOf(nextLine);
       index += 1;
 
       if (nextRest === "|-" || nextRest === "|") {
         const block = readBlock(lines, index);
         item[nextKey] = block.value;
         index = block.next;
+      } else if (nextRest === "") {
+        let nested = index;
+        while (nested < lines.length && lines[nested].trim() === "") {
+          nested += 1;
+        }
+        if (nested >= lines.length || indentOf(lines[nested]) <= keyIndent) {
+          item[nextKey] = "";
+          index = nested;
+        } else if (lines[nested].trim().startsWith("- ")) {
+          const list = parseList(lines, nested, indentOf(lines[nested]));
+          item[nextKey] = list.value;
+          index = list.next;
+        } else {
+          const child = parseObject(lines, nested, indentOf(lines[nested]));
+          item[nextKey] = child.value;
+          index = child.next;
+        }
       } else {
         item[nextKey] = unquote(nextRest);
       }
