@@ -1,6 +1,11 @@
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { JobFunnel } from "@/components/job-funnel";
 import type { Build, SiteContent } from "@/lib/content";
+
+const WorldcupGlobe = dynamic(() =>
+  import("@/components/worldcup-globe").then((mod) => mod.WorldcupGlobe),
+);
 
 function CallPlanPanel({ build }: { build: Build }) {
   if (!build.callPlan) {
@@ -127,7 +132,9 @@ export function BuildArticle({
     <article className="max-w-[640px] pt-8 pb-20">
       <h1 className="build-title">{build.title}</h1>
       <p className="mt-4 text-base text-muted">{build.summary}</p>
-      {build.funnel ? (
+      {build.slug === "worldcupmap" ? (
+        <WorldcupGlobe caption={build.globeCaption} />
+      ) : build.funnel ? (
         <JobFunnel funnel={build.funnel} />
       ) : build.image ? (
         <Image

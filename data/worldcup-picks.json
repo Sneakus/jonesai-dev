@@ -1,0 +1,625 @@
+{
+ "source": "worldcupmap.io tournament-winner picks, final snapshot exported 24 Sep 2026",
+ "note": "Counts are picks, not people. One junk test entry (Andorra, 'PENTEST-PROBE') removed. Denmark's colour added by hand because the site's team list has no colour for it.",
+ "teamColors": {
+  "Algeria": "#006633",
+  "Argentina": "#75AADB",
+  "Australia": "#FFD700",
+  "Austria": "#ED2939",
+  "Belgium": "#ED1C24",
+  "Brazil": "#639922",
+  "Colombia": "#F6C000",
+  "Croatia": "#E1261C",
+  "Czechia": "#1A4FA0",
+  "Denmark": "#C60C30",
+  "Ecuador": "#F2A900",
+  "Egypt": "#CE1126",
+  "England": "#EFEFEF",
+  "France": "#185FA5",
+  "Germany": "#888780",
+  "Ghana": "#006B3F",
+  "Iran": "#239F40",
+  "Japan": "#16348C",
+  "Mexico": "#006847",
+  "Morocco": "#C1272D",
+  "Netherlands": "#EC6608",
+  "New Zealand": "#1A1A1A",
+  "Norway": "#BA0C2F",
+  "Portugal": "#A4123F",
+  "Qatar": "#8A1538",
+  "Saudi Arabia": "#006C35",
+  "Scotland": "#13315C",
+  "Senegal": "#00853F",
+  "South Korea": "#CD2E3A",
+  "Spain": "#C60B1E",
+  "Switzerland": "#DA291C",
+  "Tunisia": "#E70013",
+  "Turkey": "#E30A17",
+  "USA": "#1B2A4A",
+  "Uruguay": "#2F7DC2"
+ },
+ "countries": [
+  {
+   "iso": "GB-ENG",
+   "topPick": "England",
+   "topVotes": 205,
+   "totalVotes": 372
+  },
+  {
+   "iso": "US",
+   "topPick": "USA",
+   "topVotes": 100,
+   "totalVotes": 336
+  },
+  {
+   "iso": "BR",
+   "topPick": "Brazil",
+   "topVotes": 180,
+   "totalVotes": 273
+  },
+  {
+   "iso": "IN",
+   "topPick": "France",
+   "topVotes": 46,
+   "totalVotes": 229
+  },
+  {
+   "iso": "CA",
+   "topPick": "Brazil",
+   "topVotes": 32,
+   "totalVotes": 203
+  },
+  {
+   "iso": "NG",
+   "topPick": "Spain",
+   "topVotes": 34,
+   "totalVotes": 189
+  },
+  {
+   "iso": "AR",
+   "topPick": "Argentina",
+   "topVotes": 111,
+   "totalVotes": 175
+  },
+  {
+   "iso": "FR",
+   "topPick": "France",
+   "topVotes": 107,
+   "totalVotes": 158
+  },
+  {
+   "iso": "DE",
+   "topPick": "Germany",
+   "topVotes": 68,
+   "totalVotes": 148
+  },
+  {
+   "iso": "RU",
+   "topPick": "Brazil",
+   "topVotes": 32,
+   "totalVotes": 148
+  },
+  {
+   "iso": "VE",
+   "topPick": "Argentina",
+   "topVotes": 50,
+   "totalVotes": 148
+  },
+  {
+   "iso": "ES",
+   "topPick": "Spain",
+   "topVotes": 84,
+   "totalVotes": 139
+  },
+  {
+   "iso": "MX",
+   "topPick": "Mexico",
+   "topVotes": 57,
+   "totalVotes": 134
+  },
+  {
+   "iso": "PT",
+   "topPick": "Portugal",
+   "topVotes": 54,
+   "totalVotes": 101
+  },
+  {
+   "iso": "NL",
+   "topPick": "Netherlands",
+   "topVotes": 47,
+   "totalVotes": 89
+  },
+  {
+   "iso": "IT",
+   "topPick": "France",
+   "topVotes": 16,
+   "totalVotes": 88
+  },
+  {
+   "iso": "CO",
+   "topPick": "Colombia",
+   "topVotes": 35,
+   "totalVotes": 82
+  },
+  {
+   "iso": "GH",
+   "topPick": "Ghana",
+   "topVotes": 24,
+   "totalVotes": 78
+  },
+  {
+   "iso": "TR",
+   "topPick": "Turkey",
+   "topVotes": 20,
+   "totalVotes": 73
+  },
+  {
+   "iso": "EG",
+   "topPick": "Egypt",
+   "topVotes": 16,
+   "totalVotes": 70
+  },
+  {
+   "iso": "KR",
+   "topPick": "South Korea",
+   "topVotes": 25,
+   "totalVotes": 67
+  },
+  {
+   "iso": "JP",
+   "topPick": "Japan",
+   "topVotes": 21,
+   "totalVotes": 62
+  },
+  {
+   "iso": "KE",
+   "topPick": "France",
+   "topVotes": 15,
+   "totalVotes": 60
+  },
+  {
+   "iso": "ZA",
+   "topPick": "Argentina",
+   "topVotes": 9,
+   "totalVotes": 60
+  },
+  {
+   "iso": "AU",
+   "topPick": "Australia",
+   "topVotes": 21,
+   "totalVotes": 56
+  },
+  {
+   "iso": "MA",
+   "topPick": "Morocco",
+   "topVotes": 30,
+   "totalVotes": 56
+  },
+  {
+   "iso": "GB-SCT",
+   "topPick": "Scotland",
+   "topVotes": 12,
+   "totalVotes": 48
+  },
+  {
+   "iso": "BE",
+   "topPick": "Belgium",
+   "topVotes": 20,
+   "totalVotes": 48
+  },
+  {
+   "iso": "PL",
+   "topPick": "France",
+   "topVotes": 10,
+   "totalVotes": 42
+  },
+  {
+   "iso": "CH",
+   "topPick": "Switzerland",
+   "topVotes": 16,
+   "totalVotes": 41
+  },
+  {
+   "iso": "SE",
+   "topPick": "France",
+   "topVotes": 9,
+   "totalVotes": 33
+  },
+  {
+   "iso": "DK",
+   "topPick": "Denmark",
+   "topVotes": 8,
+   "totalVotes": 30
+  },
+  {
+   "iso": "IE",
+   "topPick": "France",
+   "topVotes": 9,
+   "totalVotes": 27
+  },
+  {
+   "iso": "AT",
+   "topPick": "Austria",
+   "topVotes": 5,
+   "totalVotes": 23
+  },
+  {
+   "iso": "NO",
+   "topPick": "Norway",
+   "topVotes": 11,
+   "totalVotes": 22
+  },
+  {
+   "iso": "GR",
+   "topPick": "Spain",
+   "topVotes": 7,
+   "totalVotes": 18
+  },
+  {
+   "iso": "CZ",
+   "topPick": "Czechia",
+   "topVotes": 7,
+   "totalVotes": 18
+  },
+  {
+   "iso": "SN",
+   "topPick": "Senegal",
+   "topVotes": 8,
+   "totalVotes": 18
+  },
+  {
+   "iso": "SA",
+   "topPick": "Saudi Arabia",
+   "topVotes": 12,
+   "totalVotes": 17
+  },
+  {
+   "iso": "CL",
+   "topPick": "Brazil",
+   "topVotes": 6,
+   "totalVotes": 17
+  },
+  {
+   "iso": "CM",
+   "topPick": "Morocco",
+   "topVotes": 4,
+   "totalVotes": 16
+  },
+  {
+   "iso": "CI",
+   "topPick": "England",
+   "topVotes": 3,
+   "totalVotes": 14
+  },
+  {
+   "iso": "PE",
+   "topPick": "Argentina",
+   "topVotes": 7,
+   "totalVotes": 14
+  },
+  {
+   "iso": "TN",
+   "topPick": "Tunisia",
+   "topVotes": 5,
+   "totalVotes": 13
+  },
+  {
+   "iso": "EC",
+   "topPick": "Ecuador",
+   "topVotes": 5,
+   "totalVotes": 12
+  },
+  {
+   "iso": "GB-WLS",
+   "topPick": "France",
+   "topVotes": 3,
+   "totalVotes": 12
+  },
+  {
+   "iso": "VN",
+   "topPick": "Argentina",
+   "topVotes": 3,
+   "totalVotes": 11
+  },
+  {
+   "iso": "HU",
+   "topPick": "Brazil",
+   "topVotes": 4,
+   "totalVotes": 11
+  },
+  {
+   "iso": "HR",
+   "topPick": "Croatia",
+   "topVotes": 6,
+   "totalVotes": 10
+  },
+  {
+   "iso": "NZ",
+   "topPick": "New Zealand",
+   "topVotes": 3,
+   "totalVotes": 9
+  },
+  {
+   "iso": "PH",
+   "topPick": "France",
+   "topVotes": 4,
+   "totalVotes": 8
+  },
+  {
+   "iso": "IR",
+   "topPick": "Iran",
+   "topVotes": 5,
+   "totalVotes": 7
+  },
+  {
+   "iso": "DZ",
+   "topPick": "Algeria",
+   "topVotes": 2,
+   "totalVotes": 7
+  },
+  {
+   "iso": "BG",
+   "topPick": "Argentina",
+   "topVotes": 2,
+   "totalVotes": 6
+  },
+  {
+   "iso": "TH",
+   "topPick": "Spain",
+   "topVotes": 4,
+   "totalVotes": 6
+  },
+  {
+   "iso": "IQ",
+   "topPick": "Belgium",
+   "topVotes": 2,
+   "totalVotes": 6
+  },
+  {
+   "iso": "AE",
+   "topPick": "England",
+   "topVotes": 2,
+   "totalVotes": 6
+  },
+  {
+   "iso": "QA",
+   "topPick": "Qatar",
+   "topVotes": 6,
+   "totalVotes": 6
+  },
+  {
+   "iso": "UY",
+   "topPick": "Uruguay",
+   "topVotes": 3,
+   "totalVotes": 5
+  },
+  {
+   "iso": "JM",
+   "topPick": "Spain",
+   "topVotes": 3,
+   "totalVotes": 5
+  },
+  {
+   "iso": "UA",
+   "topPick": "France",
+   "topVotes": 4,
+   "totalVotes": 4
+  },
+  {
+   "iso": "LK",
+   "topPick": "Brazil",
+   "topVotes": 2,
+   "totalVotes": 4
+  },
+  {
+   "iso": "MY",
+   "topPick": "Brazil",
+   "topVotes": 2,
+   "totalVotes": 4
+  },
+  {
+   "iso": "SG",
+   "topPick": "Argentina",
+   "topVotes": 2,
+   "totalVotes": 4
+  },
+  {
+   "iso": "CD",
+   "topPick": "England",
+   "topVotes": 3,
+   "totalVotes": 3
+  },
+  {
+   "iso": "CN",
+   "topPick": "Brazil",
+   "topVotes": 2,
+   "totalVotes": 3
+  },
+  {
+   "iso": "EE",
+   "topPick": "Argentina",
+   "topVotes": 3,
+   "totalVotes": 3
+  },
+  {
+   "iso": "GB-NIR",
+   "topPick": "Spain",
+   "topVotes": 2,
+   "totalVotes": 3
+  },
+  {
+   "iso": "IL",
+   "topPick": "France",
+   "topVotes": 2,
+   "totalVotes": 3
+  },
+  {
+   "iso": "ZW",
+   "topPick": "Spain",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "MZ",
+   "topPick": "England",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "MK",
+   "topPick": "France",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "ME",
+   "topPick": "Portugal",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "PY",
+   "topPick": "Germany",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "LV",
+   "topPick": "Spain",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "ET",
+   "topPick": "England",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "CR",
+   "topPick": "England",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "BW",
+   "topPick": "Brazil",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "BO",
+   "topPick": "France",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "BD",
+   "topPick": "Spain",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "ZM",
+   "topPick": "Morocco",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "RS",
+   "topPick": "Portugal",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "SD",
+   "topPick": "Germany",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "IS",
+   "topPick": "France",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "SK",
+   "topPick": "Argentina",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "ID",
+   "topPick": "England",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "TG",
+   "topPick": "England",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "GT",
+   "topPick": "Brazil",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "GA",
+   "topPick": "Spain",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "FI",
+   "topPick": "Brazil",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "TT",
+   "topPick": "France",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "TZ",
+   "topPick": "Spain",
+   "topVotes": 2,
+   "totalVotes": 2
+  },
+  {
+   "iso": "RO",
+   "topPick": "France",
+   "topVotes": 1,
+   "totalVotes": 1
+  },
+  {
+   "iso": "NA",
+   "topPick": "France",
+   "topVotes": 1,
+   "totalVotes": 1
+  },
+  {
+   "iso": "LT",
+   "topPick": "Spain",
+   "topVotes": 1,
+   "totalVotes": 1
+  },
+  {
+   "iso": "KZ",
+   "topPick": "Portugal",
+   "topVotes": 1,
+   "totalVotes": 1
+  },
+  {
+   "iso": "KN",
+   "topPick": "Senegal",
+   "topVotes": 1,
+   "totalVotes": 1
+  }
+ ]
+}

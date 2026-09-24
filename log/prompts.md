@@ -793,3 +793,35 @@ Tell me in plain English what changed.
 ```
 Changed: Rebuilt the Meeting plan agent page around the made-up call and the plan beside it.
 Files: components/build-article.tsx, content/builds/meeting-plan-agent.md, lib/content.ts, lib/frontmatter.ts, log/prompts.md
+
+### 2026-09-24 15:02
+Prompt:
+```
+Replace the worldcupmap screenshot with an interactive globe. Keep the rest of the page. Stop and tell me if anything fails.
+
+1. I've added data/worldcup-picks.json: each country's most-picked World Cup winner from worldcupmap.io, with vote counts and team colours. The counts are picks, not people. Don't change the file.
+
+2. On /worldcupmap, replace the screenshot with a globe drawn on a canvas:
+   - Each country filled with its top pick's team colour, softened about 30% towards the paper colour. This is a deliberate exception to the single-accent rule, for this globe only.
+   - Countries not in the file: a plain grey-beige, slightly darker than the paper.
+   - Thin ink-coloured borders, paper-coloured sea, and a faint ink outline around the globe.
+   - England, Scotland, Wales and Northern Ireland are separate in the data (GB-ENG, GB-SCT, GB-WLS, GB-NIR). Use uk-nations.geojson from github.com/Sneakus/wcpredict (my repo, MIT licence) for those four shapes instead of a single UK.
+
+3. It spins slowly on its own. Visitors can drag it round with a mouse or a finger. On phones, an up-and-down swipe must still scroll the page; only sideways drags spin it. After a drag, it eases back into its slow spin.
+
+4. Hovering over or tapping a country shows a small label: the country's name, "[Team] was the favourite", and "[topVotes] of [totalVotes] picks". Always "picks", never "people".
+
+5. Under the globe, one line in small muted text: [Globe caption]. It's a placeholder, show it exactly as written.
+
+6. Use d3-geo and topojson-client, with the world-atlas country outlines at the 110m level. Load them only on this page, after the text has appeared. If any country in the data file has no shape at that level, tell me which.
+
+7. Reduced motion: no automatic spin, but dragging still works. Pause drawing when the globe is off screen. Keep the screenshot file in the project but don't show it.
+
+8. Make it the full width of the text column, square, and a little smaller on phones.
+
+9. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "worldcupmap: interactive globe of real picks" and push to main.
+
+Tell me in plain English what changed and what to try.
+```
+Changed: Replaced the worldcupmap screenshot with a spinning globe coloured by real picks.
+Files: components/build-article.tsx, components/worldcup-globe.tsx, content/builds/worldcupmap.md, data/worldcup-picks.json, lib/content.ts, log/prompts.md, package.json, package-lock.json, public/globe/countries-110m.json, public/globe/country-ids.json, public/globe/uk-nations.geojson, types/globe.d.ts
