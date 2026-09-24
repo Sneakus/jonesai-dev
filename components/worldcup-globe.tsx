@@ -100,6 +100,7 @@ export function WorldcupGlobe({
   fallback: { src: string; alt: string; width: number; height: number };
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const dotsRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLParagraphElement>(null);
@@ -111,8 +112,9 @@ export function WorldcupGlobe({
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    const dotsCanvas = dotsRef.current;
     const wrap = wrapRef.current;
-    if (!canvas || !wrap) {
+    if (!canvas || !dotsCanvas || !wrap) {
       return;
     }
     const context = canvas.getContext("2d");
@@ -140,7 +142,69 @@ export function WorldcupGlobe({
     const pointers = new Map<number, { x: number; y: number }>();
     let pinchDistance = 0;
     let lands: Land[] = [];
-    const dots = dotsFile as [number, number, number][];
+    const dots = (dotsFile as [number, number, number][]).map((dot) => {
+      const lambda = (dot[0] * Math.PI) / 180;
+      const phi = (dot[1] * Math.PI) / 180;
+      return {
+        lon: dot[0],
+        lat: dot[1],
+        warm: dot[2] === 0,
+        sin: Math.sin(phi),
+        cos: Math.cos(phi),
+        lambda,
+      };
+    });
+    const positions = new Float32Array(dots.length * 2);
+    const colors = new Float32Array(dots.length * 3);
+    const warm = [0.72, 0.48, 0.28];
+    const gl = dotsCanvas.getContext("webgl", { alpha: true, premultipliedAlpha: false });
+    const compile = (type: number, source: string) => {
+      if (!gl) {
+        return null;
+      }
+      const shader = gl.createShader(type);
+      if (!shader) {
+        return null;
+      }
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      return shader;
+    };
+    const program = gl?.createProgram() || null;
+    const vertex = compile(
+      gl?.VERTEX_SHADER || 0,
+      `attribute vec2 aPos; attribute vec3 aCol; uniform float uW; uniform float uH; uniform float uSize; varying vec3 vCol;
+       void main() { float x = (aPos.x / uW) * 2.0 - 1.0; float y = 1.0 - (aPos.y / uH) * 2.0; gl_Position = vec4(x, y, 0.0, 1.0); gl_PointSize = uSize; vCol = aCol; }`,
+    );
+    const fragment = compile(
+      gl?.FRAGMENT_SHADER || 0,
+      `precision mediump float; varying vec3 vCol; uniform float uStrength;
+       void main() { float d = length(gl_PointCoord - vec2(0.5)); if (d > 0.5) discard; float core = smoothstep(0.18, 0.0, d); float halo = smoothstep(0.5, 0.05, d); vec3 color = mix(vCol, vec3(1.0), core * 0.85); float alpha = (halo * 0.55 + core * 0.45) * uStrength; gl_FragColor = vec4(color, alpha); }`,
+    );
+    let posBuffer: WebGLBuffer | null = null;
+    let colBuffer: WebGLBuffer | null = null;
+    let posLoc = -1;
+    let colLoc = -1;
+    let widthLoc: WebGLUniformLocation | null = null;
+    let heightLoc: WebGLUniformLocation | null = null;
+    let sizeLoc: WebGLUniformLocation | null = null;
+    let strengthLoc: WebGLUniformLocation | null = null;
+    if (gl && program && vertex && fragment) {
+      gl.attachShader(program, vertex);
+      gl.attachShader(program, fragment);
+      gl.linkProgram(program);
+      gl.useProgram(program);
+      posBuffer = gl.createBuffer();
+      colBuffer = gl.createBuffer();
+      posLoc = gl.getAttribLocation(program, "aPos");
+      colLoc = gl.getAttribLocation(program, "aCol");
+      widthLoc = gl.getUniformLocation(program, "uW");
+      heightLoc = gl.getUniformLocation(program, "uH");
+      sizeLoc = gl.getUniformLocation(program, "uSize");
+      strengthLoc = gl.getUniformLocation(program, "uStrength");
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+    }
     let fills = new Map<string, string>();
     const nameCache = new Map<string, string>();
 
@@ -163,6 +227,13 @@ export function WorldcupGlobe({
       canvas.style.width = `${size}px`;
       canvas.style.height = `${size}px`;
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      dotsCanvas.width = canvas.width;
+      dotsCanvas.height = canvas.height;
+      dotsCanvas.style.width = `${size}px`;
+      dotsCanvas.style.height = `${size}px`;
+      if (gl) {
+        gl.viewport(0, 0, dotsCanvas.width, dotsCanvas.height);
+      }
       drawnSize = size;
       return true;
     };
@@ -191,13 +262,51 @@ export function WorldcupGlobe({
       context.strokeStyle = ink;
       context.lineWidth = 0.7;
       context.stroke();
-      for (const dot of dots) {
-        const point = projection([dot[0], dot[1]]);
-        if (!point) {
-          continue;
+      if (gl && posBuffer && colBuffer) {
+        const radians = Math.PI / 180;
+        const centreLambda = -view.lambda * radians;
+        const centrePhi = -view.phi * radians;
+        const sinCentre = Math.sin(centrePhi);
+        const cosCentre = Math.cos(centrePhi);
+        let count = 0;
+        for (const dot of dots) {
+          const facing =
+            sinCentre * dot.sin +
+            cosCentre * dot.cos * Math.cos(dot.lambda - centreLambda);
+          if (facing <= 0) {
+            continue;
+          }
+          const point = projection([dot.lon, dot.lat]);
+          if (!point) {
+            continue;
+          }
+          positions[count * 2] = point[0];
+          positions[count * 2 + 1] = point[1];
+          const color = dot.warm ? warm : [1, 1, 1];
+          colors[count * 3] = color[0];
+          colors[count * 3 + 1] = color[1];
+          colors[count * 3 + 2] = color[2];
+          count += 1;
         }
-        context.fillStyle = dot[2] ? "#ffffff" : ink;
-        context.fillRect(point[0], point[1], 1.4, 1.4);
+        gl.useProgram(program);
+        gl.viewport(0, 0, dotsCanvas.width, dotsCanvas.height);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, positions.subarray(0, count * 2), gl.DYNAMIC_DRAW);
+        gl.enableVertexAttribArray(posLoc);
+        gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, colBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, colors.subarray(0, count * 3), gl.DYNAMIC_DRAW);
+        gl.enableVertexAttribArray(colLoc);
+        gl.vertexAttribPointer(colLoc, 3, gl.FLOAT, false, 0, 0);
+        const ratio = Math.min(2, window.devicePixelRatio || 1);
+        const pointSize = (2.6 + (view.zoom - 1) * 1.3) * ratio;
+        gl.uniform1f(widthLoc, size);
+        gl.uniform1f(heightLoc, size);
+        gl.uniform1f(sizeLoc, pointSize);
+        gl.uniform1f(strengthLoc, 0.28);
+        gl.drawArrays(gl.POINTS, 0, count);
       }
       context.beginPath();
       drawPath({ type: "Sphere" });
@@ -499,12 +608,19 @@ export function WorldcupGlobe({
             className="h-full w-full rounded-2xl object-cover"
           />
         ) : (
-          <canvas
-            ref={canvasRef}
-            className="block h-full w-full"
-            style={{ touchAction: "pan-y" }}
-            aria-hidden="true"
-          />
+          <>
+            <canvas
+              ref={canvasRef}
+              className="block h-full w-full"
+              style={{ touchAction: "pan-y" }}
+              aria-hidden="true"
+            />
+            <canvas
+              ref={dotsRef}
+              className="pointer-events-none absolute inset-0 h-full w-full"
+              aria-hidden="true"
+            />
+          </>
         )}
         <div className="absolute top-2 right-2 z-20 flex flex-col gap-1">
           <button

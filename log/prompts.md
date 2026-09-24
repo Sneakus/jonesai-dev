@@ -906,3 +906,29 @@ Prompt:
 Tell me in plain English what changed, what was causing the lag, and what to try.
 \Changed: Made the globe draw smoothly, added zoom, and placed one dot for each prediction.
 Files: components/worldcup-globe.tsx, types/globe.d.ts, scripts/build-globe-dots.py, data/worldcup-dots.json, data/worldcup-predictions-by-country.csv, .gitignore, log/prompts.md
+
+### 2026-09-24 15:46
+Prompt:
+```
+Fix the dots on the /worldcupmap globe so they look like the original worldcupmap.io. Keep everything else as it is. Stop and tell me if anything fails.
+
+1. Only draw dots on the side of the globe facing the viewer, the same way the countries are hidden on the far side. Skip any dot more than 90 degrees from the centre of the view.
+
+2. Drop any dot that falls outside its own country's outline, like the original does, so no dots sit in the sea.
+
+3. Copy the original's glow. In github.com/Sneakus/wcpredict, app.js has the dot shader:
+   - Each dot is a small soft point: a white-hot core in the middle 18% of its radius, fading to a soft halo at the edge. The halo is about 0.55 opacity and the core about 0.45.
+   - The point is about 2.6 pixels across at 1x zoom, growing with zoom up to about 6.5 pixels.
+   - Dots are drawn with additive blending, so where many overlap, like big cities, they add up into a bright glow, and single dots stay faint.
+   Recreate this on our globe. Draw the dot sprite once and reuse it for every dot, onto a separate layer with additive blending, then lay that layer over the globe. If canvas can't keep this smooth with about 7,100 dots, use WebGL like the original does.
+
+4. Make the whole dot layer subtle: tune its overall strength down so single dots are barely there and only real clusters stand out. The countries' colours should still read first. On very pale countries, where white can't show, use a faint warm glow instead.
+
+5. Keep it smooth while spinning, dragging and zooming. Reduced motion stays as it is.
+
+6. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "worldcupmap: glowing city clusters, dots only on the visible side" and push to main.
+
+Tell me in plain English what changed and what to look at.
+```
+Changed: Dots now glow in city clusters, stay on the near side of the globe, and no longer sit in the sea.
+Files: components/worldcup-globe.tsx, scripts/build-globe-dots.py, data/worldcup-dots.json, log/prompts.md
