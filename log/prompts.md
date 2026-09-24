@@ -874,3 +874,35 @@ Uncaught (in promise) RangeError: invalid_argument
 ```
 Changed: Stopped the globe crashing on unnamed countries, bundled its map files, and showed the old screenshot if it still fails.
 Files: components/build-article.tsx, components/worldcup-globe.tsx, data/uk-nations.json, log/prompts.md
+
+### 2026-09-24 15:39
+Prompt:
+\Improve the globe on /worldcupmap: make it smooth, add zoom, and add one dot per prediction like the original worldcupmap.io. Keep everything else as it is. Stop and tell me if anything fails.
+
+1. Smoothness. Spinning and hovering are laggy.
+   - Keep rotation, zoom and hover in refs, not React state, so nothing re-renders every frame. One requestAnimationFrame loop, drawing only while something is moving or has changed.
+   - Build the country shapes once, not every frame. Cap the drawing resolution at 2x on high-density screens.
+   - Hover: check at most once per frame, narrow down the candidate countries by their bounding box first, and cache country names.
+   - Pause the automatic spin while the pointer is over the globe, and resume it a second after the pointer leaves.
+   - Afterwards, tell me what was causing the lag.
+
+2. Zoom, from 1x up to about 4x:
+   - Plus and minus buttons in a corner of the globe, plus a small reset button.
+   - Pinch to zoom on phones. Double-click or double-tap zooms in a step.
+   - Ctrl and scroll (Cmd and scroll on a Mac) zooms on desktop. A plain scroll must always scroll the page.
+   - Borders stay a thin, consistent width at any zoom.
+
+3. Dots, the same way the original site does it:
+   - I've added data/worldcup-predictions-by-country.csv, with the number of predictions per country. Don't change it.
+   - Take cities.js from github.com/Sneakus/wcpredict (my repo, MIT licence). It holds population-weighted points per country. The original gives every prediction one dot at a weighted-random point from that country's list, with a small random jitter (about 0.18 degrees of longitude and 0.14 of latitude).
+   - Write a small script that does the same with a fixed random seed, and saves the resulting dot positions into a compact data file, only for the countries in the CSV. Don't ship the whole cities.js to visitors.
+   - Draw the dots as tiny points on top of the countries: white on darker fills, ink on pale fills where white wouldn't show. Keep them tiny at every zoom level.
+   - Tell me the total dot count once it's built.
+
+4. Reduced motion stays as it is: no automatic spin, but dragging and zoom still work.
+
+5. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "worldcupmap: smoother globe, zoom, prediction dots" and push to main.
+
+Tell me in plain English what changed, what was causing the lag, and what to try.
+\Changed: Made the globe draw smoothly, added zoom, and placed one dot for each prediction.
+Files: components/worldcup-globe.tsx, types/globe.d.ts, scripts/build-globe-dots.py, data/worldcup-dots.json, data/worldcup-predictions-by-country.csv, .gitignore, log/prompts.md

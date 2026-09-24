@@ -6,6 +6,7 @@ declare module "d3-geo" {
     scale(size: number): GeoProjection;
     rotate(angles: [number, number, number]): GeoProjection;
     invert?(point: [number, number]): [number, number] | null;
+    (point: [number, number]): [number, number] | null;
   };
   export function geoOrthographic(): GeoProjection;
   export function geoPath(

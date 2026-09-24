@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { feature, type GeometryCollection } from "topojson-client";
 import picksFile from "@/data/worldcup-picks.json";
 import nationsFile from "@/data/uk-nations.json";
+import dotsFile from "@/data/worldcup-dots.json";
 import atlasFile from "@/public/globe/countries-110m.json";
 import idsFile from "@/public/globe/country-ids.json";
 
@@ -13,6 +14,8 @@ const paper = [243, 239, 230];
 const ink = "#161514";
 const missingFill = "#e4ddd0";
 const ukId = "826";
+const minZoom = 1;
+const maxZoom = 4;
 
 type PickRow = {
   iso: string;
@@ -35,22 +38,15 @@ type Atlas = {
 type NationFeature = {
   type: "Feature";
   properties: { iso2: string; name: string };
-  geometry: GeoPermissibleObjects;
+  geometry: GeoPermissibleObjects & { coordinates?: unknown };
 };
 
 type Land = {
   iso: string;
   name: string;
   shape: GeoPermissibleObjects;
-};
-
-type Label = {
-  name: string;
-  team: string;
-  topVotes: number;
-  totalVotes: number;
-  x: number;
-  y: number;
+  box: [number, number, number, number];
+  row: PickRow | null;
 };
 
 function soften(hex: string) {
@@ -74,6 +70,28 @@ function countryName(iso: string, fallback: string) {
   }
 }
 
+function boundsOf(geometry: { coordinates?: unknown }) {
+  let minLon = 180;
+  let minLat = 90;
+  let maxLon = -180;
+  let maxLat = -90;
+  const walk = (value: unknown) => {
+    if (!Array.isArray(value)) {
+      return;
+    }
+    if (typeof value[0] === "number" && typeof value[1] === "number") {
+      minLon = Math.min(minLon, value[0]);
+      maxLon = Math.max(maxLon, value[0]);
+      minLat = Math.min(minLat, value[1]);
+      maxLat = Math.max(maxLat, value[1]);
+      return;
+    }
+    value.forEach(walk);
+  };
+  walk(geometry.coordinates);
+  return [minLon, minLat, maxLon, maxLat] as [number, number, number, number];
+}
+
 export function WorldcupGlobe({
   caption,
   fallback,
@@ -83,9 +101,12 @@ export function WorldcupGlobe({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [label, setLabel] = useState<Label | null>(null);
+  const labelRef = useRef<HTMLDivElement>(null);
+  const nameRef = useRef<HTMLParagraphElement>(null);
+  const teamRef = useRef<HTMLParagraphElement>(null);
+  const countRef = useRef<HTMLParagraphElement>(null);
+  const zoomRef = useRef<(factor: number, absolute?: boolean) => void>(() => {});
   const [showFallback, setShowFallback] = useState(false);
-  const labelRef = useRef<Label | null>(null);
   const drawnRef = useRef(false);
 
   useEffect(() => {
@@ -98,28 +119,43 @@ export function WorldcupGlobe({
     if (!context) {
       return;
     }
+
     let frame = 0;
     let visible = true;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const rotation = { lambda: -20, phi: -15 };
+    const view = { lambda: -20, phi: -15, zoom: 1 };
     const spin = reduced.matches ? 0 : 0.008;
     let nudge = 0;
     let dragging = false;
+    let hovering = false;
+    let resumeTimer = 0;
     let lastX = 0;
     let lastY = 0;
     let lastTime = 0;
     let moved = 0;
+    let dirty = true;
+    let hoverX = -1;
+    let hoverY = -1;
+    let hoverQueued = false;
+    const pointers = new Map<number, { x: number; y: number }>();
+    let pinchDistance = 0;
     let lands: Land[] = [];
-    let picks = new Map<string, PickRow>();
+    const dots = dotsFile as [number, number, number][];
     let fills = new Map<string, string>();
+    const nameCache = new Map<string, string>();
 
     const projection = geoOrthographic().clipAngle(90);
     const drawPath = geoPath(projection, context);
+    let drawnSize = 0;
 
     const resize = () => {
       const size = Math.round(wrap.clientWidth);
       if (size < 2) {
         return false;
+      }
+      projection.translate([size / 2, size / 2]).scale(size * 0.46 * view.zoom);
+      if (size === drawnSize) {
+        return true;
       }
       const ratio = Math.min(2, window.devicePixelRatio || 1);
       canvas.width = Math.round(size * ratio);
@@ -127,14 +163,17 @@ export function WorldcupGlobe({
       canvas.style.width = `${size}px`;
       canvas.style.height = `${size}px`;
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      projection.translate([size / 2, size / 2]).scale(size * 0.46);
+      drawnSize = size;
       return true;
     };
 
     const paint = () => {
+      if (!resize()) {
+        return;
+      }
       const size = wrap.clientWidth;
+      projection.rotate([view.lambda, view.phi, 0]);
       context.clearRect(0, 0, size, size);
-      projection.rotate([rotation.lambda, rotation.phi, 0]);
       context.beginPath();
       drawPath({ type: "Sphere" });
       context.fillStyle = `rgb(${paper.join(",")})`;
@@ -150,8 +189,16 @@ export function WorldcupGlobe({
         drawPath(land.shape);
       }
       context.strokeStyle = ink;
-      context.lineWidth = 0.6;
+      context.lineWidth = 0.7;
       context.stroke();
+      for (const dot of dots) {
+        const point = projection([dot[0], dot[1]]);
+        if (!point) {
+          continue;
+        }
+        context.fillStyle = dot[2] ? "#ffffff" : ink;
+        context.fillRect(point[0], point[1], 1.4, 1.4);
+      }
       context.beginPath();
       drawPath({ type: "Sphere" });
       context.strokeStyle = "rgba(22, 21, 20, 0.35)";
@@ -160,30 +207,52 @@ export function WorldcupGlobe({
       drawnRef.current = true;
     };
 
-    const hit = (event: PointerEvent) => {
-      const bounds = canvas.getBoundingClientRect();
-      const localX = event.clientX - bounds.left;
-      const localY = event.clientY - bounds.top;
-      const point = projection.invert?.([localX, localY]);
+    const showLabel = (land: Land | null, x: number, y: number) => {
+      const box = labelRef.current;
+      if (!box || !nameRef.current || !teamRef.current || !countRef.current) {
+        return;
+      }
+      if (!land?.row) {
+        box.hidden = true;
+        return;
+      }
+      nameRef.current.textContent = land.name;
+      teamRef.current.textContent = `${land.row.topPick} was the favourite`;
+      countRef.current.textContent = `${land.row.topVotes} of ${land.row.totalVotes} picks`;
+      box.hidden = false;
+      box.style.left = `${Math.min(x + 12, wrap.clientWidth - 188)}px`;
+      box.style.top = `${Math.max(8, y - 72)}px`;
+    };
+
+    const landAt = (x: number, y: number) => {
+      const point = projection.invert?.([x, y]);
       if (!point) {
         return null;
       }
-      const land = lands.find((item) => geoContains(item.shape, point));
-      if (!land) {
-        return null;
+      const [lon, lat] = point;
+      for (const land of lands) {
+        const [minLon, minLat, maxLon, maxLat] = land.box;
+        if (lon < minLon || lon > maxLon || lat < minLat || lat > maxLat) {
+          continue;
+        }
+        if (land.row && geoContains(land.shape, point)) {
+          return land;
+        }
       }
-      const row = picks.get(land.iso);
-      if (!row) {
-        return null;
+      return null;
+    };
+
+    const moving = () =>
+      dragging ||
+      pointers.size > 1 ||
+      Math.abs(nudge) > 0.0002 ||
+      (spin > 0 && !hovering && visible);
+
+    const kick = () => {
+      if (!frame && visible) {
+        lastTime = 0;
+        frame = requestAnimationFrame(tick);
       }
-      return {
-        name: land.name,
-        team: row.topPick,
-        topVotes: row.topVotes,
-        totalVotes: row.totalVotes,
-        x: Math.min(localX + 12, bounds.width - 188),
-        y: Math.max(8, localY - 72),
-      };
     };
 
     const tick = (now: number) => {
@@ -191,95 +260,36 @@ export function WorldcupGlobe({
       if (!visible) {
         return;
       }
-      if (!dragging) {
-        const step = lastTime ? Math.min(40, now - lastTime) : 16;
-        rotation.lambda += (spin + nudge) * step;
+      const step = lastTime ? Math.min(40, now - lastTime) : 16;
+      lastTime = now;
+      if (!dragging && !hovering) {
+        view.lambda += spin * step;
+        view.lambda += nudge * step;
         nudge *= Math.exp(-step / 260);
       }
-      lastTime = now;
-      try {
-        paint();
-      } catch {
-        setShowFallback(true);
-        return;
+      if (hoverQueued) {
+        hoverQueued = false;
+        showLabel(landAt(hoverX, hoverY), hoverX, hoverY);
       }
-      frame = requestAnimationFrame(tick);
-    };
-
-    const start = () => {
-      if (!frame && visible) {
-        lastTime = 0;
+      if (dirty || moving()) {
+        try {
+          paint();
+        } catch {
+          setShowFallback(true);
+          return;
+        }
+        dirty = false;
+      }
+      if (moving() || hoverQueued) {
         frame = requestAnimationFrame(tick);
       }
     };
 
-    const stop = () => {
-      if (frame) {
-        cancelAnimationFrame(frame);
-      }
-      frame = 0;
+    zoomRef.current = (factor: number, absolute = false) => {
+      view.zoom = Math.min(maxZoom, Math.max(minZoom, absolute ? factor : view.zoom * factor));
+      dirty = true;
+      kick();
     };
-
-    const onDown = (event: PointerEvent) => {
-      dragging = true;
-      moved = 0;
-      lastX = event.clientX;
-      lastY = event.clientY;
-      lastTime = performance.now();
-      canvas.setPointerCapture(event.pointerId);
-    };
-
-    const onMove = (event: PointerEvent) => {
-      if (!dragging) {
-        if (event.pointerType === "mouse") {
-          const next = hit(event);
-          if (next?.name !== labelRef.current?.name || next?.x !== labelRef.current?.x) {
-            labelRef.current = next;
-            setLabel(next);
-          }
-        }
-        return;
-      }
-      const dx = event.clientX - lastX;
-      const dy = event.clientY - lastY;
-      lastX = event.clientX;
-      lastY = event.clientY;
-      moved += Math.abs(dx) + Math.abs(dy);
-      const touch = event.pointerType === "touch";
-      if (touch && Math.abs(dy) > Math.abs(dx)) {
-        return;
-      }
-      rotation.lambda += dx * 0.45;
-      if (!touch) {
-        rotation.phi = Math.max(-70, Math.min(70, rotation.phi - dy * 0.35));
-      }
-      const now = performance.now();
-      const step = Math.max(1, now - lastTime);
-      nudge = (dx * 0.45) / step;
-      lastTime = now;
-    };
-
-    const onUp = (event: PointerEvent) => {
-      const wasDrag = moved > 6;
-      dragging = false;
-      if (!wasDrag && event.pointerType !== "mouse") {
-        const next = hit(event);
-        labelRef.current = next;
-        setLabel(next);
-      }
-    };
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        visible = entry.isIntersecting;
-        if (visible) {
-          start();
-        } else {
-          stop();
-        }
-      },
-      { threshold: 0.05 },
-    );
 
     const boot = () => {
       try {
@@ -287,32 +297,38 @@ export function WorldcupGlobe({
         const atlas = atlasFile as unknown as Atlas;
         const nations = nationsFile as { features: NationFeature[] };
         const ids = idsFile as Record<string, string>;
-        picks = new Map(data.countries.map((row) => [row.iso, row]));
+        const picks = new Map(data.countries.map((row) => [row.iso, row]));
         fills = new Map(
           data.countries.map((row) => [row.iso, soften(data.teamColors[row.topPick])]),
         );
         const countries = feature(atlas as never, atlas.objects.countries);
         const shapes = countries.features
           .filter((item: { id?: string | number }) => String(item.id ?? "") !== ukId)
-          .map((item: { id?: string | number; properties?: { name?: string } }) => {
+          .map((item: { id?: string | number; properties?: { name?: string }; geometry?: { coordinates?: unknown } }) => {
             const iso = ids[String(item.id ?? "")] || "";
+            const cached = nameCache.get(iso);
+            const name = cached || countryName(iso, item.properties?.name || "");
+            if (iso) {
+              nameCache.set(iso, name);
+            }
             return {
               iso,
-              name: countryName(iso, item.properties?.name || ""),
+              name,
               shape: item as GeoPermissibleObjects,
+              box: boundsOf(item.geometry || { coordinates: undefined }),
+              row: picks.get(iso) || null,
             };
           });
         const homeNations = nations.features.map((item) => ({
           iso: item.properties.iso2,
           name: item.properties.name,
           shape: item.geometry,
+          box: boundsOf(item.geometry),
+          row: picks.get(item.properties.iso2) || null,
         }));
         lands = [...shapes, ...homeNations];
-        if (resize()) {
-          paint();
-        }
-        observer.observe(wrap);
-        start();
+        dirty = true;
+        kick();
       } catch {
         setShowFallback(true);
       }
@@ -324,31 +340,148 @@ export function WorldcupGlobe({
       }
     }, 3000);
 
-    boot();
-    const onResize = () => {
-      if (resize() && lands.length > 0) {
-        try {
-          paint();
-        } catch {
-          setShowFallback(true);
-        }
+    const onDown = (event: PointerEvent) => {
+      if ((event.target as HTMLElement).closest("button")) {
+        return;
       }
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pointers.size === 2) {
+        const [first, second] = [...pointers.values()];
+        pinchDistance = Math.hypot(first.x - second.x, first.y - second.y);
+        dragging = false;
+        return;
+      }
+      dragging = true;
+      moved = 0;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      canvas.setPointerCapture(event.pointerId);
+      kick();
     };
-    window.addEventListener("resize", onResize);
+
+    const onMove = (event: PointerEvent) => {
+      if (pointers.has(event.pointerId)) {
+        pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      }
+      if (pointers.size === 2) {
+        const [first, second] = [...pointers.values()];
+        const distance = Math.hypot(first.x - second.x, first.y - second.y);
+        if (pinchDistance > 0) {
+          zoomRef.current(distance / pinchDistance);
+        }
+        pinchDistance = distance;
+        return;
+      }
+      const bounds = canvas.getBoundingClientRect();
+      hoverX = event.clientX - bounds.left;
+      hoverY = event.clientY - bounds.top;
+      if (!dragging) {
+        hoverQueued = event.pointerType === "mouse";
+        kick();
+        return;
+      }
+      const dx = event.clientX - lastX;
+      const dy = event.clientY - lastY;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      moved += Math.abs(dx) + Math.abs(dy);
+      if (event.pointerType === "touch" && Math.abs(dy) > Math.abs(dx)) {
+        return;
+      }
+      view.lambda += dx * 0.45;
+      if (event.pointerType !== "touch") {
+        view.phi = Math.max(-70, Math.min(70, view.phi - dy * 0.35));
+      }
+      const now = performance.now();
+      nudge = (dx * 0.45) / Math.max(1, now - lastTime);
+      lastTime = now;
+      dirty = true;
+      kick();
+    };
+
+    const onUp = (event: PointerEvent) => {
+      pointers.delete(event.pointerId);
+      pinchDistance = 0;
+      const wasDrag = moved > 6;
+      dragging = false;
+      if (!wasDrag && event.pointerType !== "mouse") {
+        const bounds = canvas.getBoundingClientRect();
+        const x = event.clientX - bounds.left;
+        const y = event.clientY - bounds.top;
+        showLabel(landAt(x, y), x, y);
+      }
+      kick();
+    };
+
+    const onEnter = () => {
+      hovering = true;
+      window.clearTimeout(resumeTimer);
+    };
+
+    const onLeave = () => {
+      hovering = false;
+      showLabel(null, 0, 0);
+      window.clearTimeout(resumeTimer);
+      resumeTimer = window.setTimeout(() => {
+        kick();
+      }, 1000);
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) {
+        return;
+      }
+      event.preventDefault();
+      zoomRef.current(event.deltaY < 0 ? 1.12 : 1 / 1.12);
+    };
+
+    const onDouble = () => {
+      zoomRef.current(1.5);
+    };
+
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      if (visible) {
+        dirty = true;
+        kick();
+      } else if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+    });
+    const resizeObserver = new ResizeObserver(() => {
+      dirty = true;
+      kick();
+    });
+
+    boot();
+    observer.observe(wrap);
+    resizeObserver.observe(wrap);
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerup", onUp);
     canvas.addEventListener("pointercancel", onUp);
+    canvas.addEventListener("pointerenter", onEnter);
+    canvas.addEventListener("pointerleave", onLeave);
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    canvas.addEventListener("dblclick", onDouble);
 
     return () => {
       window.clearTimeout(giveUp);
-      stop();
+      window.clearTimeout(resumeTimer);
+      if (frame) {
+        cancelAnimationFrame(frame);
+      }
       observer.disconnect();
-      window.removeEventListener("resize", onResize);
+      resizeObserver.disconnect();
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
       canvas.removeEventListener("pointercancel", onUp);
+      canvas.removeEventListener("pointerenter", onEnter);
+      canvas.removeEventListener("pointerleave", onLeave);
+      canvas.removeEventListener("wheel", onWheel);
+      canvas.removeEventListener("dblclick", onDouble);
     };
   }, []);
 
@@ -366,25 +499,48 @@ export function WorldcupGlobe({
             className="h-full w-full rounded-2xl object-cover"
           />
         ) : (
-        <canvas
-          ref={canvasRef}
-          className="block h-full w-full"
-          style={{ touchAction: "pan-y" }}
-          aria-hidden="true"
-        />
+          <canvas
+            ref={canvasRef}
+            className="block h-full w-full"
+            style={{ touchAction: "pan-y" }}
+            aria-hidden="true"
+          />
         )}
-        {label ? (
-          <div
-            className="pointer-events-none absolute z-10 max-w-[220px] rounded-lg border border-line bg-card px-3 py-2 text-sm leading-snug text-ink"
-            style={{ left: label.x, top: label.y }}
+        <div className="absolute top-2 right-2 z-20 flex flex-col gap-1">
+          <button
+            type="button"
+            aria-label="Zoom in"
+            className="h-8 w-8 rounded-md border border-line bg-card text-ink"
+            onClick={() => zoomRef.current(1.35)}
           >
-            <p className="font-semibold">{label.name}</p>
-            <p>{label.team} was the favourite</p>
-            <p>
-              {label.topVotes} of {label.totalVotes} picks
-            </p>
-          </div>
-        ) : null}
+            +
+          </button>
+          <button
+            type="button"
+            aria-label="Zoom out"
+            className="h-8 w-8 rounded-md border border-line bg-card text-ink"
+            onClick={() => zoomRef.current(1 / 1.35)}
+          >
+            -
+          </button>
+          <button
+            type="button"
+            aria-label="Reset zoom"
+            className="h-8 w-8 rounded-md border border-line bg-card text-xs text-ink"
+            onClick={() => zoomRef.current(1, true)}
+          >
+            1x
+          </button>
+        </div>
+        <div
+          ref={labelRef}
+          hidden
+          className="pointer-events-none absolute z-10 max-w-[220px] rounded-lg border border-line bg-card px-3 py-2 text-sm leading-snug text-ink"
+        >
+          <p ref={nameRef} className="font-semibold" />
+          <p ref={teamRef} />
+          <p ref={countRef} />
+        </div>
       </div>
       <p className="mt-3 text-center text-sm text-muted">{caption}</p>
     </div>
