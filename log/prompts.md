@@ -731,3 +731,43 @@ Briefly inform the user about the task result and perform any follow-up actions 
 ```
 Changed: Confirmed the custom-domain switch; no website changes were needed.
 Files: log/prompts.md
+
+### 2026-09-24 14:42
+Prompt:
+```
+Replace the AJob screenshot with an animation of one real day. Keep the rest of the page as it is. Stop and tell me if anything fails.
+
+1. Add this to the frontmatter of content/builds/ajob.md, exactly as written, keeping draft: true:
+funnel:
+  date: 15 September 2026
+  start: 261 new jobs
+  steps:
+    - label: Keyword check
+      out: 177
+    - label: Cheap AI model
+      out: 77
+    - label: Stronger AI model
+      out: 6
+  end: 1 worth reading
+
+2. On /ajob, replace the email screenshot with an animated scene drawn in code (SVG or canvas, no GIFs, no new libraries), in the site's colours: paper background, ink lines, and clay orange only for the one job that gets through.
+   - Small blank job cards pour in, with the start label and the date.
+   - They pass three gates, one per step, each labelled. At each gate most cards drop away and an "out" counter ticks up in time with the cards falling.
+   - One clay-orange card drops into an inbox, with the end label.
+   - Left to right on desktop, top to bottom on phones.
+   - Never show real job titles or company names.
+
+3. It starts when scrolled into view, runs for about 6 seconds, holds the final state for 2 seconds, then loops. Pause it when it's off screen.
+
+4. Reduced motion: show the final state as a still, with all the numbers.
+
+5. Screen reader description: "On 15 September, AJob checked 261 new jobs. A keyword check removed 177, a cheap AI model removed 77, a stronger model removed 6, and 1 reached my inbox."
+
+6. Keep the screenshot file in the project but don't show it.
+
+7. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "AJob: funnel animation of one real day" and push to main.
+
+Tell me in plain English what changed and what to look at.
+```
+Changed: Replaced the AJob email screenshot with an animated picture of that day's job checks.
+Files: components/build-article.tsx, components/job-funnel.tsx, content/builds/ajob.md, lib/content.ts, log/prompts.md

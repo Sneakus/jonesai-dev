@@ -7,6 +7,17 @@ summary: Checks London startup job pages twice a day and emails me the few worth
 image:
   src: /builds/ajob-email.webp
   alt: An AJob email from 15 September. Job details are blurred. It shows 261 new jobs processed, 260 filtered out, and one fit
+funnel:
+  date: 15 September 2026
+  start: 261 new jobs
+  steps:
+    - label: Keyword check
+      out: 177
+    - label: Cheap AI model
+      out: 77
+    - label: Stronger AI model
+      out: 6
+  end: 1 worth reading
 ---
 
 ## How it works

@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { JobFunnel } from "@/components/job-funnel";
 import type { Build, SiteContent } from "@/lib/content";
 
 function Tag({
@@ -144,7 +145,9 @@ export function BuildArticle({
     <article className="max-w-[640px] pt-8 pb-20">
       <h1 className="build-title">{build.title}</h1>
       <p className="mt-4 text-base text-muted">{build.summary}</p>
-      {build.image ? (
+      {build.funnel ? (
+        <JobFunnel funnel={build.funnel} />
+      ) : build.image ? (
         <Image
           src={build.image.src}
           alt={build.image.alt}

@@ -88,6 +88,18 @@ export type BuildLink = {
   url: string;
 };
 
+export type FunnelStep = {
+  label: string;
+  out: number;
+};
+
+export type BuildFunnel = {
+  date: string;
+  start: string;
+  steps: FunnelStep[];
+  end: string;
+};
+
 export type Build = {
   draft: boolean;
   order: number;
@@ -101,6 +113,7 @@ export type Build = {
   excerpt: BuildExcerpt | null;
   image: BuildImage | null;
   example: BuildExample | null;
+  funnel: BuildFunnel | null;
   links: BuildLink[];
   blocks: BuildBlock[];
 };
@@ -420,6 +433,49 @@ function parseExample(
   };
 }
 
+function requiredNumber(
+  data: { [key: string]: FrontmatterValue },
+  key: string,
+  file: string,
+): number {
+  const raw = requiredString(data, key, file);
+  const value = Number(raw);
+  if (!Number.isInteger(value)) {
+    throw new Error(`${file} has a ${key} that could not be read`);
+  }
+  return value;
+}
+
+function parseFunnel(
+  value: FrontmatterValue | undefined,
+  file: string,
+): BuildFunnel | null {
+  if (value === undefined) {
+    return null;
+  }
+  if (!isRecord(value)) {
+    throw new Error(`${file} funnel could not be read`);
+  }
+  if (!Array.isArray(value.steps) || value.steps.length === 0) {
+    throw new Error(`${file} is missing funnel steps`);
+  }
+  const steps = value.steps.map((item, itemIndex) => {
+    if (!isRecord(item)) {
+      throw new Error(`${file} funnel step ${itemIndex + 1} could not be read`);
+    }
+    return {
+      label: requiredString(item, "label", file),
+      out: requiredNumber(item, "out", file),
+    };
+  });
+  return {
+    date: requiredString(value, "date", file),
+    start: requiredString(value, "start", file),
+    steps,
+    end: requiredString(value, "end", file),
+  };
+}
+
 function parseLinks(value: FrontmatterValue | undefined, file: string): BuildLink[] {
   if (value === undefined) {
     return [];
@@ -468,6 +524,7 @@ function readBuildFile(filePath: string): Build {
     excerpt: parseExcerpt(data.excerpt, filename),
     image: parseImage(data.image, filename),
     example: parseExample(data.example, filename),
+    funnel: parseFunnel(data.funnel, filename),
     links: parseLinks(data.links, filename),
     blocks: parseBlocks(body),
   };
