@@ -961,3 +961,23 @@ The globe dots look right as they are now. Lock in the current dot strength, siz
 ```
 Changed: Locked the current dot look and removed the tuning panel.
 Files: components/worldcup-globe.tsx, log/prompts.md
+
+### 2026-09-24 16:21
+Prompt:
+```
+Two fixes to the /worldcupmap globe. Keep everything else as it is. Stop and tell me if anything fails.
+
+1. Dots must match votes. Some countries show far more dots than votes: Northern Ireland has only 3 votes but lots of dots. Each dot should be one vote for the World Cup winner, the same thing the hover label counts.
+   - Use totalVotes from data/worldcup-picks.json as the number of dots for each country. Stop using data/worldcup-predictions-by-country.csv for the dots, and delete it if nothing else uses it.
+   - Never share dots between countries. In particular, don't spread UK dots across England, Scotland, Wales and Northern Ireland. Each country's dots come only from its own city points in cities.js.
+   - If a dot lands outside its country's outline, pick another point for it instead of dropping it, so the dot count matches the votes wherever possible. A country must never show more dots than it has votes.
+   - Tell me the new total, and any countries whose dot count doesn't match their votes, and why.
+
+2. Remove the [Globe caption] line and the space it takes up.
+
+3. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "worldcupmap: one dot per vote, remove caption" and push to main.
+
+Tell me in plain English what changed.
+```
+Changed: Each country now has one dot per vote, and the globe caption is gone.
+Files: components/worldcup-globe.tsx, components/build-article.tsx, lib/content.ts, content/builds/worldcupmap.md, scripts/build-globe-dots.py, data/worldcup-dots.json, data/worldcup-predictions-by-country.csv, log/prompts.md

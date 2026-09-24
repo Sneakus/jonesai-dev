@@ -1,4 +1,3 @@
-import csv
 import json
 from pathlib import Path
 
@@ -116,27 +115,36 @@ for feature in nations["features"]:
     outlines[feature["properties"]["iso2"]] = rings_for(feature["geometry"])
 
 dots: list[list[float]] = []
-dropped = 0
-skipped: list[str] = []
-rows = csv.DictReader((root / "data" / "worldcup-predictions-by-country.csv").open(encoding="utf-8"))
-for row in rows:
-    iso = row["nation_iso2"]
-    count = int(row["predictions"])
+shortfalls: list[str] = []
+for country in picks["countries"]:
+    iso = country["iso"]
+    votes = int(country["totalVotes"])
     points = cities.get(iso)
     if not points:
-        skipped.append(f"{iso} ({count})")
+        shortfalls.append(f"{iso}: 0 of {votes} votes, no city points for this country")
         continue
     shape = outlines.get(iso)
     light = 0 if fill_is_pale.get(iso, True) else 1
-    for _ in range(count):
-        longitude, latitude = weighted_point(points)
-        if shape and not in_polygons(longitude, latitude, shape):
-            dropped += 1
-            continue
-        dots.append([round(longitude, 3), round(latitude, 3), light])
+    placed = 0
+    for _ in range(votes):
+        for _attempt in range(40):
+            longitude, latitude = weighted_point(points)
+            if shape and not in_polygons(longitude, latitude, shape):
+                continue
+            dots.append([round(longitude, 3), round(latitude, 3), light])
+            placed += 1
+            break
+    if placed != votes:
+        reason = "no country outline" if not shape else "city points kept falling outside the outline"
+        shortfalls.append(f"{iso}: {placed} of {votes} votes, {reason}")
 
 out = root / "data" / "worldcup-dots.json"
 out.write_text(json.dumps(dots, separators=(",", ":")), encoding="utf-8")
 print(f"dots {len(dots)}")
-print(f"dropped {dropped}")
-print(f"skipped {skipped}")
+print(f"votes {sum(int(country['totalVotes']) for country in picks['countries'])}")
+if shortfalls:
+    print("shortfalls")
+    for line in shortfalls:
+        print(line)
+else:
+    print("shortfalls none")

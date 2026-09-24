@@ -116,7 +116,6 @@ export type Build = {
   transcript: string;
   plan: string;
   image: BuildImage | null;
-  globeCaption: string;
   callPlan: CallPlan | null;
   example: BuildExample | null;
   funnel: BuildFunnel | null;
@@ -531,7 +530,6 @@ function readBuildFile(filePath: string): Build {
     transcript: optionalString(data, "transcript"),
     plan: optionalString(data, "plan"),
     image: parseImage(data.image, filename),
-    globeCaption: optionalString(data, "globeCaption"),
     callPlan: parseCallPlan(data.callPlan, filename),
     example: parseExample(data.example, filename),
     funnel: parseFunnel(data.funnel, filename),
