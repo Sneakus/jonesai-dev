@@ -49,6 +49,8 @@ describe("golfer placement", () => {
     const right = new Vector3();
     const hand = new Vector3();
     const head = new Vector3();
+    const prevHead = new Vector3();
+    let seenHead = false;
     const grip = new Vector3();
     const prev = new Vector3();
     const dirs: Vector3[] = [];
@@ -56,7 +58,9 @@ describe("golfer placement", () => {
     let trailFoot = 0;
     let handGap = 0;
     let addressGap = Infinity;
-    let impactGap = Infinity;
+    let closest = Infinity;
+    let frameTravel = 0;
+    let topAngle = 180;
     let flick = 0;
     let boneDrift = 0;
     let backBend = 0;
@@ -85,10 +89,23 @@ describe("golfer placement", () => {
       const dir = head.clone().sub(grip).normalize();
       dirs.push(dir);
       rigDrift = Math.max(rigDrift, rig.position.distanceTo(home));
-      if (now === 0) addressGap = head.distanceTo(new Vector3(ballSpot.x, ballSpot.y, ballSpot.z));
-      if (Math.abs(now - saved.impactTime) < step * 0.51) {
-        impactGap = head.distanceTo(new Vector3(ballSpot.x, ballSpot.y, ballSpot.z));
+      const ballThere = new Vector3(ballSpot.x, ballSpot.y, ballSpot.z);
+      const gap = head.distanceTo(ballThere);
+      if (now === 0) addressGap = gap;
+      if (now >= 0.3 && gap < closest) {
+        closest = gap;
+        frameTravel = seenHead ? head.distanceTo(prevHead) : 0;
       }
+      if (Math.abs(now - saved.topTime) < step * 0.51) {
+        const flat = dir.clone();
+        flat.y = 0;
+        if (flat.lengthSq() > 1e-8) {
+          flat.normalize();
+          topAngle = Math.acos(Math.min(1, Math.max(-1, flat.z))) * (180 / Math.PI);
+        }
+      }
+      prevHead.copy(head);
+      seenHead = true;
       model.traverse((node) => {
         if (!node.parent) return;
         const rest = saved.rest.get(node.name) ?? 0;
@@ -129,7 +146,8 @@ describe("golfer placement", () => {
     console.log(`trail foot ${trailFoot.toFixed(4)}`);
     console.log(`trail hand ${handGap.toFixed(4)}`);
     console.log(`address gap ${addressGap.toFixed(4)}`);
-    console.log(`impact gap ${impactGap.toFixed(4)}`);
+    console.log(`closest pass ${closest.toFixed(4)} frame travel ${frameTravel.toFixed(4)}`);
+    console.log(`top angle ${topAngle.toFixed(1)}`);
     console.log(`flick ${flick.toFixed(2)}`);
     console.log(`bone drift ${boneDrift.toFixed(5)}`);
     console.log(`back bend ${backBend.toFixed(4)}`);
@@ -141,8 +159,9 @@ describe("golfer placement", () => {
     expect(leadFoot).toBeLessThan(0.01);
     expect(trailFoot).toBeLessThan(0.01);
     expect(handGap).toBeLessThan(0.02);
-    expect(addressGap).toBeLessThan(0.03);
-    expect(impactGap).toBeLessThan(0.03);
+    expect(addressGap).toBeLessThan(0.01);
+    expect(closest).toBeLessThan(frameTravel);
+    expect(topAngle).toBeLessThan(30);
     expect(flick).toBeLessThan(10);
     expect(boneDrift).toBeLessThan(0.005);
     expect(backBend).toBe(0);

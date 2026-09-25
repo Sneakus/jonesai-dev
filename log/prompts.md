@@ -1484,3 +1484,27 @@ Tell me in plain English what changed.
 ```
 Changed: Moved the golfer beside the ball, level with his lead heel. The hands in this swing sit too low for a full driver length at that lie.
 Files: src/games/golf/swing-fix.ts, log/prompts.md
+
+### 2026-09-25 14:13
+Prompt:
+```
+Keep working on the golf-correction-layer branch and push to it only. The golfer's stance is right now. Fix the club, the ball and the camera.
+
+1. Club orientation: stop aiming the club along the line between the two hands, because at the top of the swing that points the club the wrong way. Attach it rigidly to the lead (left) hand bone again, using the rotation offset calibrated at address from geometry. Then add a smoothing filter on the club's orientation (for example a short quaternion blend with the neighbouring frames) to remove the wrist-twist flicks. Keep the club length at 0.98 m.
+
+2. Ball: place the ball exactly at the clubhead's position at address (address gap under 1 cm). Remove the arm IK correction at address, since it's no longer needed.
+
+3. Impact: impact is the frame where the clubhead passes closest to the ball. Launch the ball at that moment. Don't force the clubhead onto the ball with heavy arm IK. At full speed the clubhead moves further in one frame than the remaining gap. Keep the feet pinning and the trail knee clamp.
+
+4. Replace the impact-gap check with a speed-aware one: at real playback speed, the clubhead's closest pass must be shorter than the distance the clubhead travels in one frame at that moment. Print both numbers.
+
+5. Add a new check: at the top of the backswing, the club points back behind the golfer, roughly parallel to the target line, within about 30 degrees. Keep the anti-flick, feet, bone length and rig checks.
+
+6. Camera: move it back and a little higher so the whole golfer including his feet, the whole tee and the whole ball are in shot, with the ball in the lower third of the frame and some grass below it. Still behind the ball, looking down the range.
+
+7. Don't use the built-in browser. Run the check script, a clean production build, the code check and gitleaks git -v, commit with "Golf kit: club on lead hand with smoothing, ball at address, camera reframed" and push to the branch. Don't merge into main. I'll check the preview first.
+
+Tell me in plain English what changed, and paste the printed checks.
+```
+Changed: Club follows the left hand with a short smoothing blend, the ball sits on the clubhead at address, and the camera is further back and higher. At the top of the backswing the club still points up and across, not back along the target line.
+Files: src/games/golf/swing-fix.ts, src/games/golf/place-check.test.ts, src/games/golf/settings.ts, log/prompts.md
