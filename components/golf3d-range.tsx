@@ -10,7 +10,7 @@ import { Line2, LineGeometry, LineMaterial, LineSegments2, LineSegmentsGeometry 
 import { fly, type FlightResult } from "@/src/games/golf/flight";
 import { curveYards, shotKey } from "@/src/games/golf/outcomes";
 import { armClip, ballSpot, findBone, scrubFrame, stepCamera, stepShot } from "@/src/games/golf/range-play";
-import { correctFrame, currentFix, placeRig, shaftEnds } from "@/src/games/golf/swing-fix";
+import { correctFrame, currentFix, drawSkeleton, placeRig } from "@/src/games/golf/swing-fix";
 import { rangeSettings as range } from "@/src/games/golf/settings";
 import { gentleStrike } from "@/src/games/golf/strike";
 import { golfTheme as theme, type ShotCopy } from "@/src/games/golf/theme";
@@ -111,51 +111,9 @@ function SkeletonDraw({ root, debug }: { root: Object3D; debug: boolean }) {
   const clubHead = useMemo(() => new Vector3(), []);
 
   useFrame((state) => {
-    const { positions, geom, lines, spheres, head, trailPositions, trailColors, trailGeom, trail } = draw;
-    lines.material.resolution.set(state.size.width, state.size.height);
-    trail.material.resolution.set(state.size.width, state.size.height);
-    let cursor = 0;
-    for (const [parent, child] of edges) {
-      parent.getWorldPosition(point);
-      positions[cursor++] = point.x;
-      positions[cursor++] = point.y;
-      positions[cursor++] = point.z;
-      child.getWorldPosition(point);
-      positions[cursor++] = point.x;
-      positions[cursor++] = point.y;
-      positions[cursor++] = point.z;
-    }
-    shaftEnds(grip, clubHead);
-    positions[cursor++] = grip.x;
-    positions[cursor++] = grip.y;
-    positions[cursor++] = grip.z;
-    positions[cursor++] = clubHead.x;
-    positions[cursor++] = clubHead.y;
-    positions[cursor++] = clubHead.z;
-    geom.setPositions(positions);
-    let index = 0;
-    for (const joint of joints) {
-      joint.getWorldPosition(point);
-      matrix.setPosition(point);
-      spheres.setMatrixAt(index, matrix);
-      if (joint.name.replace(/[:|]/g, "").endsWith("Head")) head.position.copy(point);
-      index += 1;
-    }
-    spheres.instanceMatrix.needsUpdate = true;
-    trailPositions.copyWithin(0, 3);
-    trailPositions[trailPositions.length - 3] = clubHead.x;
-    trailPositions[trailPositions.length - 2] = clubHead.y;
-    trailPositions[trailPositions.length - 1] = clubHead.z;
-    const count = trailColors.length / 4;
-    for (let i = 0; i < count; i += 1) {
-      const fade = i / (count - 1);
-      trailColors[i * 4] = 0.97;
-      trailColors[i * 4 + 1] = 0.95;
-      trailColors[i * 4 + 2] = 0.9;
-      trailColors[i * 4 + 3] = fade * 0.35;
-    }
-    trailGeom.setPositions(trailPositions);
-    trailGeom.setColors(trailColors);
+    draw.lines.material.resolution.set(state.size.width, state.size.height);
+    draw.trail.material.resolution.set(state.size.width, state.size.height);
+    drawSkeleton(edges, joints, draw.positions, draw.geom, draw.spheres, draw.head, draw.trailPositions, draw.trailColors, draw.trailGeom, point, matrix, grip, clubHead);
   });
 
   return (

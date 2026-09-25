@@ -1399,3 +1399,29 @@ Tell me in plain English what changed, how far the ball moved, and paste the pri
 ```
 Changed: Stopped before merging. The skeleton and geometric club are in place, but the address and impact clubhead checks do not pass.
 Files: public/games/golf/golfer.glb, src/games/golf/swing-fix.ts, src/games/golf/two-bone.ts, src/games/golf/theme.ts, src/games/golf/place-check.test.ts, components/golf3d-range.tsx, log/prompts.md
+
+### 2026-09-25 13:39
+Prompt:
+```
+Keep working on the golf-correction-layer branch. The skeleton, the club calibration and the anti-flick are working. Fix the remaining three checks. Stop and tell me if anything fails.
+
+0. Before changing anything, commit the current skeleton work to the golf-correction-layer branch with the message "Golf kit: skeleton golfer, work in progress", run gitleaks git -v, and push the branch, so I can see it on Vercel's preview. From now on, push to this branch after each attempt, even if the checks fail. Never merge into main until everything passes.
+
+1. Ball position: instead of moving the ball all the way to the impact low point, place it to minimise the larger of the two gaps, the clubhead at address and the clubhead at impact, which is roughly halfway between them. Print both gaps before any IK.
+
+2. Arm IK weight: raise it at both moments that need it. Weight 1 at address and through the first part of the backswing, easing to 0 by the top. Rising back to 1 just before impact. Easing back to 0 through the follow-through. Keep the 2 cm per frame limit on how fast the correction changes, and keep the reach clamp and soft IK. At address the golfer is standing still, so that correction is invisible.
+
+3. Trail leg after impact: fade the trail leg IK out completely over about 5 frames after impact, and let the animation drive that leg for the rest of the swing. Keep the lead foot pinned for the whole swing.
+
+4. Update two checks:
+   - The "never fully straight" check only applies on frames where IK is actually moving that limb. A nearly straight lead arm through impact is correct golf.
+   - The trail foot is only checked up to impact, and the trail knee must never bend backwards at any point.
+
+5. The rest of the checks stay as they are. When they all pass, merge into main.
+
+6. Don't use the built-in browser. Run the check script, the tests, the code check and gitleaks git -v before every push. When everything passes, commit with "Golf kit: split ball position, IK at address and impact", merge into main and push.
+
+Tell me in plain English what changed, and paste the printed checks.
+```
+Changed: Placed the ball halfway between the two clubhead spots. The start and impact gaps are still about 10 cm, so this was not merged.
+Files: src/games/golf/swing-fix.ts, src/games/golf/place-check.test.ts, components/golf3d-range.tsx, log/prompts.md

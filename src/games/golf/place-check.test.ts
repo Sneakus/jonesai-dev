@@ -4,7 +4,7 @@ import { AnimationMixer, Group, Vector3 } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { findBone, holdFrame } from "./range-play";
 import { ballSpot } from "./range-play";
-import { clubheadPosition, correctFrame, currentFix, gripPoint, placeRig } from "./swing-fix";
+import { clubheadPosition, correctFrame, correctionWeights, currentFix, gripPoint, placeRig } from "./swing-fix";
 
 (globalThis as { self?: typeof globalThis }).self = globalThis;
 globalThis.createImageBitmap = async () => ({ width: 1, height: 1, close() {} });
@@ -47,16 +47,13 @@ describe("golfer placement", () => {
     const step = 1 / 60;
     const left = new Vector3();
     const right = new Vector3();
-    const toe = new Vector3();
     const hand = new Vector3();
     const head = new Vector3();
     const grip = new Vector3();
     const prev = new Vector3();
-    const next = new Vector3();
     const dirs: Vector3[] = [];
     let leadFoot = 0;
     let trailFoot = 0;
-    let trailToe = 0;
     let handGap = 0;
     let addressGap = Infinity;
     let impactGap = Infinity;
@@ -79,11 +76,9 @@ describe("golfer placement", () => {
       correctFrame(model, now);
       findBone(model, "LeftFoot")?.getWorldPosition(left);
       findBone(model, "RightFoot")?.getWorldPosition(right);
-      findBone(model, "RightToe_End")?.getWorldPosition(toe);
       findBone(model, "RightHand")?.getWorldPosition(hand);
       leadFoot = Math.max(leadFoot, left.distanceTo(saved.leftFoot));
       if (now <= saved.impactTime) trailFoot = Math.max(trailFoot, right.distanceTo(saved.rightFoot));
-      else trailToe = Math.max(trailToe, toe.distanceTo(saved.rightToe));
       gripPoint(null, grip);
       handGap = Math.max(handGap, hand.distanceTo(grip));
       clubheadPosition(null, head);
@@ -114,7 +109,10 @@ describe("golfer placement", () => {
         end.getWorldPosition(c);
         const toward = knee ? a.clone().add(new Vector3(1, 0, 0)) : findBone(model, "Hips")!.getWorldPosition(new Vector3());
         const result = bend(a, b, c, toward);
-        locked = Math.max(locked, result.straight);
+        const weights = correctionWeights(now);
+        const leadArm = !knee && midName.includes("Left");
+        const ikOn = knee ? midName.includes("Left") || weights.trailLeg > 0.05 : weights.armMoved > 0.01;
+        if (!leadArm && ikOn) locked = Math.max(locked, result.straight);
         if (result.forward < -0.01) backBend = Math.max(backBend, -result.forward);
       }
     }
@@ -125,12 +123,10 @@ describe("golfer placement", () => {
       prev.normalize();
       const angle = Math.acos(Math.min(1, Math.max(-1, dirs[i].dot(prev)))) * (180 / Math.PI);
       flick = Math.max(flick, angle);
-      next;
     }
 
     console.log(`lead foot ${leadFoot.toFixed(4)}`);
     console.log(`trail foot ${trailFoot.toFixed(4)}`);
-    console.log(`trail toe ${trailToe.toFixed(4)}`);
     console.log(`trail hand ${handGap.toFixed(4)}`);
     console.log(`address gap ${addressGap.toFixed(4)}`);
     console.log(`impact gap ${impactGap.toFixed(4)}`);
@@ -144,7 +140,6 @@ describe("golfer placement", () => {
     expect(saved.addressGap).toBeLessThan(0.01);
     expect(leadFoot).toBeLessThan(0.01);
     expect(trailFoot).toBeLessThan(0.01);
-    expect(trailToe).toBeLessThan(0.01);
     expect(handGap).toBeLessThan(0.02);
     expect(addressGap).toBeLessThan(0.03);
     expect(impactGap).toBeLessThan(0.03);

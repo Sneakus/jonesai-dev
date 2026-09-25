@@ -1,4 +1,4 @@
-import { AnimationAction, Object3D, Quaternion, Vector3 } from "three";
+import { AnimationAction, Matrix4, Object3D, Vector3 } from "three";
 import { ballSpot, findBone, holdFrame, soleHeight } from "./range-play";
 import { rangeSettings as range } from "./settings";
 import { solveTwoBone } from "./two-bone";
@@ -23,6 +23,7 @@ const pole = new Vector3();
 const hipPos = new Vector3();
 const tmp = new Vector3();
 const held = new Vector3();
+const footAim = new Vector3();
 
 type Fix = {
   impactTime: number;
@@ -88,25 +89,52 @@ function clubFromHands() {
   head.copy(grip).addScaledVector(shaft, fix.length);
 }
 
-function armWeight(time: number) {
-  if (!fix) return 0;
-  const before = fix.impactTime - 2 / 60;
-  if (time <= fix.topTime || time >= fix.endTime) return 0;
-  if (time < before) return (time - fix.topTime) / Math.max(1e-4, before - fix.topTime);
-  return 1 - (time - before) / Math.max(1e-4, fix.endTime - before);
+function smooth(t: number) {
+  const x = Math.min(1, Math.max(0, t));
+  return x * x * (3 - 2 * x);
 }
 
-function pullHand(model: Object3D, handName: string, aim: Vector3, weight: number, previous: Vector3) {
+function armWeight(time: number) {
+  if (!fix) return 0;
+  const top = fix.topTime;
+  const impact = fix.impactTime;
+  const early = top * 0.45;
+  if (time <= early) return 1;
+  if (time < top) return 1 - smooth((time - early) / Math.max(1e-4, top - early));
+  const riseStart = Math.max(top, impact - 8 / 60);
+  if (time < riseStart) return 0;
+  if (time < impact) return smooth((time - riseStart) / Math.max(1e-4, impact - riseStart));
+  return 1 - smooth((time - impact) / Math.max(1e-4, fix.endTime - impact));
+}
+
+function trailLegWeight(time: number) {
+  if (!fix) return 0;
+  if (time <= fix.impactTime) return 1;
+  const fade = 5 / 60;
+  if (time >= fix.impactTime + fade) return 0;
+  return 1 - (time - fix.impactTime) / fade;
+}
+
+let armMoved = 0;
+
+export function correctionWeights(time: number) {
+  return { arms: armWeight(time), trailLeg: trailLegWeight(time), armMoved };
+}
+
+function pullHand(model: Object3D, handName: string, shift: Vector3, weight: number, previous: Vector3, full: boolean) {
   const hand = bone(model, handName);
   hand.getWorldPosition(animated);
-  target.copy(animated).lerp(aim, weight);
-  correction.subVectors(target, animated);
-  tmp.subVectors(correction, previous);
-  if (tmp.length() > 0.02) {
-    tmp.setLength(0.02);
-    correction.copy(previous).add(tmp);
+  correction.copy(shift).multiplyScalar(weight);
+  if (!full) {
+    tmp.subVectors(correction, previous);
+    if (tmp.length() > 0.02) {
+      tmp.setLength(0.02);
+      correction.copy(previous).add(tmp);
+    }
   }
   previous.copy(correction);
+  armMoved = Math.max(armMoved, correction.length());
+  if (correction.lengthSq() < 1e-8) return;
   target.copy(animated).add(correction);
   const shoulder = bone(model, handName.startsWith("Left") ? "LeftArm" : "RightArm");
   const elbow = bone(model, handName.startsWith("Left") ? "LeftForeArm" : "RightForeArm");
@@ -126,10 +154,12 @@ function seatHips(model: Object3D, aim: Vector3, rootName: string, midName: stri
   const upper = tmp.distanceTo(target);
   end.getWorldPosition(target);
   const lower = midBone.getWorldPosition(animated).distanceTo(target);
-  const span = (upper + lower) * 0.82;
+  const span = (upper + lower) * 0.97;
   const dist = tmp.distanceTo(aim);
   if (dist <= span) return;
-  const shift = aim.clone().sub(tmp).setLength(dist - span);
+  const shift = tmp.clone().sub(aim);
+  shift.setLength(dist - span);
+  shift.negate();
   hips.getWorldPosition(target);
   parent.worldToLocal(target.add(shift));
   hips.position.copy(target);
@@ -152,17 +182,6 @@ function pinFoot(model: Object3D, sideName: "Left" | "Right", aim: Vector3) {
   solveTwoBone(hip, knee, foot, aim, pole);
 }
 
-function pinToe(model: Object3D, aim: Vector3) {
-  const knee = bone(model, "RightLeg");
-  const foot = bone(model, "RightFoot");
-  const toe = bone(model, "RightToe_End");
-  foot.getWorldPosition(pole);
-  pole.x += 1;
-  pole.y += 0.2;
-  pole.z += 0.35;
-  solveTwoBone(knee, foot, toe, aim, pole);
-}
-
 function restLengths(model: Object3D) {
   const rest = new Map<string, number>();
   model.traverse((node) => {
@@ -172,30 +191,115 @@ function restLengths(model: Object3D) {
   return rest;
 }
 
+const handShift = new Vector3();
+const want = new Vector3();
+
 export function correctFrame(model: Object3D, time: number) {
   if (!fix) return;
   model.updateMatrixWorld(true);
+  armMoved = 0;
   const weight = armWeight(time);
+  const trail = trailLegWeight(time);
+  bone(model, "RightFoot").getWorldPosition(held);
   seatHips(model, fix.leftFoot, "LeftUpLeg", "LeftLeg", "LeftFoot");
-  if (time <= fix.impactTime) seatHips(model, fix.rightFoot, "RightUpLeg", "RightLeg", "RightFoot");
-  else seatHips(model, fix.rightToe, "RightLeg", "RightFoot", "RightToe_End");
-  if (time <= fix.impactTime) {
-    pinFoot(model, "Left", fix.leftFoot);
-    pinFoot(model, "Right", fix.rightFoot);
-  } else {
-    pinFoot(model, "Left", fix.leftFoot);
-    bone(model, "RightFoot").getWorldPosition(held);
-    pinFoot(model, "Right", held);
-    pinToe(model, fix.rightToe);
+  if (trail > 0) seatHips(model, fix.rightFoot, "RightUpLeg", "RightLeg", "RightFoot");
+  pinFoot(model, "Left", fix.leftFoot);
+  if (trail > 0) {
+    footAim.copy(fix.rightFoot).lerp(held, 1 - trail);
+    pinFoot(model, "Right", footAim);
   }
+  model.updateMatrixWorld(true);
   hands(model);
-  const trailGrip = mid.clone().addScaledVector(across, fix.trailAlong);
-  pullHand(model, "LeftHand", mid, weight, prevLead);
-  pullHand(model, "RightHand", trailGrip, weight, prevTrail);
+  clubFromHands();
+  handShift.set(ballSpot.x, ballSpot.y, ballSpot.z).sub(head);
+  let scale = 1;
+  for (const side of ["Left", "Right"] as const) {
+    const shoulder = bone(model, `${side}Arm`);
+    const elbow = bone(model, `${side}ForeArm`);
+    const hand = bone(model, `${side}Hand`);
+    shoulder.getWorldPosition(tmp);
+    elbow.getWorldPosition(target);
+    const upper = tmp.distanceTo(target);
+    hand.getWorldPosition(target);
+    const lower = elbow.getWorldPosition(animated).distanceTo(target);
+    const limit = (upper + lower) * 0.9;
+    let lo = 0;
+    let hi = 1;
+    for (let step = 0; step < 8; step += 1) {
+      const mid = (lo + hi) / 2;
+      want.copy(target).addScaledVector(handShift, mid);
+      if (tmp.distanceTo(want) <= limit) lo = mid;
+      else hi = mid;
+    }
+    scale = Math.min(scale, lo);
+  }
+  if (scale < 0.9) handShift.set(0, 0, 0);
+  else handShift.multiplyScalar(scale);
+  pullHand(model, "LeftHand", handShift, weight, prevLead, time === 0);
+  pullHand(model, "RightHand", handShift, weight, prevTrail, time === 0);
   model.updateMatrixWorld(true);
   hands(model);
   clubFromHands();
   }
+
+export function drawSkeleton(
+  edges: [Object3D, Object3D][],
+  joints: Object3D[],
+  positions: Float32Array,
+  geom: { setPositions: (values: Float32Array) => void },
+  spheres: { setMatrixAt: (index: number, matrix: Matrix4) => void; instanceMatrix: { needsUpdate: boolean } },
+  headBone: Object3D,
+  trailPositions: Float32Array,
+  trailColors: Float32Array,
+  trailGeom: { setPositions: (values: Float32Array) => void; setColors: (values: Float32Array) => void },
+  point: Vector3,
+  matrix: Matrix4,
+  gripOut: Vector3,
+  clubHead: Vector3,
+) {
+  let cursor = 0;
+  for (const [parent, child] of edges) {
+    parent.getWorldPosition(point);
+    positions[cursor++] = point.x;
+    positions[cursor++] = point.y;
+    positions[cursor++] = point.z;
+    child.getWorldPosition(point);
+    positions[cursor++] = point.x;
+    positions[cursor++] = point.y;
+    positions[cursor++] = point.z;
+  }
+  shaftEnds(gripOut, clubHead);
+  positions[cursor++] = gripOut.x;
+  positions[cursor++] = gripOut.y;
+  positions[cursor++] = gripOut.z;
+  positions[cursor++] = clubHead.x;
+  positions[cursor++] = clubHead.y;
+  positions[cursor++] = clubHead.z;
+  geom.setPositions(positions);
+  let index = 0;
+  for (const joint of joints) {
+    joint.getWorldPosition(point);
+    matrix.setPosition(point);
+    spheres.setMatrixAt(index, matrix);
+    if (joint.name.replace(/[:|]/g, "").endsWith("Head")) headBone.position.copy(point);
+    index += 1;
+  }
+  spheres.instanceMatrix.needsUpdate = true;
+  trailPositions.copyWithin(0, 3);
+  trailPositions[trailPositions.length - 3] = clubHead.x;
+  trailPositions[trailPositions.length - 2] = clubHead.y;
+  trailPositions[trailPositions.length - 1] = clubHead.z;
+  const count = trailColors.length / 4;
+  for (let i = 0; i < count; i += 1) {
+    const fade = i / (count - 1);
+    trailColors[i * 4] = 0.97;
+    trailColors[i * 4 + 1] = 0.95;
+    trailColors[i * 4 + 2] = 0.9;
+    trailColors[i * 4 + 3] = fade * 0.35;
+  }
+  trailGeom.setPositions(trailPositions);
+  trailGeom.setColors(trailColors);
+}
 
 export function clubheadPosition(_club: Object3D | null, out: Vector3) {
   return out.copy(head);
@@ -246,7 +350,7 @@ export function placeRig(rig: Object3D, model: Object3D, action: AnimationAction
   const duration = action.getClip()?.duration ?? 1;
   const step = 1 / 60;
   const samples: { time: number; head: Vector3; speed: number; hand: number }[] = [];
-  let previous = new Vector3();
+  const previous = new Vector3();
   let primed = false;
   rollReady = false;
   fix = {
@@ -269,8 +373,11 @@ export function placeRig(rig: Object3D, model: Object3D, action: AnimationAction
 
   let highest = -Infinity;
   for (let time = 0; time <= duration + 1e-6; time += step) {
-    holdFrame(action, Math.min(time, duration));
-    correctFrame(model, Math.min(time, duration));
+    const now = Math.min(time, duration);
+    holdFrame(action, now);
+    model.updateMatrixWorld(true);
+    hands(model);
+    clubFromHands();
     const speed = primed ? head.distanceTo(previous) / step : 0;
     previous.copy(head);
     primed = true;
@@ -293,15 +400,21 @@ export function placeRig(rig: Object3D, model: Object3D, action: AnimationAction
       fix.topTime = sample.time;
     }
   }
-  const moved = impact ? impact.head.clone().sub(ball) : new Vector3();
-  ballSpot.x = range.ball[0] + moved.x;
-  ballSpot.y = range.ball[1] + moved.y;
-  ballSpot.z = range.ball[2] + moved.z;
-  fix.ballMoved = moved.length();
+  const addressHead = samples[0]?.head ?? ball;
+  const impactHead = impact?.head ?? addressHead;
+  const placed = addressHead.clone().add(impactHead).multiplyScalar(0.5);
+  const gapAddress = addressHead.distanceTo(placed);
+  const gapImpact = impactHead.distanceTo(placed);
+  ballSpot.x = placed.x;
+  ballSpot.y = placed.y;
+  ballSpot.z = placed.z;
+  fix.ballMoved = placed.distanceTo(ball);
   prevLead.set(0, 0, 0);
   prevTrail.set(0, 0, 0);
   rollReady = false;
   holdFrame(action, 0);
+  console.log(`address gap before IK ${gapAddress.toFixed(4)}`);
+  console.log(`impact gap before IK ${gapImpact.toFixed(4)}`);
   console.log(`address gap ${addressGap.toFixed(4)}`);
   console.log(`ball moved ${fix.ballMoved.toFixed(4)}`);
   return fix;
