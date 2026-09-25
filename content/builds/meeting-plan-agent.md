@@ -1,5 +1,4 @@
 ---
-draft: true
 order: 4
 title: Meeting plan agent
 slug: meeting-plan-agent

@@ -1,5 +1,4 @@
 ---
-draft: true
 replayButton: Go again
 scoreMessages:
   "0":

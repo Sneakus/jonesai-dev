@@ -1,5 +1,4 @@
 ---
-draft: true
 name: AJ
 title: I can't code.
 intro: Startup operator, making a bunch of stuff with AI

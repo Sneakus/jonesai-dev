@@ -1,5 +1,4 @@
 ---
-draft: true
 order: 3
 title: AJob
 slug: ajob

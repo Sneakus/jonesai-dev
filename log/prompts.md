@@ -1498,3 +1498,30 @@ In content/builds/meeting-plan-agent.md, replace "It took about 90 minutes for m
 ```
 Changed: Reworded the line about how long the Meeting plan agent took to build.
 Files: content/builds/meeting-plan-agent.md, log/prompts.md
+
+### 2026-09-26 00:27
+Prompt:
+```
+Pre-launch sweep. Stop and tell me if anything fails.
+
+1. Remove draft: true from every content file (home, contact, game and all four build pages). Change no words.
+
+2. Search the whole site, including every content file and every piece of text in the code that a visitor could see, and report anything found:
+   - leftover placeholders in square brackets, like [Something]
+   - em dashes or en dashes (they should all be plain hyphens), except inside images
+   - the words "draft", "TODO" or "lorem"
+   - the name of the AI agency behind the Meeting plan agent take-home
+   Fix the dashes. For anything else, list it and ask me before changing it.
+
+3. Check every link on the site: internal pages, the GitHub repos, worldcupmap.io, LinkedIn, the CV download and the email. List any that fail.
+
+4. Check the hidden pages (/lab/golf, /lab/golf3d) are still noindex and not linked from anywhere, and that everything else is indexable.
+
+5. Check every page has its own title, description and share image.
+
+6. Don't use the built-in browser. Run all the tests, a clean production build, the code check and gitleaks git -v, commit with "Pre-launch sweep" and push to main.
+
+Tell me in plain English what you found and what you changed.
+```
+Changed: Took the draft flag off the home page, the contact section, the clay game and the four build pages.
+Files: content/home.md, content/contact.md, content/game.md, content/builds/meeting-plan-agent.md, content/builds/worldcupmap.md, content/builds/golf-agent.md, content/builds/ajob.md, log/prompts.md

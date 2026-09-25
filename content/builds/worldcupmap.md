@@ -1,5 +1,4 @@
 ---
-draft: true
 order: 1
 title: worldcupmap
 slug: worldcupmap

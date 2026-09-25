@@ -1,5 +1,4 @@
 ---
-draft: true
 heading: My DMs are open.
 copyLabel: Copy
 copiedLabel: Copied

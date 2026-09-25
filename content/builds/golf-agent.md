@@ -1,5 +1,4 @@
 ---
-draft: true
 order: 2
 title: Golf Agent
 slug: golf-agent
