@@ -1253,3 +1253,30 @@ Tell me in plain English what was wrong, and paste the numbers the script printe
 ```
 Changed: Placed the golfer once on a fixed layout so he stays on the mat and the club meets the ball.
 Files: components/golf3d-range.tsx, src/games/golf/range-play.ts, src/games/golf/settings.ts, src/games/golf/place-check.test.ts, log/prompts.md
+
+### 2026-09-25 02:25
+Prompt:
+```
+The golfer's base still moves forward and back, and the club and body glitch. The 11.6 m of hip travel you found is almost certainly a units error: Mixamo stores movement in centimetres, so it should be about 11.6 cm. Fix the cause rather than removing movement. Keep the scene and the place-once layout. Stop and tell me if anything fails.
+
+1. Fix the units:
+   - Re-export D:\Assets\Golf\Golf_Drive.fbx from Blender so the skeleton has a scale of 1 with its transforms applied, and every animation movement, including the hips, is in metres. Mixamo imports usually come in with a 0.01 scale on the armature, which is what needs applying.
+   - Put back the hips' sideways movement you removed. Once the units are right, it's real weight shift.
+   - The golfer's top-level position should then sit near floor height, not metres above it.
+
+2. The club: fix it to the left (lead) hand bone with one position and rotation, lined up once at the address pose, so the grip sits in both hands and the clubhead rests just behind the ball. Don't re-aim it between the wrists every frame. Keep the offsets in the settings object.
+
+3. Extend the check script to prove the swing is right across the whole animation, sampled every frame:
+   - Both feet stay within 3 cm of their address positions throughout.
+   - The golfer's top-level position never changes.
+   - The hips move sideways between about 5 and 25 cm in total.
+   - The right hand stays within about 8 cm of the club's grip throughout, so both hands stay on the club.
+   - At impact, the clubhead is within 3 cm of the ball, and the lowest point of the clubhead's path is near the ball.
+   Print the worst value for each, and keep fixing until they all pass.
+
+4. Don't use the built-in browser. Run the check script, the tests, the code check and gitleaks git -v, commit with "Golf kit: correct units, club fixed to lead hand" and push to main.
+
+Tell me in plain English what was wrong, and paste the printed checks.
+```
+Changed: Stopped before committing. The hip movement is now in centimetres, but the feet, the trail hand and the clubhead still fail the swing checks.
+Files: public/games/golf/golfer.glb, src/games/golf/range-play.ts, components/golf3d-range.tsx, src/games/golf/place-check.test.ts, log/prompts.md
