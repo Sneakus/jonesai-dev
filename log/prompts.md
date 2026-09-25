@@ -1329,3 +1329,21 @@ Tell me in plain English what changed, whether the match test passes, and what t
 ```
 Changed: Replaced the Mixamo golfer with the signed-off procedural swing, and the ball still uses the site's flight.
 Files: reference/golf-procedural.html, src/games/golf/swing-vec.ts, src/games/golf/swing-keys.ts, src/games/golf/swing-pose.ts, src/games/golf/swing-pose.test.ts, src/games/golf/swing-draw.ts, src/games/golf/range-play.ts, src/games/golf/settings.ts, src/games/golf/theme.ts, src/games/golf/place-check.test.ts, components/golf3d-range.tsx, public/games/golf/golfer.glb, log/prompts.md
+
+### 2026-09-25 16:07
+Prompt:
+```
+Three visual fixes on /lab/golf3d. Keep the swing and everything else as it is. Stop and tell me if anything fails.
+
+1. Camera framing: the camera crops the golfer and the club. Sample the pose across the whole swing (every joint and the clubhead, including the top of the backswing and the finish), and fit the camera so all of it stays in frame with a comfortable margin, plus the ball, the tee and some grass below the mat. Keep the camera behind the ball on the target line, looking down the range. Recalculate the fit when the canvas changes shape, so it works on phones and wide screens.
+
+2. The mat: make it match reference/golf-procedural.html exactly: 1.7 m by 1.3 m, 2 cm thick, centred at x -0.55, y 0.01, z 0.2, so the golfer's feet and the ball both sit on it.
+
+3. Colours: switch the skeleton to the blue-and-green style, with blue bones, green joints and a green head ring. Make it the default in the brand config. Keep the driver's colours, and keep the clubhead trail and the ball tracer clay orange.
+
+4. Don't use the built-in browser. Run the tests (including the pose match test), a clean production build, the code check and gitleaks git -v, commit with "Golf kit: auto-framed camera, mat under the golfer, blue and green skeleton" and push to main.
+
+Tell me in plain English what changed.
+```
+Changed: Framed the camera to the whole swing, put the prototype mat under the golfer, and made the skeleton blue and green.
+Files: src/games/golf/camera-fit.ts, src/games/golf/camera-fit.test.ts, src/games/golf/theme.ts, src/games/golf/range-play.ts, components/golf3d-range.tsx, log/prompts.md

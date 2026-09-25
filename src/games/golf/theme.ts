@@ -20,6 +20,9 @@ export const golfTheme = {
   sun: "#e8a05a",
   grip: "#2c2926",
   shaft: "#c8c2b6",
+  /** Skeleton. Blue bones, green joints and a green head ring. */
+  bone: "#2f6fed",
+  joint: "#1f8a4c",
   font: "Instrument Sans",
   fontUrl: "/games/golf/InstrumentSans-Medium.ttf",
   copy: {

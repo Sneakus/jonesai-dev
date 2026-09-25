@@ -92,12 +92,12 @@ export function stepCamera(
   age: number,
   delta: number,
   reduce: boolean,
+  home: { position: [number, number, number]; look: [number, number, number] },
 ) {
-  const home = range.cameraHome;
-  const homeLook = range.cameraLook;
-  let goalX = home[0];
-  let goalY = home[1];
-  let goalZ = home[2];
+  const homeLook = home.look;
+  let goalX = home.position[0];
+  let goalY = home.position[1];
+  let goalZ = home.position[2];
   let lookX = homeLook[0];
   let lookY = homeLook[1];
   let lookZ = homeLook[2];
@@ -107,9 +107,9 @@ export function stepCamera(
     const spot = pointAt(hold.shot.trajectory, age);
     const [x, y, z] = toWorld(spot);
     const follow = 1 - back;
-    goalX = home[0] * back + x * 0.25 * follow;
-    goalY = home[1] * back + (y + 2.2) * follow;
-    goalZ = home[2] * back + (z + 8) * follow;
+    goalX = home.position[0] * back + x * 0.25 * follow;
+    goalY = home.position[1] * back + (y + 2.2) * follow;
+    goalZ = home.position[2] * back + (z + 8) * follow;
     lookX = homeLook[0] * back + x * follow;
     lookY = homeLook[1] * back + y * follow;
     lookZ = homeLook[2] * back + z * follow;

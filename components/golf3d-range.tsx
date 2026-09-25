@@ -1,11 +1,12 @@
 "use client";
 
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Canvas } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { BackSide, BufferAttribute, BufferGeometry, Color, DoubleSide, LineBasicMaterial, Mesh, MeshBasicMaterial, Line as ThreeLine, PerspectiveCamera, type Group } from "three";
+import { fitSwingCamera, SWING_FOV } from "@/src/games/golf/camera-fit";
 import { fly, type FlightResult } from "@/src/games/golf/flight";
 import { curveYards, shotKey } from "@/src/games/golf/outcomes";
 import { stepCamera, stepShot } from "@/src/games/golf/range-play";
@@ -147,8 +148,8 @@ function Golfer({
     }
   });
 
-  const boneMaterial = useMemo(() => new MeshBasicMaterial({ color: theme.paper }), []);
-  const jointMaterial = useMemo(() => new MeshBasicMaterial({ color: theme.clay }), []);
+  const boneMaterial = useMemo(() => new MeshBasicMaterial({ color: theme.bone }), []);
+  const jointMaterial = useMemo(() => new MeshBasicMaterial({ color: theme.joint }), []);
 
   return (
     <group>
@@ -176,7 +177,7 @@ function Golfer({
           <sphereGeometry args={[0.022, 10, 8]} />
         </mesh>
       ))}
-      <mesh ref={headRing} material={boneMaterial} frustumCulled={false}>
+      <mesh ref={headRing} material={jointMaterial} frustumCulled={false}>
         <torusGeometry args={[0.09, 0.013, 8, 28]} />
       </mesh>
       <mesh ref={grip} frustumCulled={false}>
@@ -347,11 +348,22 @@ function FollowCamera({
   hold: MutableRefObject<FlightHold | null>;
   reduce: boolean;
 }) {
-  const look = useRef({ x: range.cameraLook[0], y: range.cameraLook[1], z: range.cameraLook[2] });
+  const size = useThree((state) => state.size);
+  const camera = useThree((state) => state.camera);
+  const aspect = size.width / Math.max(size.height, 1);
+  const home = useMemo(() => fitSwingCamera(aspect), [aspect]);
+  const look = useRef({ x: home.look[0], y: home.look[1], z: home.look[2] });
+  useLayoutEffect(() => {
+    look.current = { x: home.look[0], y: home.look[1], z: home.look[2] };
+    if (!hold.current) {
+      camera.position.set(home.position[0], home.position[1], home.position[2]);
+      camera.lookAt(home.look[0], home.look[1], home.look[2]);
+    }
+  }, [camera, hold, home]);
   useFrame((state, delta) => {
     const current = hold.current;
     const age = current ? state.clock.elapsedTime - current.born : 0;
-    stepCamera(state.camera as PerspectiveCamera, look.current, current, age, delta, reduce);
+    stepCamera(state.camera as PerspectiveCamera, look.current, current, age, delta, reduce, home);
   });
   return null;
 }
@@ -435,8 +447,8 @@ function World({
       />
       <Sky />
       <Ground />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]} receiveShadow>
-        <planeGeometry args={[1.5, 1.8]} />
+      <mesh position={[-0.55, 0.01, 0.2]} receiveShadow>
+        <boxGeometry args={[1.7, 0.02, 1.3]} />
         <meshStandardMaterial color={theme.field} />
       </mesh>
       <group ref={tee} position={range.ball}>
@@ -524,7 +536,7 @@ export function Golf3dRange({ outcomes }: { outcomes: { [key: string]: ShotCopy 
           shadows
           dpr={[1, 1.5]}
           frameloop={frameloop}
-          camera={{ position: range.cameraHome, fov: 42, near: 0.1, far: 400 }}
+          camera={{ position: fitSwingCamera(1.2).position, fov: SWING_FOV, near: 0.1, far: 400 }}
           onCreated={({ gl }) => {
             gl.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
           }}
