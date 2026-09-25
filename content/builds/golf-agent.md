@@ -7,15 +7,14 @@ summary: You describe a bad golf shot in your own words, and it works out the li
 example:
   label: One of my test questions, in my own words
   question: "3w shot where ball was beneath my feet ended up in a slice wide right"
-  answerLabel: What it said back (a real answer, 23 Sep 2026)
+  answerLabel: What it said back (a real answer, 25 Sep 2026)
   answer:
-    - "What happened: The ball-below-feet lie tilted the clubface open, promoting the slice with your fairway wood."
+    - "What happened: A ball-below-feet sidehill lie naturally promotes a slice with a fairway wood."
     - "Before your next shot:"
-    - "- Aim left to allow for the expected right curve."
-    - "- Take one extra club, as this lie costs distance."
-    - "Swing thought: Stay at the same height all the way through the ball."
-    - "Why: With long clubs, the bent-over posture makes a full turn harder and can leave the face open through the ball."
-    - "If it keeps happening: If slices only appear from this lie, it is the lie, not your swing."
+    - "- Aim left to allow for the right curve."
+    - "- Flex your knees more at address to get down to the ball."
+    - "- Hold the club near the end of the grip, ball is further away."
+    - "Swing thought: Feel the same height through the ball, no rising up."
 links:
   - label: Code on GitHub
     url: https://github.com/Sneakus/Golf-Agent
