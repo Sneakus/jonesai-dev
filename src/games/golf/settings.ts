@@ -80,12 +80,23 @@ export const rangeSettings = {
   leftHand: "mixamorig12LeftHand",
   rightHand: "mixamorig12RightHand",
   clip: "Armature|mixamo.com|Layer0",
-  /** Seconds into the clip when the hands are lowest on the way through. */
+  /** Seconds into the clip. Replaced at load by the fastest right-hand speed. */
   impactTime: 0.984,
-  /** How far the top of the grip sits above the left hand, along the shaft. */
+  /** Grip rotation in the lead hand, radians, found by the check search. */
+  gripEuler: [0, 0, 0] as [number, number, number],
+  /** Hand to clubhead, metres. Search keeps this between 1.14 and 1.16. */
+  clubLength: 1.15,
+  /** Trail hand sits this far down the grip from the lead hand. */
+  trailGrip: 0.09,
+  /** Lowest clubhead sits this far behind the ball, toward the camera. */
+  behindBall: 0.04,
+  /** Frames either side of impact that the clubhead nudge fades across. */
+  impactFrames: 7,
+  /** Largest clubhead nudge, metres. */
+  impactCap: 0.05,
   gripOffset: 0.04,
   gripLength: 0.24,
-  shaftLength: 0.67,
+  shaftLength: 0.91,
   /** Ball on the tee. The range runs toward -Z. */
   ball: [0, 0.04, 0] as [number, number, number],
   cameraHome: [0, 1.5, 3.5] as [number, number, number],

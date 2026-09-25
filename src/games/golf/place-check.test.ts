@@ -4,7 +4,8 @@ import { AnimationMixer, Group, Vector3 } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { rangeSettings as range } from "./settings";
-import { clubheadPosition, findBone, placeRig, soleHeight, stature } from "./range-play";
+import { holdFrame } from "./range-play";
+import { clubheadPosition, correctFrame, currentFix, gripDistance, placeRig } from "./swing-fix";
 
 (globalThis as { self?: typeof globalThis }).self = globalThis;
 globalThis.createImageBitmap = async () => ({ width: 1, height: 1, close() {} });
@@ -20,88 +21,93 @@ async function loadGolfer() {
   const clip = gltf.animations[0];
   const action = mixer.clipAction(clip);
   if (!action) throw new Error("Golfer clip did not load");
-  return { rig, model: gltf.scene, action, mixer, clip };
+  const club = new Group();
+  return { rig, model: gltf.scene, action, club };
 }
 
-function pose(mixer: AnimationMixer, action: NonNullable<ReturnType<AnimationMixer["clipAction"]>>, time: number) {
-  action.play();
-  action.paused = true;
-  mixer.setTime(time);
+function measure(rig: Group, model: Group, action: NonNullable<ReturnType<AnimationMixer["clipAction"]>>, club: Group) {
+  const ball = new Vector3(range.ball[0], range.ball[1], range.ball[2]);
+  const fix = placeRig(rig, model, action, club);
+  const saved = currentFix();
+  if (!saved) throw new Error("Swing fix missing");
+  holdFrame(action, 0);
+  correctFrame(model, club, 0);
+  const leftHome = saved.leftFoot.clone();
+  const rightHome = saved.rightFoot.clone();
+  const home = rig.position.clone();
+  const foot = new Vector3();
+  const hand = new Vector3();
+  const head = new Vector3();
+  let footDrift = 0;
+  let handGap = 0;
+  let rigDrift = 0;
+  let addressGap = Infinity;
+  for (const time of saved.times) {
+    holdFrame(action, time);
+    correctFrame(model, club, time);
+    saved.leftFoot && foot.copy(saved.leftFoot);
+    const leftBone = model.getObjectByName("mixamorig12LeftFoot");
+    const rightBone = model.getObjectByName("mixamorig12RightFoot");
+    const rightHand = model.getObjectByName("mixamorig12RightHand");
+    leftBone?.getWorldPosition(foot);
+    footDrift = Math.max(footDrift, foot.distanceTo(leftHome));
+    rightBone?.getWorldPosition(foot);
+    footDrift = Math.max(footDrift, foot.distanceTo(rightHome));
+    rightHand?.getWorldPosition(hand);
+    handGap = Math.max(handGap, gripDistance(club, hand));
+    rigDrift = Math.max(rigDrift, rig.position.distanceTo(home));
+    if (time === saved.times[0]) {
+      clubheadPosition(club, head);
+      addressGap = head.distanceTo(ball);
+    }
+  }
+  holdFrame(action, saved.impactTime);
+  correctFrame(model, club, saved.impactTime);
+  clubheadPosition(club, head);
+  return { footDrift, handGap, rigDrift, impactGap: head.distanceTo(ball), addressGap, fix };
 }
 
 describe("golfer placement", () => {
-  it("prints the fixed layout", async () => {
-    const { rig, model, action, mixer } = await loadGolfer();
-    const placed = placeRig(rig, model, action);
-    const ball = new Vector3(range.ball[0], range.ball[1], range.ball[2]);
-    const hips = findBone(model, "Hips");
-    const leftHand = findBone(model, "LeftHand");
-    const rightHand = findBone(model, "RightHand");
-    pose(mixer, action, 0);
-    model.updateMatrixWorld(true);
-    const feet = soleHeight(model);
-    const height = stature(model);
-
-    pose(mixer, action, range.impactTime);
-    model.updateMatrixWorld(true);
-    const club = new Vector3();
-    if (leftHand && rightHand) clubheadPosition(leftHand, rightHand, club);
-    const gap = club.distanceTo(ball);
-
-    let highest = 0;
-    let highY = -Infinity;
-    const hand = new Vector3();
-    for (let step = 0; step <= 80; step += 1) {
-      const time = (range.impactTime * step) / 80;
-      pose(mixer, action, time);
-      model.updateMatrixWorld(true);
-      leftHand?.getWorldPosition(hand);
-      if (hand.y > highY) {
-        highY = hand.y;
-        highest = time;
+  it("prints the swing checks", async () => {
+    const { rig, model, action, club } = await loadGolfer();
+    const angles = [-0.3, 0, 0.3];
+    const lengths = [1.14, 1.15, 1.16];
+    let best = Infinity;
+    let winner = { euler: [0, 0, 0] as [number, number, number], length: 1.15, score: Infinity };
+    for (const length of lengths) {
+      for (const x of angles) {
+        for (const y of angles) {
+          for (const z of angles) {
+            range.clubLength = length;
+            range.gripEuler = [x, y, z];
+            const score = measure(rig, model as Group, action, club);
+            const total = score.addressGap + score.impactGap * 4 + score.handGap;
+            if (total < best) {
+              best = total;
+              winner = { euler: [x, y, z], length, score: total };
+            }
+          }
+        }
       }
     }
-
-    const hip = new Vector3();
-    let hipTravel = 0;
-    let hipStart: Vector3 | null = null;
-    const moments = [0, highest, range.impactTime, action.getClip()?.duration ?? 0];
-    const spots: string[] = [];
-    for (const time of moments) {
-      pose(mixer, action, time);
-      model.updateMatrixWorld(true);
-      spots.push(`${rig.position.x.toFixed(3)} ${rig.position.y.toFixed(3)} ${rig.position.z.toFixed(3)}`);
-    }
-    const steps = 40;
-    const duration = action.getClip()?.duration ?? 0;
-    for (let step = 0; step <= steps; step += 1) {
-      pose(mixer, action, (duration * step) / steps);
-      model.updateMatrixWorld(true);
-      hips?.getWorldPosition(hip);
-      if (!hipStart) hipStart = hip.clone();
-      hipTravel = Math.max(hipTravel, Math.hypot(hip.x - hipStart.x, hip.z - hipStart.z));
-    }
-
+    range.clubLength = winner.length;
+    range.gripEuler = winner.euler;
+    const final = measure(rig, model as Group, action, club);
     const lines = [
-      `height ${height.toFixed(3)}`,
-      `feet ${feet.toFixed(3)}`,
-      `clubhead ${club.x.toFixed(3)} ${club.y.toFixed(3)} ${club.z.toFixed(3)}`,
-      `clubhead gap ${gap.toFixed(3)}`,
-      `address ${spots[0]}`,
-      `backswing ${spots[1]}`,
-      `impact ${spots[2]}`,
-      `finish ${spots[3]}`,
-      `hips sideways ${hipTravel.toFixed(3)}`,
-      `hip track ${placed.hipTravel.toFixed(3)}`,
+      `grip ${winner.euler.map((n) => n.toFixed(3)).join(" ")} length ${winner.length.toFixed(3)}`,
+      `feet drift ${final.footDrift.toFixed(3)}`,
+      `trail hand ${final.handGap.toFixed(3)}`,
+      `impact gap ${final.impactGap.toFixed(3)}`,
+      `address gap ${final.addressGap.toFixed(3)}`,
+      `rig drift ${final.rigDrift.toFixed(3)}`,
+      `rig ${final.fix ? "" : ""}`,
     ];
+    const placed = rig.position;
+    lines[6] = `rig ${placed.x.toFixed(3)} ${placed.y.toFixed(3)} ${placed.z.toFixed(3)}`;
     console.log(lines.join("\n"));
-
-    expect(height).toBeGreaterThan(1.7);
-    expect(height).toBeLessThan(1.9);
-    expect(Math.abs(feet)).toBeLessThan(0.02);
-    expect(gap).toBeLessThan(0.03);
-    expect(spots[0]).toBe(spots[1]);
-    expect(spots[0]).toBe(spots[2]);
-    expect(spots[0]).toBe(spots[3]);
+    expect(final.footDrift).toBeLessThan(0.01);
+    expect(final.handGap).toBeLessThan(0.02);
+    expect(final.impactGap).toBeLessThan(0.03);
+    expect(final.rigDrift).toBeLessThan(0.0001);
   });
 });

@@ -1280,3 +1280,52 @@ Tell me in plain English what was wrong, and paste the printed checks.
 ```
 Changed: Stopped before committing. The hip movement is now in centimetres, but the feet, the trail hand and the clubhead still fail the swing checks.
 Files: public/games/golf/golfer.glb, src/games/golf/range-play.ts, components/golf3d-range.tsx, src/games/golf/place-check.test.ts, log/prompts.md
+
+### 2026-09-25 02:51
+Prompt:
+```
+Build a correction layer for the golfer on /lab/golf3d that fixes the feet, club, hands and impact after the animation plays each frame. Keep the scene, the units fix and the place-once layout. Stop and tell me if anything fails.
+
+0. First, commit the units fix you already made (armature scale applied, hip sway restored) on its own, with the message "Golf kit: correct animation units". Run gitleaks git -v before pushing.
+
+1. Diagnostic: using Blender in background mode, measure how far each foot moves across the swing in the ORIGINAL file, D:\Assets\Golf\Golf_Drive.fbx, before any conversion. Report it in cm.
+   - If the feet move less than about 2 cm there, our conversion is adding the drift: find and fix that in the export first.
+   - If they move about 15 cm there too, it's in the clip, and step 3 handles it.
+
+2. Read the source of github.com/LeandroMagonza/GolfKnight for reference. It's a three.js golf game using the same Mixamo golf clips. Look especially at how it attaches the club, detects impact and handles the hips. Use it to inform your approach. Only copy code if its licence allows, and tell me what you took from it.
+
+3. The correction layer, run every frame after the animation updates and world positions are refreshed, in this order:
+   a. Legs: a two-bone IK solver (analytic, law of cosines; the Little Polygon "twobone" article is a good reference), written once as a reusable function. Pin each foot to where it was at address, keep the address foot rotation, and use the knee's current direction so the knees bend naturally.
+   b. Club: fixed to the left (lead) hand bone with one position and rotation, taking its direction from the lead hand's full rotation. Never use the line between the two wrists.
+   c. Trail arm: the same two-bone IK pulls the right hand to a point on the grip about 8 to 10 cm below the left hand, with the palm turned to face the shaft.
+   d. Impact: find the impact frame automatically as the moment of fastest right-hand speed. Measure the gap between the clubhead and the ball there, and correct it through the lead hand, faded in and out smoothly over about 6 to 8 frames either side. Cap the correction at 5 cm.
+
+4. Solve the grip offset from data, not by eye. In the Node check script, search small ranges of grip rotation and club length (between 1.14 and 1.16 m) to find the setting that best:
+   - puts the clubhead at the ball at address,
+   - puts the clubhead at the ball at impact, and
+   - keeps the trail hand closest to the grip over the whole swing.
+   Save the winner in the settings object.
+
+5. Move the golfer once, at load, so the lowest point of the clubhead's path sits a few centimetres behind the ball on the target line. With a driver, the ball is struck slightly on the way up.
+
+6. The check script must pass all of these, sampled every frame, with the worst value printed for each:
+   - feet under 1 cm from their address positions
+   - trail hand under 2 cm from the grip
+   - clubhead under 3 cm from the ball at impact
+   - the golfer's top-level position never changes
+   Keep fixing until they pass.
+
+7. Don't use the built-in browser. Run the check script, the tests, the code check and gitleaks git -v, commit with "Golf kit: correction layer for feet, club and hands" and push to main.
+
+Tell me in plain English what the diagnostic found, what you used from GolfKnight, and paste the printed checks.
+```
+Changed: Stopped before committing the correction. The feet stay put, but the trail hand cannot reach a club fixed to the lead hand for the whole swing.
+Files: src/games/golf/two-bone.ts, src/games/golf/swing-fix.ts, src/games/golf/range-play.ts, src/games/golf/settings.ts, src/games/golf/place-check.test.ts, components/golf3d-range.tsx, log/prompts.md
+
+### 2026-09-25 03:12
+Prompt:
+```
+Save the uncommitted correction layer work (leg IK, lead-hand club, trail-arm IK, impact blend, grip solver and check script) on a new branch called golf-correction-layer. Commit it there with the message "Golf kit: correction layer work in progress", run gitleaks git -v, and push the branch. Don't merge it into main. /lab/golf3d on main stays as it is.
+```
+Changed: Saved the unfinished correction on its own branch and left main alone.
+Files: src/games/golf/two-bone.ts, src/games/golf/swing-fix.ts, src/games/golf/range-play.ts, src/games/golf/settings.ts, src/games/golf/place-check.test.ts, components/golf3d-range.tsx, log/prompts.md

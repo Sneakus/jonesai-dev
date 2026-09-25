@@ -1,6 +1,6 @@
 "use client";
 
-import { useFrame } from "@react-three/fiber";
+import { createPortal, useFrame } from "@react-three/fiber";
 import { Canvas } from "@react-three/fiber";
 import { Text, useAnimations, useGLTF } from "@react-three/drei";
 import Link from "next/link";
@@ -8,7 +8,8 @@ import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type M
 import { BackSide, BufferAttribute, BufferGeometry, LineBasicMaterial, Line as ThreeLine, Color, PerspectiveCamera, SkeletonHelper, Vector3, type Group, type Mesh, type Object3D } from "three";
 import { fly, type FlightResult } from "@/src/games/golf/flight";
 import { curveYards, shotKey } from "@/src/games/golf/outcomes";
-import { aimClub, armClip, clubheadPosition, placeRig, scrubFrame, stepCamera, stepShot } from "@/src/games/golf/range-play";
+import { armClip, scrubFrame, stepCamera, stepShot } from "@/src/games/golf/range-play";
+import { correctFrame, currentFix, placeRig } from "@/src/games/golf/swing-fix";
 import { rangeSettings as range } from "@/src/games/golf/settings";
 import { gentleStrike } from "@/src/games/golf/strike";
 import { golfTheme as theme, type ShotCopy } from "@/src/games/golf/theme";
@@ -53,7 +54,7 @@ function findBone(root: Object3D, end: string): Object3D | undefined {
 
 function Club() {
   const grip = range.gripLength;
-  const shaft = range.shaftLength;
+  const shaft = Math.max(0.2, range.clubLength - grip);
   return (
     <group>
       <mesh position={[0, grip / 2, 0]} castShadow>
@@ -64,7 +65,7 @@ function Club() {
         <cylinderGeometry args={[0.004, 0.006, shaft, 8]} />
         <meshStandardMaterial color={theme.shaft} metalness={0.45} roughness={0.35} />
       </mesh>
-      <mesh position={[0, grip + shaft + 0.02, 0.03]} rotation={[0.5, 0, 0]} castShadow>
+      <mesh position={[0, range.clubLength, 0.03]} rotation={[0.5, 0, 0]} castShadow>
         <boxGeometry args={[0.1, 0.045, 0.055]} />
         <meshStandardMaterial color={theme.ink} metalness={0.55} roughness={0.3} />
       </mesh>
@@ -89,11 +90,10 @@ function Golfer({
   const { actions } = useAnimations(animations, scene);
   const rig = useRef<Group>(null);
   const club = useRef<Group>(null);
-  const headMark = useRef<Mesh>(null);
   const impact = useRef(onImpact);
   const sent = useRef(0);
   const placed = useRef(false);
-  const head = useMemo(() => new Vector3(), []);
+  const lead = useMemo(() => findBone(scene, "LeftHand") ?? null, [scene]);
   useEffect(() => {
     impact.current = onImpact;
   }, [onImpact]);
@@ -115,8 +115,8 @@ function Golfer({
       }
     });
     const action = actions[range.clip] ?? Object.values(actions)[0];
-    if (action && rig.current && !placed.current) {
-      placeRig(rig.current, scene, action);
+    if (action && rig.current && club.current && !placed.current) {
+      placeRig(rig.current, scene, action, club.current);
       placed.current = true;
       onReady();
     }
@@ -125,18 +125,10 @@ function Golfer({
   useFrame((state) => {
     const action = actions[range.clip] ?? Object.values(actions)[0];
     if (action && scrub !== null) scrubFrame(action, scrub);
-    const leftBone = findBone(scene, "LeftHand");
-    const rightBone = findBone(scene, "RightHand");
-    if (leftBone && rightBone && club.current) {
-      scene.updateMatrixWorld(true);
-      aimClub(club.current, leftBone, rightBone);
-      if (headMark.current) {
-        clubheadPosition(leftBone, rightBone, head);
-        headMark.current.position.copy(head);
-      }
-    }
+    if (club.current && placed.current) correctFrame(scene, club.current, action?.time ?? 0);
+    const impactTime = currentFix()?.impactTime ?? range.impactTime;
     if (!action || scrub !== null || swingId === 0 || sent.current === swingId) return;
-    if (action.time >= range.impactTime) {
+    if (action.time >= impactTime) {
       sent.current = swingId;
       impact.current(state.clock.elapsedTime);
     }
@@ -148,15 +140,20 @@ function Golfer({
         <primitive object={scene} />
         {debug ? <SkeletonDebug root={scene} /> : null}
       </group>
-      <group ref={club}>
-        <Club />
-      </group>
-      {debug ? (
-        <mesh ref={headMark}>
-          <sphereGeometry args={[0.015, 10, 8]} />
-          <meshBasicMaterial color={theme.clay} />
-        </mesh>
-      ) : null}
+      {lead
+        ? createPortal(
+            <group ref={club}>
+              <Club />
+              {debug ? (
+                <mesh position={[0, range.clubLength, 0]}>
+                  <sphereGeometry args={[0.015, 10, 8]} />
+                  <meshBasicMaterial color={theme.clay} />
+                </mesh>
+              ) : null}
+            </group>,
+            lead,
+          )
+        : null}
     </>
   );
 }
