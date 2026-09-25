@@ -72,3 +72,25 @@ export const outcomeSettings = {
   /** Curve, yards, before a shot counts as a draw or a fade. */
   shapeYards: 4,
 };
+
+/** Numbers for the 3D range. Colours and words live in theme.ts. */
+export const rangeSettings = {
+  model: "/games/golf/golfer.glb",
+  /** Three drops the colon, so this is the bone name after loading. */
+  handBone: "mixamorig12RightHand",
+  clip: "mixamo.com",
+  /** Seconds into the clip when the hands are lowest on the way through. */
+  impactTime: 0.984,
+  /** Grip sits on the right hand. Shaft runs along the hand's length toward the ball. */
+  clubPosition: [0, 0.02, 0] as [number, number, number],
+  clubRotation: [0.05, 0, 0.08] as [number, number, number],
+  gripLength: 0.24,
+  shaftLength: 0.78,
+  /** Ball on the tee, in metres. The range runs toward +Z. */
+  ball: [0.02, 0.042, 0.22] as [number, number, number],
+  cameraHome: [0, 1.45, -3.4] as [number, number, number],
+  cameraLook: [0, 0.95, 18] as [number, number, number],
+  yards: [100, 150, 200, 250, 300],
+  yardToMetre: 0.9144,
+  fadeSeconds: 1.4,
+};

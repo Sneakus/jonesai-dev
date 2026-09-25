@@ -1136,3 +1136,49 @@ Tell me in plain English what changed, whether the calibration tests pass, and w
 ```
 Changed: Added a ball-flight engine, checks that a normal drive lands in range, and a hidden test page.
 Files: src/games/golf/settings.ts, src/games/golf/flight.ts, src/games/golf/outcomes.ts, src/games/golf/lab.ts, src/games/golf/flight.test.ts, src/games/golf/presets.test.ts, components/golf-lab.tsx, app/lab/golf/page.tsx, package.json, package-lock.json, log/prompts.md
+
+### 2026-09-25 01:34
+Prompt:
+```
+Phase 1 of the 3D golf range: get the golfer into a 3D scene. Build it on a new hidden page. Keep the rest of the site, including /lab/golf, as it is. Stop and tell me if anything fails.
+
+1. Convert the golfer:
+   - The source file is D:\Assets\Golf\Golf_Drive.fbx. It holds a Mixamo character, its textures and the "Golf Drive" animation. Never copy it into the repo. Add *.fbx to .gitignore.
+   - Convert it to glTF (GLB) with FBX2glTF. If that loses textures or breaks the skeleton, use Blender in background mode if it's installed, and tell me which you used.
+   - Compress it with glTF Transform: remove anything unused, simplify the mesh to about 25,000 triangles in total, resize textures to 1024 pixels, convert textures to WebP, and apply Meshopt compression. Aim for under 3 MB.
+   - Save it as public/games/golf/golfer.glb.
+   - Tell me: the final file size, the triangle count, the animation clip names and length, and the name of the right hand bone.
+
+2. The kit structure: keep game logic in src/games/golf/ as before. Put all brand choices (colours, fonts, copy) in one config file for the game, using the site's colours for now.
+
+3. A new hidden page at /lab/golf3d, not linked anywhere, noindex and left out of any sitemap. Use React Three Fiber with three.js and only the drei helpers you need. Load the whole 3D part lazily on this page only, with no server rendering, so nothing touches the rest of the site.
+
+4. The scene, modern and realistic but light, in a "golden-hour paper" style:
+   - The camera is behind the golfer, down the target line, at about shoulder height, looking down the range.
+   - A warm, low sun: one directional light, and one soft shadow around the golfer only.
+   - A gradient sky fading into the site's paper colour at the horizon, with fog blending the far range into it.
+   - Grass: a large ground plane with a subtle grass texture or shader and faint mowing stripes, slightly desaturated.
+   - A tee mat, yardage boards at 100, 150, 200, 250 and 300 yards in ink, and target flags in clay orange.
+
+5. The golfer and club:
+   - Place the golfer at the tee, standing over a ball on a tee.
+   - Build a simple driver in code (shaft, grip and head) and attach it to the right hand bone. Line it up so the grip sits in both hands at address and the head sits just behind the ball. Put the attachment offsets in the settings object so they can be tuned.
+
+6. Swing on a button, for now:
+   - A "Swing" button plays the Golf Drive animation once.
+   - Find the moment of impact in the clip (the club at its lowest point near the ball), keep it in settings, and launch the ball at that moment using the flight engine from src/games/golf/, with a gently randomised good strike.
+   - The ball flies as a small white ball with a growing clay-orange tracer line that fades after landing. The camera eases up to follow the ball, then eases back.
+   - Show the result panel (distance, how far offline, shot name, and the message or tip from content/golf-range.md). It stays until a click or tap.
+
+7. Performance and fallbacks:
+   - Cap the pixel ratio at 1.5. Pause rendering when the canvas is off screen or the tab is hidden.
+   - Show a simple loading indicator while the golfer downloads.
+   - If WebGL isn't available, show a short message and a link to /lab/golf instead.
+   - Reduced motion: no camera movement, and the tracer is drawn instantly.
+
+8. Don't use the built-in browser. Run the tests, the code check and gitleaks git -v, commit with "Golf kit: phase 1, golfer on a 3D range" and push to main.
+
+Tell me in plain English what changed, the golfer's file size and triangle count, and what to look at.
+```
+Changed: Put the golfer on a hidden 3D range and kept the flat test page.
+Files: public/games/golf/golfer.glb, public/games/golf/InstrumentSans-Medium.ttf, src/games/golf/theme.ts, src/games/golf/strike.ts, src/games/golf/range-play.ts, src/games/golf/settings.ts, components/golf3d-range.tsx, components/golf3d-gate.tsx, app/lab/golf3d/page.tsx, .gitignore, package.json, package-lock.json, log/prompts.md

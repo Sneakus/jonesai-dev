@@ -42,3 +42,6 @@ next-env.d.ts
 
 # city list used only to build the globe dots
 /data/cities.js
+
+# source models stay outside the repo
+*.fbx
