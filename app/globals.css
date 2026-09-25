@@ -43,3 +43,66 @@ body {
 a:hover {
   color: var(--color-clay);
 }
+
+.pull-swirl {
+  position: relative;
+  padding: 1.5px;
+  border-radius: 999px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.pull-swirl > span {
+  position: relative;
+  z-index: 1;
+  display: block;
+  border-radius: 999px;
+  background: var(--color-card);
+  border: 1px solid transparent;
+}
+
+.pull-swirl::before,
+.pull-swirl::after {
+  content: "";
+  position: absolute;
+  inset: -150% -40%;
+  z-index: 0;
+}
+
+.pull-swirl::before {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0 75%,
+    var(--color-clay) 90%,
+    transparent 100%
+  );
+  animation: pull-spin 2.8s linear infinite;
+}
+
+.pull-swirl::after {
+  background: conic-gradient(
+    from 180deg,
+    transparent 0 80%,
+    color-mix(in srgb, var(--color-ink) 35%, transparent) 92%,
+    transparent 100%
+  );
+  animation: pull-spin 4.6s linear infinite reverse;
+}
+
+@keyframes pull-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pull-swirl::before,
+  .pull-swirl::after {
+    animation: none;
+    background: none;
+  }
+
+  .pull-swirl {
+    background: var(--color-clay);
+  }
+}

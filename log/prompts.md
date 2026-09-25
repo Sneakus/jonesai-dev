@@ -1427,3 +1427,30 @@ Tell me in plain English what changed and what was causing the lag.
 ```
 Changed: Made the Golf Agent driving range wider, matched the prototype layout, and stopped the camera and tracer from doing extra work after the ball is hit.
 Files: src/games/golf/range-play.ts, src/games/golf/camera-fit.ts, components/golf3d-range.tsx, components/golf-agent-game.tsx, components/golf-agent-slot.tsx, content/golf-range.md, lib/golf-range.ts, log/prompts.md
+
+### 2026-09-25 23:22
+Prompt:
+```
+Add a swirling flourish to the "Pull" button that starts the clay game on the home page. Keep the button's size, text and behaviour exactly as they are. Stop and tell me if anything fails.
+
+1. Two thin arcs trace round the button's edge: a clay-orange one, and a faint ink one turning the opposite way at a different speed, so they chase and cross. Use this approach (adapt the class names and colours to the site's tokens):
+
+   .pull-swirl { position: relative; padding: 1.5px; border-radius: 999px; overflow: hidden; isolation: isolate; }
+   .pull-swirl > span { position: relative; z-index: 1; display: block; border-radius: 999px; background: var(--paper); border: 1px solid transparent; /* keep the button's current padding */ }
+   .pull-swirl::before, .pull-swirl::after { content: ""; position: absolute; inset: -150% -40%; z-index: 0; }
+   .pull-swirl::before { background: conic-gradient(from 0deg, transparent 0 75%, #E8480C 90%, transparent 100%); animation: pull-spin 2.8s linear infinite; }
+   .pull-swirl::after { background: conic-gradient(from 180deg, transparent 0 80%, rgba(22,21,20,0.35) 92%, transparent 100%); animation: pull-spin 4.6s linear infinite reverse; }
+   @keyframes pull-spin { to { transform: rotate(1turn); } }
+
+2. The swirl only runs before the game has started. Once someone presses Pull, it stops and the button goes back to its normal look for the rest of the visit. It doesn't come back on "Go again".
+
+3. Reduced motion: no movement at all, just a still thin clay-orange ring round the button.
+
+4. Keep the keyboard focus ring visible and clear of the swirl.
+
+5. Check the home page at 375px and 1280px wide. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "Hero: swirl on the Pull button" and push to main.
+
+Tell me in plain English what changed.
+```
+Changed: Added a thin spinning ring around the Pull button, which disappears once the game starts.
+Files: app/globals.css, components/clay-game-host.tsx, log/prompts.md
