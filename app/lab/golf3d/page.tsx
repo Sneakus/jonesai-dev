@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { Golf3dGate } from "@/components/golf3d-gate";
 import { readGolfRange } from "@/lib/golf-range";
-import { golfTheme as theme, type ShotCopy } from "@/src/games/golf/theme";
+import { type ShotCopy } from "@/src/games/golf/theme";
 
 export const metadata: Metadata = {
-  title: theme.copy.title,
+  title: "Lab: driving range",
   robots: { index: false, follow: false },
+  openGraph: { images: [] },
+  twitter: { images: [] },
 };
 
 function shotCopy(): { [key: string]: ShotCopy } {
@@ -25,5 +27,6 @@ function shotCopy(): { [key: string]: ShotCopy } {
 }
 
 export default function Golf3dPage() {
-  return <Golf3dGate outcomes={shotCopy()} />;
+  const copy = readGolfRange();
+  return <Golf3dGate outcomes={shotCopy()} unavailable={copy.words.noWebgl} />;
 }

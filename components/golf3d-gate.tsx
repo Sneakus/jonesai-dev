@@ -13,6 +13,12 @@ const Golf3dRange = dynamic(() => import("@/components/golf3d-range").then((mod)
   ),
 });
 
-export function Golf3dGate({ outcomes }: { outcomes: { [key: string]: ShotCopy } }) {
-  return <Golf3dRange outcomes={outcomes} />;
+export function Golf3dGate({
+  outcomes,
+  unavailable,
+}: {
+  outcomes: { [key: string]: ShotCopy };
+  unavailable: string;
+}) {
+  return <Golf3dRange outcomes={outcomes} unavailable={unavailable} />;
 }

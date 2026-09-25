@@ -1525,3 +1525,11 @@ Tell me in plain English what you found and what you changed.
 ```
 Changed: Took the draft flag off the home page, the contact section, the clay game and the four build pages.
 Files: content/home.md, content/contact.md, content/game.md, content/builds/meeting-plan-agent.md, content/builds/worldcupmap.md, content/builds/golf-agent.md, content/builds/ajob.md, log/prompts.md
+
+### 2026-09-26 00:38
+Prompt:
+```
+Two tidy-ups. Remove draft: true from content/golf-range.md, changing no words. Remove the "Open the flat test page" link everywhere; when a browser can't run the 3D view, show a short message instead: "This demo needs a browser that can show 3D. The real Golf Agent answer is below." Give the two lab pages noindex-appropriate titles and no share image of their own. Run the tests, a clean build, the code check and gitleaks git -v, commit with "Launch tidy-ups" and push to main.
+```
+Changed: Removed the draft flag from the driving-range words, replaced the flat test link with a short message, and stopped the lab pages using the home share image.
+Files: content/golf-range.md, lib/golf-range.ts, src/games/golf/theme.ts, components/golf3d-range.tsx, components/golf-agent-game.tsx, components/golf3d-gate.tsx, app/lab/golf/page.tsx, app/lab/golf3d/page.tsx, log/prompts.md

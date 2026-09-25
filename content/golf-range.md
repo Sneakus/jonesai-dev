@@ -1,5 +1,4 @@
 ---
-draft: true
 # Driving range outcomes for the Golf Agent page.
 # "cause" says what happened in the swing, in plain words (drafted by Claude).
 # "tip" is a plain-English version of a fix from AJ's Golf Agent notes (golf-fault-corpus-v3.md), same meaning, simpler words.
@@ -108,6 +107,7 @@ also: "Also"
 letDown: "What let it down"
 whyNot: "Why it wasn't perfect"
 intro: "Try hitting a bad shot in the demo below."
+noWebgl: "This demo needs a browser that can show 3D. The real Golf Agent answer is below."
 onRange: "On a real range"
 purity: "Everything lined up: balance, length, tempo, path, face and strike. This one was"
 pureTail: "% pure."

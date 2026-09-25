@@ -247,6 +247,7 @@ export function GolfAgentGame({
           play={clock}
           embedded
           resets={resets}
+          unavailable={copy.words.noWebgl}
           onBox={(node) => {
             box.current = node;
           }}

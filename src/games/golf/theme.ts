@@ -33,8 +33,6 @@ export const golfTheme = {
     title: "Driving range",
     swing: "Swing",
     loading: "Loading the golfer",
-    noWebgl: "This view needs 3D graphics, which this browser can't show.",
-    flatLink: "Open the flat test page",
     distance: "Distance",
     offline: "Offline",
     left: "left",

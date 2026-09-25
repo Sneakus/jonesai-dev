@@ -3,7 +3,6 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { Canvas } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
-import Link from "next/link";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { BackSide, BufferAttribute, BufferGeometry, Color, DoubleSide, LineBasicMaterial, Mesh, MeshBasicMaterial, Line as ThreeLine, PerspectiveCamera, type Group } from "three";
 import { fitSwingCamera, GAME_FOV, placeGameCamera, SWING_FOV } from "@/src/games/golf/camera-fit";
@@ -567,6 +566,7 @@ export function Golf3dRange({
   onFlight,
   onLaunch,
   onBox,
+  unavailable,
 }: {
   outcomes: { [key: string]: ShotCopy };
   play?: MutableRefObject<PlayClock> | null;
@@ -575,6 +575,7 @@ export function Golf3dRange({
   onFlight?: (shot: FlightResult) => void;
   onLaunch?: (shot: FlightResult) => void;
   onBox?: (node: HTMLDivElement | null) => void;
+  unavailable: string;
 }) {
   const [webgl] = useState(supportsWebGL);
   const [swingId, setSwingId] = useState(0);
@@ -610,10 +611,7 @@ export function Golf3dRange({
     return (
       <main className="mx-auto max-w-3xl px-4 py-8">
         <h1 className="text-2xl font-semibold">{theme.copy.title}</h1>
-        <p className="mt-3 text-sm text-muted">{theme.copy.noWebgl}</p>
-        <Link className="mt-4 inline-block text-sm underline" href="/lab/golf">
-          {theme.copy.flatLink}
-        </Link>
+        <p className="mt-3 text-sm text-muted">{unavailable}</p>
       </main>
     );
   }

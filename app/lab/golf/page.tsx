@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { GolfLab, type OutcomeText } from "@/components/golf-lab";
 import { readGolfRange } from "@/lib/golf-range";
-import { labCopy } from "@/src/games/golf/lab";
 
 export const metadata: Metadata = {
-  title: labCopy.title,
+  title: "Lab: ball flight",
   robots: { index: false, follow: false },
+  openGraph: { images: [] },
+  twitter: { images: [] },
 };
 
 function outcomeText(): { [key: string]: OutcomeText } {
