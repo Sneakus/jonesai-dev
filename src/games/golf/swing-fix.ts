@@ -359,6 +359,49 @@ export function placeRig(rig: Object3D, model: Object3D, action: AnimationAction
   model.updateMatrixWorld(true);
 
   const ball = new Vector3(range.ball[0], range.ball[1], range.ball[2]);
+  const baseYaw = rig.rotation.y;
+  const groundY = rig.position.y;
+  const shaftDelta = new Vector3();
+  const pick: { pose: { x: number; z: number; yaw: number; score: number } | null } = { pose: null };
+  const tryPose = (x: number, z: number, yaw: number) => {
+    rig.rotation.set(0, baseYaw + yaw, 0);
+    rig.position.set(x, groundY, z);
+    rig.updateMatrixWorld(true);
+    model.updateMatrixWorld(true);
+    hands(model);
+    shaftDelta.subVectors(ball, mid);
+    const length = shaftDelta.length();
+    const horiz = Math.hypot(shaftDelta.x, shaftDelta.z);
+    const lie = (Math.atan2(-shaftDelta.y, horiz) * 180) / Math.PI;
+    const lengthMiss = length < 1.12 ? 1.12 - length : length > 1.16 ? length - 1.16 : 0;
+    const lieMiss = lie < 55 ? 55 - lie : lie > 60 ? lie - 60 : 0;
+    bone(model, "LeftFoot").getWorldPosition(tmp);
+    const heel = Math.abs(tmp.z - ball.z);
+    const score = lengthMiss * 8 + lieMiss + heel;
+    if (!pick.pose || score < pick.pose.score) pick.pose = { x, z, yaw, score };
+  };
+  for (let x = -1.35; x <= -0.4; x += 0.04) {
+    for (let z = -0.45; z <= 0.45; z += 0.04) {
+      for (let yaw = -0.12; yaw <= 0.12; yaw += 0.03) {
+        tryPose(x, z, yaw);
+      }
+    }
+  }
+  if (pick.pose) {
+    const around = pick.pose;
+    for (let x = around.x - 0.05; x <= around.x + 0.05; x += 0.01) {
+      for (let z = around.z - 0.05; z <= around.z + 0.05; z += 0.01) {
+        for (let yaw = around.yaw - 0.03; yaw <= around.yaw + 0.03; yaw += 0.01) {
+          tryPose(x, z, yaw);
+        }
+      }
+    }
+    rig.rotation.set(0, baseYaw + pick.pose.yaw, 0);
+    rig.position.set(pick.pose.x, groundY, pick.pose.z);
+  }
+  rig.updateMatrixWorld(true);
+  holdFrame(action, 0);
+  model.updateMatrixWorld(true);
   hands(model);
   const addressShaft = ball.clone().sub(mid);
   const length = Math.max(0.2, addressShaft.length());
@@ -389,6 +432,12 @@ export function placeRig(rig: Object3D, model: Object3D, action: AnimationAction
     endTime: duration,
     rest: restLengths(model),
   };
+  const lie = (Math.atan2(-addressShaft.y, Math.hypot(addressShaft.x, addressShaft.z)) * 180) / Math.PI;
+  const feetX = (fix.leftFoot.x + fix.rightFoot.x) / 2;
+  const feetZ = (fix.leftFoot.z + fix.rightFoot.z) / 2;
+  console.log(`feet sideways ${(feetX - ball.x).toFixed(3)} along ${(feetZ - ball.z).toFixed(3)}`);
+  console.log(`lead heel ${(fix.leftFoot.z - ball.z).toFixed(3)}`);
+  console.log(`club length ${length.toFixed(3)} lie ${lie.toFixed(1)}`);
 
   let highest = -Infinity;
   for (let time = 0; time <= duration + 1e-6; time += step) {

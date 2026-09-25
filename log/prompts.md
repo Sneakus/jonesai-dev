@@ -1455,3 +1455,32 @@ Tell me in plain English what broke the build, and paste the gap directions.
 ```
 Changed: Fixed the preview build types and stopped the trail knee from bending past straight.
 Files: components/golf3d-range.tsx, src/games/golf/swing-fix.ts, log/prompts.md
+
+### 2026-09-25 13:58
+Prompt:
+```
+The golfer is standing on the ball's line instead of beside it, so the club points almost straight down. His position was set when the club was still broken. Re-place him using real driver address geometry, then re-run the club and ball steps. Work on the golf-correction-layer branch and push to it only.
+
+1. Place the golfer by real driver address geometry, with the camera still behind the ball on the target line:
+   - Feet parallel to the target line, on the -x side of the ball, facing it.
+   - The ball roughly opposite the lead (left) heel along the target line.
+   - Search his sideways distance from the ball, his position along the target line and a small rotation, so that at address the club calibrated by geometry (grip between the hands, clubhead at the ball) comes out as a real driver: length 1.12 to 1.16 m, and lie angle (shaft to ground) about 55 to 60 degrees.
+   - Apply that once, as before. Nothing moves the golfer's top-level object after that.
+
+2. Re-run the club calibration by geometry at address from the new position.
+
+3. Re-run the ball placement that minimises the larger of the address and impact gaps, and keep the arm IK weighting, the knee clamp and all the other checks as they are.
+
+4. Report:
+   - the distance from the middle of his feet to the ball, sideways and along the target line
+   - where the ball sits relative to his lead heel
+   - the club length and lie angle at address
+   - the address and impact gaps before and after IK
+   - the full printed checks
+
+5. Don't use the built-in browser. Run the check script, a clean production build, the code check and gitleaks git -v, commit with "Golf kit: golfer placed by real address geometry" and push to the golf-correction-layer branch only. Don't merge into main.
+
+Tell me in plain English what changed.
+```
+Changed: Moved the golfer beside the ball, level with his lead heel. The hands in this swing sit too low for a full driver length at that lie.
+Files: src/games/golf/swing-fix.ts, log/prompts.md
