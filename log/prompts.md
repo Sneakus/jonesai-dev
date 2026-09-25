@@ -1217,3 +1217,39 @@ Tell me in plain English what changed, which converter you used, the file size a
 ```
 Changed: Rebuilt the golfer without simplifying him, and lined the club up from both hands.
 Files: public/games/golf/golfer.glb, src/games/golf/settings.ts, src/games/golf/range-play.ts, src/games/golf/theme.ts, components/golf3d-range.tsx, log/prompts.md
+
+### 2026-09-25 02:11
+Prompt:
+```
+The golfer on /lab/golf3d flies around the range as the swing plays, is invisible at rest, and the ball sits in mid-air far down the range. Rebuild the placement from scratch with fixed rules. Keep the scene, the Blender-converted golfer.glb and the club following both hands. Stop and tell me if anything fails.
+
+1. One clear layout, in metres: y is up, and the target is straight down the range along -z.
+   - The ball sits on a tee at x 0, z 0, with its centre about 4 cm above the mat. The tee mat is centred on the ball.
+   - The camera is behind the ball on the target line, at about x 0, y 1.5, z 3.5, looking down the range towards a point about 20 m ahead and 0.8 m up.
+   - The golfer is right-handed and stands on the -x side of the ball, facing +x (towards the ball), with his lead (left) shoulder pointing down the range towards -z.
+
+2. Place the golfer once, when the golfer has loaded, never again after that:
+   - Rotate the golfer so he faces +x as above.
+   - Set the animation to the impact moment, update every world position, and read the clubhead's position in world space.
+   - Move the golfer sideways and forwards (x and z only) so the clubhead is exactly at the ball.
+   - Move him up or down so his feet rest on the mat at the address position.
+   - Apply that as one fixed offset on the golfer's top-level object. Nothing in the animation loop may move or rotate that object again.
+
+3. Check the animation itself doesn't carry the golfer away: measure how far the hips travel sideways across the whole clip. If it's more than about 30 cm, remove the sideways travel from the hips track but keep the up-and-down movement.
+
+4. Prove it without the browser: write a small script, runnable with one command, that loads golfer.glb in Node with three.js, applies the same placement code, and prints:
+   - the golfer's height in metres
+   - the feet height at address
+   - the clubhead's position and its distance from the ball at impact
+   - the golfer's position at address, top of backswing, impact and finish
+   - how far the hips travel sideways over the swing
+   Expected: height about 1.7 to 1.9 m, feet about 0, clubhead within 3 cm of the ball at impact, and the golfer's top-level position identical at all four moments. Keep fixing until these numbers are right, then show me the printout.
+
+5. In ?debug, make the markers realistic sizes: the ball marker the size of a real ball, the clubhead marker about 3 cm across.
+
+6. Don't use the built-in browser. Run the placement script, the tests, the code check and gitleaks git -v, commit with "Golf kit: fixed layout, golfer placed once" and push to main.
+
+Tell me in plain English what was wrong, and paste the numbers the script printed.
+```
+Changed: Placed the golfer once on a fixed layout so he stays on the mat and the club meets the ball.
+Files: components/golf3d-range.tsx, src/games/golf/range-play.ts, src/games/golf/settings.ts, src/games/golf/place-check.test.ts, log/prompts.md
