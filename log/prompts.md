@@ -1454,3 +1454,39 @@ Tell me in plain English what changed.
 ```
 Changed: Added a thin spinning ring around the Pull button, which disappears once the game starts.
 Files: app/globals.css, components/clay-game-host.tsx, log/prompts.md
+
+### 2026-09-26 00:12
+Prompt:
+```
+The swirl on the Pull button isn't visible on the live home page: no ring at all, not even the still one. Fix it with a sturdier method. Stop and tell me if anything fails.
+
+1. First check why it's not showing, and tell me: is the ring hidden under the button's own padding or background, or is the "game has started" switch already on when the page loads (for example set while the game loads in the background)? Fix the switch if that's part of it. It must only turn on when someone actually presses Pull.
+
+2. Replace the method. Make the ring its own element inside the button, laid over the top and shaped to just the edge, so the button's existing styling can't cover it:
+
+   @property --pull-a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+   @property --pull-b { syntax: '<angle>'; inherits: false; initial-value: 180deg; }
+   .pull-ring {
+     position: absolute; inset: 0; border-radius: inherit; padding: 1.5px; pointer-events: none; z-index: 2;
+     background:
+       conic-gradient(from var(--pull-a), transparent 0 75%, #E8480C 90%, transparent 100%),
+       conic-gradient(from var(--pull-b), transparent 0 80%, rgba(22,21,20,0.35) 92%, transparent 100%);
+     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+     -webkit-mask-composite: xor; mask-composite: exclude;
+     animation: pull-a 2.8s linear infinite, pull-b 4.6s linear infinite;
+   }
+   @keyframes pull-a { to { --pull-a: 360deg; } }
+   @keyframes pull-b { from { --pull-b: 180deg; } to { --pull-b: -180deg; } }
+
+   The button itself needs position: relative. Remove the old swirl styling.
+
+3. Reduced motion: no animation, and the ring is a still, solid thin clay-orange border instead.
+
+4. Once Pull is pressed, remove the ring for the rest of the visit, as before.
+
+5. Check the home page at 375px and 1280px wide. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "Hero: Pull button swirl, sturdier ring" and push to main.
+
+Tell me in plain English what was stopping it from showing.
+```
+Changed: Replaced the hidden swirl with a ring drawn on top of the Pull button's edge.
+Files: app/globals.css, components/clay-game-host.tsx, log/prompts.md

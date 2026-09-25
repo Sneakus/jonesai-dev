@@ -72,15 +72,16 @@ export function ClayGameHost({
     <div className="relative">
       <ClayScene label={label} hint={hint} />
       {Game && !failed ? (
-        <button
-          type="button"
-          className="absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-          onClick={() => setPlaying(true)}
-        >
-          <span className="pull-swirl">
-            <span className="px-5 py-2.5 text-base text-ink">{startLabel}</span>
-          </span>
-        </button>
+        <div className="absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
+          <button
+            type="button"
+            className="relative rounded-full border border-line bg-card px-5 py-2.5 text-base text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            onClick={() => setPlaying(true)}
+          >
+            <span className="pull-ring" aria-hidden="true" />
+            {startLabel}
+          </button>
+        </div>
       ) : null}
     </div>
   );
