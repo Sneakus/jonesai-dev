@@ -85,11 +85,11 @@ export const rangeSettings = {
   /** How far the top of the grip sits above the left hand, along the shaft. */
   gripOffset: 0.04,
   gripLength: 0.24,
-  shaftLength: 0.78,
-  /** Ball on the tee, in metres. The range runs toward +Z. Height is set from impact. */
-  ball: [0, 0.042, 0.15] as [number, number, number],
-  cameraHome: [0, 1.45, -3.4] as [number, number, number],
-  cameraLook: [0, 0.95, 18] as [number, number, number],
+  shaftLength: 0.67,
+  /** Ball on the tee. The range runs toward -Z. */
+  ball: [0, 0.04, 0] as [number, number, number],
+  cameraHome: [0, 1.5, 3.5] as [number, number, number],
+  cameraLook: [0, 0.8, -16.5] as [number, number, number],
   yards: [100, 150, 200, 250, 300],
   yardToMetre: 0.9144,
   fadeSeconds: 1.4,

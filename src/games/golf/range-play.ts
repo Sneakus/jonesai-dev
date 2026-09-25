@@ -1,4 +1,4 @@
-import type { AnimationAction, Line, Mesh, Object3D, PerspectiveCamera } from "three";
+import type { AnimationAction, AnimationClip, Line, Mesh, Object3D, PerspectiveCamera } from "three";
 import { LoopOnce, Vector3 } from "three";
 import type { FlightPoint, FlightResult } from "./flight";
 import { rangeSettings as range } from "./settings";
@@ -13,64 +13,153 @@ const yard = range.yardToMetre;
 
 export const ballSpot = { x: range.ball[0], y: range.ball[1], z: range.ball[2] };
 
-export function setBallSpot(y: number) {
-  ballSpot.x = range.ball[0];
-  ballSpot.y = y;
-  ballSpot.z = range.ball[2];
-}
-
 const down = new Vector3();
 const gripTop = new Vector3();
 const headPoint = new Vector3();
 const shaftUp = new Vector3(0, 1, 0);
 
-export function clubEnds(left: Vector3, right: Vector3, grip: Vector3, head: Vector3) {
-  down.subVectors(right, left);
+function handShaft(bone: Object3D, target: Vector3) {
+  target.set(0, 1, 0).transformDirection(bone.matrixWorld);
+  if (target.y > 0) target.negate();
+}
+
+/** Shaft runs along both hands, from just above the left hand down to the clubhead. */
+export function clubEnds(leftBone: Object3D, rightBone: Object3D, grip: Vector3, head: Vector3) {
+  const left = new Vector3();
+  const right = new Vector3();
+  leftBone.getWorldPosition(left);
+  rightBone.getWorldPosition(right);
+  handShaft(leftBone, down);
+  handShaft(rightBone, head);
+  down.add(head);
+  if (down.lengthSq() < 1e-8) down.subVectors(right, left);
   if (down.lengthSq() < 1e-8) down.set(0, -1, 0);
   down.normalize();
   grip.copy(left).addScaledVector(down, -range.gripOffset);
   head.copy(grip).addScaledVector(down, range.gripLength + range.shaftLength);
 }
 
-export function aimClub(club: Object3D, left: Vector3, right: Vector3) {
-  clubEnds(left, right, gripTop, headPoint);
+export function aimClub(club: Object3D, leftBone: Object3D, rightBone: Object3D) {
+  clubEnds(leftBone, rightBone, gripTop, headPoint);
   club.position.copy(gripTop);
   club.quaternion.setFromUnitVectors(shaftUp, down);
   club.updateMatrixWorld();
 }
 
-export function clubheadPosition(left: Vector3, right: Vector3, target: Vector3) {
-  clubEnds(left, right, gripTop, target);
+export function clubheadPosition(leftBone: Object3D, rightBone: Object3D, target: Vector3) {
+  clubEnds(leftBone, rightBone, gripTop, target);
 }
 
-/** Yaw and shift so the impact clubhead meets the ball and the feet sit on the mat. */
-export function plantGolfer(leftHand: Vector3, rightHand: Vector3, leftShoulder: Vector3, rightShoulder: Vector3, footY: number) {
-  const across = new Vector3().subVectors(rightShoulder, leftShoulder);
-  across.y = 0;
-  if (across.lengthSq() < 1e-8) across.set(-1, 0, 0);
-  const forward = new Vector3().crossVectors(new Vector3(0, 1, 0), across);
-  if (forward.lengthSq() < 1e-8) forward.set(0, 0, 1);
-  forward.normalize();
-  const yaw = -Math.atan2(forward.x, forward.z);
-  const cos = Math.cos(yaw);
-  const sin = Math.sin(yaw);
-  const turn = (v: Vector3) => new Vector3(v.x * cos + v.z * sin, v.y, -v.x * sin + v.z * cos);
+export function findBone(root: Object3D, end: string): Object3D | undefined {
+  let found: Object3D | undefined;
+  root.traverse((node) => {
+    if (node.name.replace(/[:|]/g, "").endsWith(end)) found = node;
+  });
+  return found;
+}
+
+/** Horizontal hip travel, in metres. Large root motion is what walks him off the mat. */
+export function settleHips(clip: AnimationClip): number {
+  let travel = 0;
+  for (const track of clip.tracks) {
+    if (!track.name.includes("Hips") || !track.name.endsWith("position")) continue;
+    const values = track.values;
+    const x0 = values[0];
+    const z0 = values[2];
+    for (let i = 0; i < values.length; i += 3) {
+      const dx = values[i] - x0;
+      const dz = values[i + 2] - z0;
+      travel = Math.max(travel, Math.hypot(dx, dz));
+    }
+    if (travel > 0.3) {
+      for (let i = 0; i < values.length; i += 3) {
+        values[i] = x0;
+        values[i + 2] = z0;
+      }
+    }
+  }
+  return travel;
+}
+
+export function stature(root: Object3D): number {
+  const names = ["LeftToe_End", "LeftFoot", "LeftLeg", "LeftUpLeg", "Hips", "Spine", "Spine1", "Spine2", "Neck", "Head"];
+  let total = 0.12;
+  let previous: Vector3 | null = null;
+  const point = new Vector3();
+  for (const name of names) {
+    const bone = findBone(root, name);
+    if (!bone) continue;
+    bone.getWorldPosition(point);
+    if (previous) total += point.distanceTo(previous);
+    previous = point.clone();
+  }
+  return total;
+}
+
+export function soleHeight(root: Object3D): number {
+  let minY = Infinity;
+  const point = new Vector3();
+  for (const name of ["LeftToe_End", "RightToe_End", "LeftToeBase", "RightToeBase", "LeftFoot", "RightFoot"]) {
+    const bone = findBone(root, name);
+    if (!bone) continue;
+    bone.getWorldPosition(point);
+    minY = Math.min(minY, point.y);
+  }
+  return Number.isFinite(minY) ? minY : 0;
+}
+
+function worldPos(bone: Object3D | undefined, target: Vector3): Vector3 {
+  bone?.getWorldPosition(target);
+  return target;
+}
+
+/** Face +x, plant the feet at address, and put the impact clubhead on the ball. Once. */
+export function placeRig(rig: Object3D, model: Object3D, action: AnimationAction) {
+  const clip = action.getClip();
+  const hipTravel = settleHips(clip);
+  rig.position.set(0, 0, 0);
+  rig.rotation.set(0, 0, 0);
+  rig.updateMatrixWorld(true);
+  holdFrame(action, 0);
+  model.updateMatrixWorld(true);
+  const leftShoulder = findBone(model, "LeftShoulder") ?? findBone(model, "LeftArm");
+  const rightShoulder = findBone(model, "RightShoulder") ?? findBone(model, "RightArm");
+  const left = new Vector3();
+  const right = new Vector3();
+  worldPos(leftShoulder, left);
+  worldPos(rightShoulder, right);
+  const leftDir = left.sub(right);
+  leftDir.y = 0;
+  if (leftDir.lengthSq() < 1e-8) leftDir.set(0, 0, -1);
+  leftDir.normalize();
+  rig.rotation.y = Math.atan2(leftDir.x, -leftDir.z);
+  rig.updateMatrixWorld(true);
+
+  holdFrame(action, range.impactTime);
+  model.updateMatrixWorld(true);
+  const leftHand = findBone(model, "LeftHand");
+  const rightHand = findBone(model, "RightHand");
   const head = new Vector3();
-  clubheadPosition(leftHand, rightHand, head);
-  const turned = turn(head);
-  return {
-    yaw,
-    x: ballSpot.x - turned.x,
-    y: -footY,
-    z: ballSpot.z - turned.z,
-    ballY: turned.y - footY,
-  };
+  if (leftHand && rightHand) clubheadPosition(leftHand, rightHand, head);
+  rig.position.x += ballSpot.x - head.x;
+  rig.position.z += ballSpot.z - head.z;
+  rig.updateMatrixWorld(true);
+
+  holdFrame(action, 0);
+  model.updateMatrixWorld(true);
+  const feet = soleHeight(model);
+  rig.position.y += -feet;
+  rig.updateMatrixWorld(true);
+
+  return { hipTravel, yaw: rig.rotation.y, position: rig.position.clone() };
 }
 
 export function holdFrame(action: AnimationAction, time: number) {
+  action.enabled = true;
   action.play();
   action.paused = true;
   action.time = time;
+  action.getMixer().setTime(time);
 }
 
 export function scrubFrame(action: AnimationAction, fraction: number) {
@@ -122,7 +211,7 @@ function pointAt(points: FlightPoint[], time: number): FlightPoint {
 }
 
 function toWorld(point: FlightPoint): [number, number, number] {
-  return [ballSpot.x - point.y * yard, ballSpot.y + point.z * yard, ballSpot.z + point.x * yard];
+  return [ballSpot.x + point.y * yard, ballSpot.y + point.z * yard, ballSpot.z - point.x * yard];
 }
 
 export function stepShot(
@@ -187,7 +276,7 @@ export function stepCamera(
     const follow = 1 - back;
     goalX = home[0] * back + x * 0.25 * follow;
     goalY = home[1] * back + (y + 2.2) * follow;
-    goalZ = home[2] * back + (z - 7) * follow;
+    goalZ = home[2] * back + (z + 8) * follow;
     lookX = homeLook[0] * back + x * follow;
     lookY = homeLook[1] * back + y * follow;
     lookZ = homeLook[2] * back + z * follow;

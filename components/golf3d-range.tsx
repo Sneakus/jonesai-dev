@@ -8,7 +8,7 @@ import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type M
 import { BackSide, BufferAttribute, BufferGeometry, LineBasicMaterial, Line as ThreeLine, Color, PerspectiveCamera, SkeletonHelper, Vector3, type Group, type Mesh, type Object3D } from "three";
 import { fly, type FlightResult } from "@/src/games/golf/flight";
 import { curveYards, shotKey } from "@/src/games/golf/outcomes";
-import { aimClub, armClip, clubheadPosition, holdFrame, plantGolfer, scrubFrame, setBallSpot, stepCamera, stepShot } from "@/src/games/golf/range-play";
+import { aimClub, armClip, clubheadPosition, placeRig, scrubFrame, stepCamera, stepShot } from "@/src/games/golf/range-play";
 import { rangeSettings as range } from "@/src/games/golf/settings";
 import { gentleStrike } from "@/src/games/golf/strike";
 import { golfTheme as theme, type ShotCopy } from "@/src/games/golf/theme";
@@ -78,14 +78,12 @@ function Golfer({
   debug,
   onImpact,
   onReady,
-  onPlant,
 }: {
   swingId: number;
   scrub: number | null;
   debug: boolean;
   onImpact: (clock: number) => void;
   onReady: () => void;
-  onPlant: (ballY: number) => void;
 }) {
   const { scene, animations } = useGLTF(range.model, false, true);
   const { actions } = useAnimations(animations, scene);
@@ -94,12 +92,18 @@ function Golfer({
   const headMark = useRef<Mesh>(null);
   const impact = useRef(onImpact);
   const sent = useRef(0);
-  const left = useMemo(() => new Vector3(), []);
-  const right = useMemo(() => new Vector3(), []);
+  const placed = useRef(false);
   const head = useMemo(() => new Vector3(), []);
   useEffect(() => {
     impact.current = onImpact;
   }, [onImpact]);
+
+  useEffect(() => {
+    if (!placed.current || swingId === 0) return;
+    const action = actions[range.clip] ?? Object.values(actions)[0];
+    if (!action) return;
+    armClip(action, true);
+  }, [actions, swingId]);
 
   useLayoutEffect(() => {
     scene.traverse((node) => {
@@ -111,41 +115,12 @@ function Golfer({
       }
     });
     const action = actions[range.clip] ?? Object.values(actions)[0];
-    if (action) {
-      holdFrame(action, range.impactTime);
-      scene.updateMatrixWorld(true);
-      const leftBone = findBone(scene, "LeftHand");
-      const rightBone = findBone(scene, "RightHand");
-      const leftShoulder = findBone(scene, "LeftShoulder") ?? findBone(scene, "LeftArm");
-      const rightShoulder = findBone(scene, "RightShoulder") ?? findBone(scene, "RightArm");
-      const footBones = [findBone(scene, "LeftToeBase"), findBone(scene, "RightToeBase"), findBone(scene, "LeftFoot"), findBone(scene, "RightFoot")].filter(
-        (bone): bone is Object3D => Boolean(bone),
-      );
-      if (leftBone && rightBone && leftShoulder && rightShoulder && footBones.length > 0 && rig.current) {
-        const a = new Vector3();
-        const b = new Vector3();
-        const c = new Vector3();
-        const d = new Vector3();
-        leftBone.getWorldPosition(a);
-        rightBone.getWorldPosition(b);
-        leftShoulder.getWorldPosition(c);
-        rightShoulder.getWorldPosition(d);
-        let footY = Infinity;
-        const foot = new Vector3();
-        for (const bone of footBones) {
-          bone.getWorldPosition(foot);
-          footY = Math.min(footY, foot.y);
-        }
-        const planted = plantGolfer(a, b, c, d, footY);
-        rig.current.rotation.y = planted.yaw;
-        rig.current.position.set(planted.x, planted.y, planted.z);
-        setBallSpot(planted.ballY);
-        onPlant(planted.ballY);
-      }
-      armClip(action, swingId > 0);
+    if (action && rig.current && !placed.current) {
+      placeRig(rig.current, scene, action);
+      placed.current = true;
+      onReady();
     }
-    onReady();
-  }, [actions, onPlant, onReady, scene, swingId]);
+  }, [actions, onReady, scene]);
 
   useFrame((state) => {
     const action = actions[range.clip] ?? Object.values(actions)[0];
@@ -154,11 +129,9 @@ function Golfer({
     const rightBone = findBone(scene, "RightHand");
     if (leftBone && rightBone && club.current) {
       scene.updateMatrixWorld(true);
-      leftBone.getWorldPosition(left);
-      rightBone.getWorldPosition(right);
-      aimClub(club.current, left, right);
+      aimClub(club.current, leftBone, rightBone);
       if (headMark.current) {
-        clubheadPosition(left, right, head);
+        clubheadPosition(leftBone, rightBone, head);
         headMark.current.position.copy(head);
       }
     }
@@ -180,7 +153,7 @@ function Golfer({
       </group>
       {debug ? (
         <mesh ref={headMark}>
-          <sphereGeometry args={[0.035, 10, 8]} />
+          <sphereGeometry args={[0.015, 10, 8]} />
           <meshBasicMaterial color={theme.clay} />
         </mesh>
       ) : null}
@@ -197,7 +170,7 @@ function Ground() {
     [],
   );
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 220]} receiveShadow>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -140]} receiveShadow>
       <planeGeometry args={[90, 640]} />
       <shaderMaterial
         uniforms={uniforms}
@@ -263,7 +236,7 @@ function Markers() {
   return (
     <>
       {range.yards.map((yards) => {
-        const z = yards * range.yardToMetre;
+        const z = -yards * range.yardToMetre;
         return (
           <group key={yards} position={[4.2, 0, z]}>
             <mesh position={[0, 0.7, 0]} castShadow>
@@ -361,7 +334,6 @@ function World({
   onPanel: (panel: Panel) => void;
   onReady: () => void;
 }) {
-  const [ballY, setBallY] = useState(range.ball[1]);
   const hold = useRef<FlightHold | null>(null);
   const tee = useRef<Group>(null);
 
@@ -415,11 +387,11 @@ function World({
       />
       <Sky />
       <Ground />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0.15]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]} receiveShadow>
         <planeGeometry args={[1.5, 1.8]} />
         <meshStandardMaterial color={theme.field} />
       </mesh>
-      <group ref={tee} position={[range.ball[0], ballY, range.ball[2]]}>
+      <group ref={tee} position={range.ball}>
         <mesh position={[0, 0, 0]} castShadow>
           <sphereGeometry args={[0.021, 16, 12]} />
           <meshStandardMaterial color={theme.card} />
@@ -430,17 +402,17 @@ function World({
         </mesh>
       </group>
       <Suspense fallback={null}>
-        <Golfer swingId={swingId} scrub={scrub} debug={debug} onImpact={launch} onReady={onReady} onPlant={setBallY} />
+        <Golfer swingId={swingId} scrub={scrub} debug={debug} onImpact={launch} onReady={onReady} />
         <Markers />
       </Suspense>
       <Shot hold={hold} reduce={reduce} onLanded={landed} />
       {debug ? (
         <>
-          <mesh position={[range.ball[0], ballY, range.ball[2]]}>
-            <sphereGeometry args={[0.04, 10, 8]} />
+          <mesh position={range.ball}>
+            <sphereGeometry args={[0.021, 12, 10]} />
             <meshBasicMaterial color={theme.ink} />
           </mesh>
-          <mesh position={[range.ball[0], 0.02, range.ball[2] + 12]}>
+          <mesh position={[range.ball[0], 0.02, range.ball[2] - 12]}>
             <boxGeometry args={[0.02, 0.02, 24]} />
             <meshBasicMaterial color={theme.ink} />
           </mesh>
