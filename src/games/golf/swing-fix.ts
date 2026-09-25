@@ -16,8 +16,6 @@ const head = new Vector3();
 const target = new Vector3();
 const animated = new Vector3();
 const correction = new Vector3();
-const prevLead = new Vector3();
-const prevTrail = new Vector3();
 const pole = new Vector3();
 const tmp = new Vector3();
 const held = new Vector3();
@@ -36,23 +34,26 @@ type Fix = {
   rightFoot: Vector3;
   rightToe: Vector3;
   rigHome: Vector3;
+  addressTime: number;
+  halfBackTime: number;
   topTime: number;
+  halfDownTime: number;
+  finishTime: number;
   endTime: number;
   rest: Map<string, number>;
 };
 
-const handQ = new Quaternion();
-const clubQ = new Quaternion();
-const offsetQ = new Quaternion();
 const rawQ = new Quaternion();
 const smoothQ = new Quaternion();
 const prevRaw = new Quaternion();
 const basisX = new Vector3();
 const basisZ = new Vector3();
+const impactDir = new Vector3(0, -0.4, 0.2);
+const toeHint = new Vector3();
 const CLUB_LENGTH = 0.98;
 
 let fix: Fix | null = null;
-let clubReady = false;
+const played: Quaternion[] = [];
 
 function bone(root: Object3D, name: string) {
   const found = findBone(root, name);
@@ -73,21 +74,103 @@ function hands(model: Object3D) {
   rawUp.crossVectors(side, across).normalize();
 }
 
-function clubFromLead(model: Object3D) {
-  const hand = bone(model, "LeftHand");
-  hand.getWorldQuaternion(handQ);
-  hand.getWorldPosition(grip);
-  rawQ.copy(handQ).multiply(offsetQ);
-  if (!clubReady) {
-    smoothQ.copy(rawQ);
-    clubReady = true;
-  } else {
-    clubQ.copy(prevRaw).slerp(rawQ, 0.5);
-    smoothQ.slerp(clubQ, 0.55);
+function ease(t: number) {
+  const x = Math.min(1, Math.max(0, t));
+  return x * x * (3 - 2 * x);
+}
+
+function orient(out: Quaternion, direction: Vector3, toeHint: Vector3) {
+  shaft.copy(direction);
+  if (shaft.lengthSq() < 1e-8) shaft.set(0, -1, 0);
+  shaft.normalize();
+  basisZ.copy(toeHint);
+  basisZ.addScaledVector(shaft, -basisZ.dot(shaft));
+  if (basisZ.lengthSq() < 1e-8) basisZ.set(0, 0, 1);
+  basisZ.normalize();
+  basisX.crossVectors(shaft, basisZ).normalize();
+  const basis = new Matrix4();
+  basis.makeBasis(basisX, shaft, basisZ);
+  out.setFromRotationMatrix(basis);
+}
+
+function keyDirection(kind: string, at: Vector3) {
+  if (kind === "impact") {
+    shaft.copy(impactDir);
+    return;
   }
-  prevRaw.copy(rawQ);
-  shaft.set(0, 1, 0).applyQuaternion(smoothQ);
-  head.copy(grip).addScaledVector(shaft, CLUB_LENGTH);
+  if (kind === "address") {
+    shaft.subVectors(ballAt(), at);
+    if (shaft.lengthSq() < 1e-8) shaft.set(1, 0, 0);
+    return;
+  }
+  if (kind === "halfBack" || kind === "halfDown") {
+    shaft.set(0, 0, 1);
+    return;
+  }
+  if (kind === "top") {
+    shaft.set(0, 0, -1);
+    return;
+  }
+  shaft.set(0, -0.45, 0.9);
+}
+
+function keyQuat(kind: string, at: Vector3, out: Quaternion) {
+  keyDirection(kind, at);
+  toeHint.set(0, 1, 0);
+  orient(out, shaft, toeHint);
+}
+
+function ballAt() {
+  return tmp.set(ballSpot.x, ballSpot.y, ballSpot.z);
+}
+
+type KeyName = "address" | "halfBack" | "top" | "halfDown" | "impact" | "finish";
+
+function keyTimes(): { name: KeyName; time: number }[] {
+  if (!fix) return [];
+  return [
+    { name: "address", time: fix.addressTime },
+    { name: "halfBack", time: fix.halfBackTime },
+    { name: "top", time: fix.topTime },
+    { name: "halfDown", time: fix.halfDownTime },
+    { name: "impact", time: fix.impactTime },
+    { name: "finish", time: fix.finishTime },
+  ];
+}
+
+function segmentEase(from: KeyName, _to: KeyName, s: number) {
+  return ease(s);
+}
+
+function clubOrientation(time: number, at: Vector3, out: Quaternion) {
+  const keys = keyTimes();
+  let from: KeyName = "address";
+  let to: KeyName = "halfBack";
+  let s = 0;
+  if (time <= keys[0].time) keyQuat("address", at, out);
+  else if (time >= keys[keys.length - 1].time) keyQuat("finish", at, out);
+  else {
+    for (let i = 0; i < keys.length - 1; i += 1) {
+      if (time >= keys[i].time && time <= keys[i + 1].time) {
+        from = keys[i].name;
+        to = keys[i + 1].name;
+        const span = Math.max(1e-4, keys[i + 1].time - keys[i].time);
+        s = segmentEase(from, to, (time - keys[i].time) / span);
+        break;
+      }
+    }
+    if ((from === "halfBack" && to === "top") || (from === "top" && to === "halfDown")) {
+      const spin = from === "halfBack" ? s * Math.PI : Math.PI + s * Math.PI;
+      orient(rawQ, basisZ.set(0, 0, 1), upAxis);
+      prevRaw.setFromAxisAngle(basisX.set(1, 0, 0), spin);
+      out.copy(prevRaw).multiply(rawQ);
+    } else {
+      keyQuat(from, at, rawQ);
+      keyQuat(to, at, prevRaw);
+      if (rawQ.dot(prevRaw) < 0) prevRaw.set(-prevRaw.x, -prevRaw.y, -prevRaw.z, -prevRaw.w);
+      out.copy(rawQ).slerp(prevRaw, s);
+    }
+  }
 }
 
 function trailLegWeight(time: number) {
@@ -174,6 +257,58 @@ function restLengths(model: Object3D) {
 
 const handShift = new Vector3();
 const want = new Vector3();
+const goal = new Vector3();
+
+function ikHand(model: Object3D, sideName: "Left" | "Right", aim: Vector3, weight: number) {
+  const shoulder = bone(model, `${sideName}Arm`);
+  const elbow = bone(model, `${sideName}ForeArm`);
+  const hand = bone(model, `${sideName}Hand`);
+  hand.getWorldPosition(animated);
+  goal.copy(animated).lerp(aim, weight);
+  bone(model, "Hips").getWorldPosition(pole);
+  const before = animated.distanceTo(goal);
+  solveTwoBone(shoulder, elbow, hand, goal, pole);
+  armMoved = Math.max(armMoved, before * weight);
+}
+
+function clampElbow(model: Object3D, sideName: "Left" | "Right") {
+  const shoulder = bone(model, `${sideName}Arm`);
+  const elbow = bone(model, `${sideName}ForeArm`);
+  const hand = bone(model, `${sideName}Hand`);
+  shoulder.getWorldPosition(tmp);
+  elbow.getWorldPosition(target);
+  hand.getWorldPosition(animated);
+  bone(model, "Hips").getWorldPosition(pole);
+  want.copy(animated).sub(tmp);
+  if (want.lengthSq() < 1e-8) return;
+  correction.copy(target).sub(tmp);
+  correction.addScaledVector(want, -correction.dot(want) / want.lengthSq());
+  handShift.copy(pole).sub(tmp);
+  handShift.addScaledVector(want, -handShift.dot(want) / want.lengthSq());
+  if (handShift.lengthSq() < 1e-8 || correction.dot(handShift) >= -0.001) return;
+  solveTwoBone(shoulder, elbow, hand, animated, pole);
+}
+
+function lengthNearImpact(time: number, reach: number) {
+  const full = CLUB_LENGTH;
+  const limited = Math.min(full * 1.05, Math.max(full * 0.95, reach));
+  if (!fix) return full;
+  const width = 0.12;
+  const dt = Math.abs(time - fix.impactTime);
+  if (dt >= width) return full;
+  return full + (limited - full) * ease(1 - dt / width);
+}
+
+function poseClub(time: number) {
+  grip.copy(mid);
+  const index = Math.round(time * 60);
+  if (played[index]) smoothQ.copy(played[index]);
+  else clubOrientation(time, grip, smoothQ);
+  shaft.set(0, 1, 0).applyQuaternion(smoothQ);
+  const reach = grip.distanceTo(ballAt());
+  const length = lengthNearImpact(time, reach);
+  head.copy(grip).addScaledVector(shaft, length);
+}
 
 export function correctFrame(model: Object3D, time: number) {
   if (!fix) return;
@@ -189,8 +324,65 @@ export function correctFrame(model: Object3D, time: number) {
     pinFoot(model, "Right", footAim);
   } else clampTrailKnee(model);
   model.updateMatrixWorld(true);
+  clampElbow(model, "Left");
+  clampElbow(model, "Right");
+  model.updateMatrixWorld(true);
   hands(model);
-  clubFromLead(model);
+  const apart = leadPos.distanceTo(trailPos);
+  if (apart > 0.05 && time > 0.1) {
+  for (const sideName of ["Left", "Right"] as const) {
+    const shoulder = bone(model, `${sideName}Arm`);
+    const elbow = bone(model, `${sideName}ForeArm`);
+    const hand = bone(model, `${sideName}Hand`);
+    shoulder.getWorldPosition(tmp);
+    elbow.getWorldPosition(target);
+    const upper = tmp.distanceTo(target);
+    hand.getWorldPosition(animated);
+    const lower = target.distanceTo(animated);
+    const cap = (upper + lower) * 0.92;
+    const dist = tmp.distanceTo(mid);
+    if (dist > cap) mid.addScaledVector(tmp.sub(mid).normalize(), dist - cap);
+  }
+  }
+  for (let pass = 0; pass < 3; pass += 1) {
+    ikHand(model, "Left", mid, 1);
+    ikHand(model, "Right", mid, 1);
+    model.updateMatrixWorld(true);
+    hands(model);
+  }
+  const width = 0.12;
+  const dt = Math.abs(time - fix.impactTime);
+  if (dt < width) {
+    const pull = ease(1 - dt / width);
+    shaft.subVectors(ballAt(), mid);
+    const dist = shaft.length();
+    if (dist > 1e-4) {
+      shaft.multiplyScalar(1 / dist);
+      goal.copy(ballAt()).addScaledVector(shaft, -CLUB_LENGTH);
+      handShift.subVectors(goal, mid).multiplyScalar(pull);
+      leadPos.add(handShift);
+      trailPos.add(handShift);
+      ikHand(model, "Left", leadPos, 1);
+      ikHand(model, "Right", trailPos, 1);
+      model.updateMatrixWorld(true);
+      hands(model);
+    }
+  }
+  model.updateMatrixWorld(true);
+  hands(model);
+  const index = Math.round(time * 60);
+  if (played[index] && fix && Math.abs(time - fix.impactTime) < 1 / 120) {
+    shaft.set(0, 1, 0).applyQuaternion(played[index]);
+    goal.copy(ballAt()).addScaledVector(shaft, -CLUB_LENGTH);
+    handShift.subVectors(goal, mid);
+    leadPos.add(handShift);
+    trailPos.add(handShift);
+    ikHand(model, "Left", leadPos, 1);
+    ikHand(model, "Right", trailPos, 1);
+    model.updateMatrixWorld(true);
+    hands(model);
+  }
+  poseClub(time);
 }
 
 export function drawSkeleton(
@@ -262,7 +454,7 @@ export function shaftEnds(gripOut: Vector3, headOut: Vector3) {
 }
 
 export function gripPoint(_club: Object3D | null, out: Vector3) {
-  return out.copy(trailPos);
+  return out.copy(grip);
 }
 
 export function currentFix() {
@@ -335,37 +527,83 @@ export function placeRig(rig: Object3D, model: Object3D, action: AnimationAction
   holdFrame(action, 0);
   model.updateMatrixWorld(true);
   const lead = bone(model, "LeftHand");
-  lead.getWorldQuaternion(handQ);
   lead.getWorldPosition(grip);
   shaft.subVectors(ball, grip);
   if (shaft.lengthSq() < 1e-8) shaft.set(0, -1, 0);
   shaft.normalize();
-  basisX.crossVectors(upAxis, shaft);
-  if (basisX.lengthSq() < 1e-8) basisX.set(1, 0, 0);
-  basisX.normalize();
-  basisZ.crossVectors(basisX, shaft).normalize();
-  const basis = new Matrix4();
-  basis.makeBasis(basisX, shaft, basisZ);
-  clubQ.setFromRotationMatrix(basis);
-  offsetQ.copy(handQ).invert().multiply(clubQ);
   head.copy(grip).addScaledVector(shaft, CLUB_LENGTH);
-  const addressGap = head.distanceTo(ball);
   ballSpot.x = head.x;
   ballSpot.y = head.y;
   ballSpot.z = head.z;
   const length = CLUB_LENGTH;
   hands(model);
   const trailAlong = tmp.subVectors(trailPos, mid).dot(across);
+  const lie = (Math.atan2(-shaft.y, Math.hypot(shaft.x, shaft.z)) * 180) / Math.PI;
 
   const duration = action.getClip()?.duration ?? 1;
   const step = 1 / 60;
-  const samples: { time: number; head: Vector3; speed: number; hand: number }[] = [];
-  const previous = new Vector3();
-  let primed = false;
-  clubReady = false;
+  const samples: { time: number; hand: Vector3; shoulderY: number }[] = [];
+  for (let time = 0; time <= duration + 1e-6; time += step) {
+    const now = Math.min(time, duration);
+    holdFrame(action, now);
+    model.updateMatrixWorld(true);
+    const handPos = bone(model, "LeftHand").getWorldPosition(new Vector3());
+    const shoulderY = bone(model, "LeftArm").getWorldPosition(tmp).y;
+    samples.push({ time: now, hand: handPos, shoulderY });
+  }
+  const addressHand = samples[0]?.hand ?? new Vector3();
+  let topTime = step;
+  let topY = -Infinity;
+  let risen = false;
+  for (const sample of samples) {
+    if (sample.hand.y > addressHand.y + 0.2) risen = true;
+    if (!risen) continue;
+    if (sample.hand.y >= topY) {
+      topY = sample.hand.y;
+      topTime = sample.time;
+    }
+    if (sample.time > topTime + 0.05 && sample.hand.y < topY - 0.25) break;
+  }
+  let impactTime = topTime + step;
+  let nearest = Infinity;
+  for (const sample of samples) {
+    if (sample.time <= topTime) continue;
+    if (sample.hand.y > sample.shoulderY) continue;
+    const dist = sample.hand.distanceTo(addressHand);
+    if (dist < nearest) {
+      nearest = dist;
+      impactTime = sample.time;
+    }
+  }
+  const closestLevel = (from: number, until: number) => {
+    let when = (from + until) / 2;
+    let best = Infinity;
+    for (const sample of samples) {
+      if (sample.time <= from || sample.time >= until) continue;
+      const gap = Math.abs(sample.hand.y - sample.shoulderY);
+      if (gap < best) {
+        best = gap;
+        when = sample.time;
+      }
+    }
+    return when;
+  };
+  const halfBackTime = closestLevel(0.05, topTime);
+  const halfDownTime = closestLevel(topTime, impactTime);
+  let finishTime = Math.min(duration, impactTime + 0.4);
+  let finishY = -Infinity;
+  for (const sample of samples) {
+    if (sample.time <= impactTime) continue;
+    if (sample.hand.y >= finishY) {
+      finishY = sample.hand.y;
+      finishTime = sample.time;
+    }
+  }
+  holdFrame(action, 0);
+  model.updateMatrixWorld(true);
   fix = {
-    impactTime: 0,
-    addressGap,
+    impactTime,
+    addressGap: 0,
     ballMoved: head.distanceTo(ball),
     length,
     shaftX: shaft.dot(across),
@@ -376,57 +614,61 @@ export function placeRig(rig: Object3D, model: Object3D, action: AnimationAction
     rightFoot: bone(model, "RightFoot").getWorldPosition(new Vector3()),
     rightToe: bone(model, "RightToe_End").getWorldPosition(new Vector3()),
     rigHome: rig.position.clone(),
-    topTime: duration,
+    addressTime: 0,
+    halfBackTime,
+    topTime,
+    halfDownTime,
+    finishTime,
     endTime: duration,
     rest: restLengths(model),
   };
-  const lie = (Math.atan2(-shaft.y, Math.hypot(shaft.x, shaft.z)) * 180) / Math.PI;
   const feetX = (fix.leftFoot.x + fix.rightFoot.x) / 2;
   const feetZ = (fix.leftFoot.z + fix.rightFoot.z) / 2;
   console.log(`feet sideways ${(feetX - ball.x).toFixed(3)} along ${(feetZ - ball.z).toFixed(3)}`);
   console.log(`lead heel ${(fix.leftFoot.z - ball.z).toFixed(3)}`);
   console.log(`club length ${length.toFixed(3)} lie ${lie.toFixed(1)}`);
-
-  let highest = -Infinity;
-  for (let time = 0; time <= duration + 1e-6; time += step) {
-    const now = Math.min(time, duration);
+  console.log(`address ${fix.addressTime.toFixed(3)}`);
+  console.log(`halfway back ${fix.halfBackTime.toFixed(3)}`);
+  console.log(`top ${fix.topTime.toFixed(3)}`);
+  console.log(`halfway down ${fix.halfDownTime.toFixed(3)}`);
+  console.log(`impact ${fix.impactTime.toFixed(3)}`);
+  console.log(`finish ${fix.finishTime.toFixed(3)}`);
+  holdFrame(action, fix.impactTime);
+  correctFrame(model, fix.impactTime);
+  impactDir.subVectors(ballAt(), grip);
+  if (impactDir.lengthSq() < 1e-8) impactDir.set(0, -1, 0);
+  impactDir.normalize();
+  played.length = 0;
+  const raw: Quaternion[] = [];
+  const durationFrames = Math.round(duration * 60);
+  for (let frame = 0; frame <= durationFrames; frame += 1) {
+    const now = Math.min(duration, frame / 60);
     holdFrame(action, now);
     correctFrame(model, now);
-    const speed = primed ? head.distanceTo(previous) / step : 0;
-    previous.copy(head);
-    primed = true;
-    bone(model, "LeftHand").getWorldPosition(tmp);
-    samples.push({ time: Math.min(time, duration), head: head.clone(), speed, hand: tmp.y });
+    raw.push(smoothQ.clone());
   }
-
-  const ballThere = new Vector3(ballSpot.x, ballSpot.y, ballSpot.z);
-  let impact: (typeof samples)[number] | null = null;
-  let closest = Infinity;
-  for (const sample of samples) {
-    if (sample.time < 0.3) continue;
-    const gap = sample.head.distanceTo(ballThere);
-    if (gap < closest) {
-      closest = gap;
-      impact = sample;
+  const topFrame = Math.round(fix.topTime * 60);
+  const smoothPass = (source: Quaternion[]) => {
+    const next = source.map((item) => item.clone());
+    for (let frame = 1; frame < source.length - 1; frame += 1) {
+      if (frame === topFrame || frame < 2) continue;
+      const midQ = source[frame - 1].clone();
+      const nextQ = source[frame + 1];
+      if (midQ.dot(nextQ) < 0) nextQ.set(-nextQ.x, -nextQ.y, -nextQ.z, -nextQ.w);
+      midQ.slerp(nextQ, 0.5);
+      if (midQ.dot(source[frame]) < 0) midQ.set(-midQ.x, -midQ.y, -midQ.z, -midQ.w);
+      next[frame].copy(source[frame]).slerp(midQ, 0.35);
     }
-  }
-  fix.impactTime = impact?.time ?? 0;
-  for (const sample of samples) {
-    if (sample.time > fix.impactTime) break;
-    if (sample.hand > highest) {
-      highest = sample.hand;
-      fix.topTime = sample.time;
-    }
-  }
-  const frameTravel = (impact?.speed ?? 0) * step;
-  console.log(`closest pass ${closest.toFixed(4)}`);
-  console.log(`frame travel ${frameTravel.toFixed(4)}`);
-  fix.addressGap = 0;
-  prevLead.set(0, 0, 0);
-  prevTrail.set(0, 0, 0);
+    return next;
+  };
+  let smoothed = smoothPass(raw);
+  smoothed = smoothPass(smoothed);
+  for (let frame = 0; frame < smoothed.length; frame += 1) played[frame] = smoothed[frame];
   holdFrame(action, 0);
+  model.updateMatrixWorld(true);
+  correctFrame(model, 0);
+  fix.addressGap = head.distanceTo(ballAt());
   console.log(`address gap ${fix.addressGap.toFixed(4)}`);
   console.log(`ball moved ${fix.ballMoved.toFixed(4)}`);
-  clubReady = false;
   return fix;
 }

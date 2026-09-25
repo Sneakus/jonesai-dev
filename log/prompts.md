@@ -1508,3 +1508,37 @@ Tell me in plain English what changed, and paste the printed checks.
 ```
 Changed: Club follows the left hand with a short smoothing blend, the ball sits on the clubhead at address, and the camera is further back and higher. At the top of the backswing the club still points up and across, not back along the target line.
 Files: src/games/golf/swing-fix.ts, src/games/golf/place-check.test.ts, src/games/golf/settings.ts, log/prompts.md
+
+### 2026-09-25 14:43
+Prompt:
+```
+Keep working on the golf-correction-layer branch and push to it only. The body motion, stance, camera and ball position are right. Replace how the club moves.
+
+1. Designed club positions: stop driving the club from the hand bone's rotation. The club's direction comes from these key positions, defined relative to the golfer and the target line:
+   - Address: grip to ball (as now).
+   - Halfway back (lead arm roughly level with the ground): shaft parallel to the target line, clubhead pointing away from the target, toe up.
+   - Top: shaft roughly parallel to the target line, clubhead pointing towards the target.
+   - Halfway down: shaft parallel to the target line, clubhead pointing away from the target.
+   - Impact: grip to ball.
+   - Finish: shaft behind the neck, clubhead pointing away from the target and down.
+   Find the timing of each key from the body motion, using the lead hand's height and position, and print the times. Blend the direction between keys smoothly with eased quaternion interpolation, so the club's speed builds through the downswing and peaks at impact.
+
+2. Grip and hands: the grip sits at the midpoint between the two hands, and the club is drawn from there. Use light arm IK on both arms to keep both hands on the grip. Clamp both elbows so they never bend backwards, and keep the reach clamp and soft IK.
+
+3. Club length: keep 0.98 m. If the grip-to-ball distance at impact doesn't match the club length, first use the arm IK. For anything left over, let the club lengthen or shorten by at most 5% around impact only, blended smoothly. At full speed that won't be visible.
+
+4. Checks, printed:
+   - address gap under 1 cm
+   - clubhead within 3 cm of the ball at impact
+   - top of backswing: shaft within 30 degrees of parallel to the target line, clubhead pointing towards the target
+   - anti-flick as before
+   - both hands within 2 cm of the grip
+   - no elbow or knee bending backwards
+   - feet, bone lengths and rig as before
+
+5. Don't use the built-in browser. Run the check script, a clean production build, the code check and gitleaks git -v, commit with "Golf kit: club follows designed swing positions" and push to the branch. Don't merge into main. I'll check the preview.
+
+Tell me in plain English what changed, the key timings, and paste the printed checks.
+```
+Changed: The club now follows six designed positions through the swing, with both hands held on the grip.
+Files: src/games/golf/swing-fix.ts, src/games/golf/place-check.test.ts, log/prompts.md
