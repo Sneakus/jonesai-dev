@@ -1182,3 +1182,38 @@ Tell me in plain English what changed, the golfer's file size and triangle count
 ```
 Changed: Put the golfer on a hidden 3D range and kept the flat test page.
 Files: public/games/golf/golfer.glb, public/games/golf/InstrumentSans-Medium.ttf, src/games/golf/theme.ts, src/games/golf/strike.ts, src/games/golf/range-play.ts, src/games/golf/settings.ts, components/golf3d-range.tsx, components/golf3d-gate.tsx, app/lab/golf3d/page.tsx, .gitignore, package.json, package-lock.json, log/prompts.md
+
+### 2026-09-25 02:00
+Prompt:
+```
+Fix the golfer on /lab/golf3d. Keep the scene exactly as it is: the sky, grass, lighting and colours stay. Stop and tell me if anything fails.
+
+1. Rule out the conversion as the cause of the body clipping:
+   - Re-convert D:\Assets\Golf\Golf_Drive.fbx. Use Blender in background mode if it's installed, since it handles Mixamo files more reliably than FBX2glTF. Otherwise, use FBX2glTF again.
+   - This time don't simplify the mesh. Keep the original triangles, and only resize textures to 1024, convert them to WebP and apply Meshopt.
+   - Check the skeleton imports at the right scale (Mixamo files are often 100 times too big or too small) and that the golfer faces the right way.
+   - Tell me the new file size and triangle count, and whether the clipping is still there when the animation plays. If it is, say so plainly, because then it's the animation not fitting this character.
+
+2. The club follows both hands every frame, instead of being tied to one hand:
+   - Find the left and right hand bones (the left is the top hand on the grip for a right-handed golfer).
+   - Every frame, place the top of the grip just above the left hand, and point the shaft from the left hand through the right hand and on down to the clubhead.
+   - Keep the club's length and a small grip offset in the settings object.
+
+3. Place the golfer from the swing itself:
+   - Put the ball on a tee at the centre of the tee mat. The target line runs from the ball straight down the middle of the range.
+   - Using the impact moment in the animation, work out where the clubhead is, and move and rotate the whole golfer so the clubhead meets the ball exactly at impact, with the golfer's feet level on the mat.
+   - Put the camera behind the ball on the target line, so the ball sits in the centre of the range and the golfer stands just to its left, as on a real range.
+
+4. Add a debug view when the address ends in ?debug:
+   - Show the skeleton.
+   - Show a line from the ball down the target line.
+   - Show a small marker on the ball and on the clubhead.
+   - Add a slider to scrub through the swing frame by frame.
+   Nothing extra appears without ?debug.
+
+5. Don't use the built-in browser. Run the tests, the code check and gitleaks git -v, commit with "Golf kit: club in both hands, golfer placed from impact" and push to main.
+
+Tell me in plain English what changed, which converter you used, the file size and triangle count, and whether the clipping is gone.
+```
+Changed: Rebuilt the golfer without simplifying him, and lined the club up from both hands.
+Files: public/games/golf/golfer.glb, src/games/golf/settings.ts, src/games/golf/range-play.ts, src/games/golf/theme.ts, components/golf3d-range.tsx, log/prompts.md

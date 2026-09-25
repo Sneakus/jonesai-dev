@@ -1,5 +1,5 @@
-import type { AnimationAction, Line, Mesh, PerspectiveCamera } from "three";
-import { LoopOnce } from "three";
+import type { AnimationAction, Line, Mesh, Object3D, PerspectiveCamera } from "three";
+import { LoopOnce, Vector3 } from "three";
 import type { FlightPoint, FlightResult } from "./flight";
 import { rangeSettings as range } from "./settings";
 
@@ -10,6 +10,74 @@ export type FlightHold = {
 };
 
 const yard = range.yardToMetre;
+
+export const ballSpot = { x: range.ball[0], y: range.ball[1], z: range.ball[2] };
+
+export function setBallSpot(y: number) {
+  ballSpot.x = range.ball[0];
+  ballSpot.y = y;
+  ballSpot.z = range.ball[2];
+}
+
+const down = new Vector3();
+const gripTop = new Vector3();
+const headPoint = new Vector3();
+const shaftUp = new Vector3(0, 1, 0);
+
+export function clubEnds(left: Vector3, right: Vector3, grip: Vector3, head: Vector3) {
+  down.subVectors(right, left);
+  if (down.lengthSq() < 1e-8) down.set(0, -1, 0);
+  down.normalize();
+  grip.copy(left).addScaledVector(down, -range.gripOffset);
+  head.copy(grip).addScaledVector(down, range.gripLength + range.shaftLength);
+}
+
+export function aimClub(club: Object3D, left: Vector3, right: Vector3) {
+  clubEnds(left, right, gripTop, headPoint);
+  club.position.copy(gripTop);
+  club.quaternion.setFromUnitVectors(shaftUp, down);
+  club.updateMatrixWorld();
+}
+
+export function clubheadPosition(left: Vector3, right: Vector3, target: Vector3) {
+  clubEnds(left, right, gripTop, target);
+}
+
+/** Yaw and shift so the impact clubhead meets the ball and the feet sit on the mat. */
+export function plantGolfer(leftHand: Vector3, rightHand: Vector3, leftShoulder: Vector3, rightShoulder: Vector3, footY: number) {
+  const across = new Vector3().subVectors(rightShoulder, leftShoulder);
+  across.y = 0;
+  if (across.lengthSq() < 1e-8) across.set(-1, 0, 0);
+  const forward = new Vector3().crossVectors(new Vector3(0, 1, 0), across);
+  if (forward.lengthSq() < 1e-8) forward.set(0, 0, 1);
+  forward.normalize();
+  const yaw = -Math.atan2(forward.x, forward.z);
+  const cos = Math.cos(yaw);
+  const sin = Math.sin(yaw);
+  const turn = (v: Vector3) => new Vector3(v.x * cos + v.z * sin, v.y, -v.x * sin + v.z * cos);
+  const head = new Vector3();
+  clubheadPosition(leftHand, rightHand, head);
+  const turned = turn(head);
+  return {
+    yaw,
+    x: ballSpot.x - turned.x,
+    y: -footY,
+    z: ballSpot.z - turned.z,
+    ballY: turned.y - footY,
+  };
+}
+
+export function holdFrame(action: AnimationAction, time: number) {
+  action.play();
+  action.paused = true;
+  action.time = time;
+}
+
+export function scrubFrame(action: AnimationAction, fraction: number) {
+  const clip = action.getClip();
+  action.paused = true;
+  action.time = fraction * (clip?.duration || 1);
+}
 
 export function armClip(action: AnimationAction, play: boolean) {
   action.reset();
@@ -54,8 +122,7 @@ function pointAt(points: FlightPoint[], time: number): FlightPoint {
 }
 
 function toWorld(point: FlightPoint): [number, number, number] {
-  const [bx, by, bz] = range.ball;
-  return [bx - point.y * yard, by + point.z * yard, bz + point.x * yard];
+  return [ballSpot.x - point.y * yard, ballSpot.y + point.z * yard, ballSpot.z + point.x * yard];
 }
 
 export function stepShot(

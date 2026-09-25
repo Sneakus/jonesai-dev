@@ -33,5 +33,6 @@ export const golfTheme = {
     left: "left",
     right: "right",
     yards: "yards",
+    scrub: "Swing moment",
   },
 };
