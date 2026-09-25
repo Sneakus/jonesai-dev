@@ -5,7 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { Text, useAnimations, useGLTF } from "@react-three/drei";
 import Link from "next/link";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
-import { BackSide, Color, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, PerspectiveCamera, SphereGeometry, Vector3, type Group, type Object3D } from "three";
+import { BackSide, BufferAttribute, BufferGeometry, Color, InstancedMesh, LineBasicMaterial, Matrix4, Mesh, MeshBasicMaterial, PerspectiveCamera, SphereGeometry, Vector3, Line as ThreeLine, type Group, type Object3D } from "three";
 import { Line2, LineGeometry, LineMaterial, LineSegments2, LineSegmentsGeometry } from "three-stdlib";
 import { fly, type FlightResult } from "@/src/games/golf/flight";
 import { curveYards, shotKey } from "@/src/games/golf/outcomes";
@@ -82,7 +82,7 @@ function SkeletonDraw({ root, debug }: { root: Object3D; debug: boolean }) {
     const geom = new LineSegmentsGeometry();
     geom.setPositions(positions);
     const material = new LineMaterial({
-      color: debug ? theme.skeleton.debugBone : theme.skeleton.bone,
+      color: new Color(debug ? theme.skeleton.debugBone : theme.skeleton.bone).getHex(),
       linewidth: theme.skeleton.thickness,
     });
     const lines = new LineSegments2(geom, material);

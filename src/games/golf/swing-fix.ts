@@ -182,6 +182,25 @@ function pinFoot(model: Object3D, sideName: "Left" | "Right", aim: Vector3) {
   solveTwoBone(hip, knee, foot, aim, pole);
 }
 
+function clampTrailKnee(model: Object3D) {
+  const hip = bone(model, "RightUpLeg");
+  const knee = bone(model, "RightLeg");
+  const foot = bone(model, "RightFoot");
+  hip.getWorldPosition(tmp);
+  knee.getWorldPosition(target);
+  foot.getWorldPosition(animated);
+  want.copy(animated).sub(tmp);
+  if (want.lengthSq() < 1e-8) return;
+  correction.copy(target).sub(tmp);
+  correction.addScaledVector(want, -correction.dot(want) / want.lengthSq());
+  handShift.set(1, 0, 0);
+  handShift.addScaledVector(want, -handShift.dot(want) / want.lengthSq());
+  if (handShift.x < 0) handShift.negate();
+  if (handShift.lengthSq() < 1e-8 || correction.dot(handShift) >= -0.001) return;
+  footAim.copy(animated);
+  pinFoot(model, "Right", footAim);
+}
+
 function restLengths(model: Object3D) {
   const rest = new Map<string, number>();
   model.traverse((node) => {
@@ -207,7 +226,7 @@ export function correctFrame(model: Object3D, time: number) {
   if (trail > 0) {
     footAim.copy(fix.rightFoot).lerp(held, 1 - trail);
     pinFoot(model, "Right", footAim);
-  }
+  } else clampTrailKnee(model);
   model.updateMatrixWorld(true);
   hands(model);
   clubFromHands();

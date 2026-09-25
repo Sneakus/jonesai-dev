@@ -1425,3 +1425,33 @@ Tell me in plain English what changed, and paste the printed checks.
 ```
 Changed: Placed the ball halfway between the two clubhead spots. The start and impact gaps are still about 10 cm, so this was not merged.
 Files: src/games/golf/swing-fix.ts, src/games/golf/place-check.test.ts, components/golf3d-range.tsx, log/prompts.md
+
+### 2026-09-25 13:51
+Prompt:
+```
+Two things on the golf-correction-layer branch. Don't change the swing correction until I've looked at it.
+
+1. Both Vercel preview builds of this branch fail. Here is the Vercel build log:
+[components/golf3d-range.tsx(85,7): error TS2322: Type 'string' is not assignable to type 'number'.
+components/golf3d-range.tsx(313,26): error TS2304: Cannot find name 'BufferGeometry'.
+components/golf3d-range.tsx(314,43): error TS2304: Cannot find name 'BufferAttribute'.
+components/golf3d-range.tsx(316,26): error TS2552: Cannot find name 'LineBasicMaterial'. Did you mean 'LineMaterial'?
+components/golf3d-range.tsx(317,16): error TS2304: Cannot find name 'ThreeLine'.
+Failed to type check.
+Error: Command "npm run build" exited with 1]
+Reproduce it locally with a clean production build (npm run build), fix it, and push to the branch. Check that everything the page needs is committed to the branch, not just present on this machine. Stop once the preview builds successfully.
+
+2. Report which way the two 10 cm gaps point, at address and at impact, split into:
+   - towards or away from the golfer
+   - along the target line (towards or away from the camera)
+   - up or down
+   Just the numbers, in centimetres.
+
+3. The trail knee bends backwards by 2.1 cm on the original animation after impact. Clamp that knee so it never goes past straight, without changing the rest of that leg's motion.
+
+4. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "Golf kit: fix preview build, clamp trail knee" and push to the branch only. Don't merge into main.
+
+Tell me in plain English what broke the build, and paste the gap directions.
+```
+Changed: Fixed the preview build types and stopped the trail knee from bending past straight.
+Files: components/golf3d-range.tsx, src/games/golf/swing-fix.ts, log/prompts.md
