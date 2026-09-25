@@ -2,15 +2,18 @@
 
 import { useFrame } from "@react-three/fiber";
 import { Canvas } from "@react-three/fiber";
-import { Text, useAnimations, useGLTF } from "@react-three/drei";
+import { Text } from "@react-three/drei";
 import Link from "next/link";
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
-import { BackSide, BufferAttribute, BufferGeometry, LineBasicMaterial, Line as ThreeLine, Color, PerspectiveCamera, SkeletonHelper, Vector3, type Group, type Mesh, type Object3D } from "three";
+import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { BackSide, BufferAttribute, BufferGeometry, Color, DoubleSide, LineBasicMaterial, Mesh, MeshBasicMaterial, Line as ThreeLine, PerspectiveCamera, type Group } from "three";
 import { fly, type FlightResult } from "@/src/games/golf/flight";
 import { curveYards, shotKey } from "@/src/games/golf/outcomes";
-import { aimClub, armClip, clubheadPosition, placeRig, scrubFrame, stepCamera, stepShot } from "@/src/games/golf/range-play";
+import { stepCamera, stepShot } from "@/src/games/golf/range-play";
 import { rangeSettings as range } from "@/src/games/golf/settings";
 import { gentleStrike } from "@/src/games/golf/strike";
+import { drawDriver, setBone, setJoint, showTrail } from "@/src/games/golf/swing-draw";
+import { IMPACT_TIME, LEAD_TOE, swingPose, SWING_END, TRAIL_TOE } from "@/src/games/golf/swing-pose";
+import { Vec } from "@/src/games/golf/swing-vec";
 import { golfTheme as theme, type ShotCopy } from "@/src/games/golf/theme";
 
 export type { ShotCopy };
@@ -38,126 +41,162 @@ function supportsWebGL(): boolean {
   }
 }
 
-function SkeletonDebug({ root }: { root: Object3D }) {
-  const helper = useMemo(() => new SkeletonHelper(root), [root]);
-  return <primitive object={helper} />;
-}
-
-function findBone(root: Object3D, end: string): Object3D | undefined {
-  let found: Object3D | undefined;
-  root.traverse((node) => {
-    if (node.name.replace(/[:|]/g, "").endsWith(end)) found = node;
-  });
-  return found;
-}
-
-function Club() {
-  const grip = range.gripLength;
-  const shaft = range.shaftLength;
-  return (
-    <group>
-      <mesh position={[0, grip / 2, 0]} castShadow>
-        <cylinderGeometry args={[0.015, 0.017, grip, 10]} />
-        <meshStandardMaterial color={theme.grip} roughness={0.7} />
-      </mesh>
-      <mesh position={[0, grip + shaft / 2, 0]} castShadow>
-        <cylinderGeometry args={[0.004, 0.006, shaft, 8]} />
-        <meshStandardMaterial color={theme.shaft} metalness={0.45} roughness={0.35} />
-      </mesh>
-      <mesh position={[0, grip + shaft + 0.02, 0.03]} rotation={[0.5, 0, 0]} castShadow>
-        <boxGeometry args={[0.1, 0.045, 0.055]} />
-        <meshStandardMaterial color={theme.ink} metalness={0.55} roughness={0.3} />
-      </mesh>
-    </group>
-  );
-}
+const boneNames = ["spine", "neck", "shoulders", "hips", "lUp", "lLo", "tUp", "tLo", "lTh", "lSh", "tTh", "tSh", "lFoot", "tFoot"] as const;
+const jointNames = ["leadSh", "trailSh", "leadElbow", "trailElbow", "leadWrist", "trailWrist", "leadHip", "trailHip", "leadKnee", "trailKnee", "leadAnkle", "trailAnkle", "P", "S"] as const;
 
 function Golfer({
   swingId,
   scrub,
-  debug,
+  slow,
+  reduce,
   onImpact,
   onReady,
 }: {
   swingId: number;
   scrub: number | null;
-  debug: boolean;
+  slow: boolean;
+  reduce: boolean;
   onImpact: (clock: number) => void;
   onReady: () => void;
 }) {
-  const { scene, animations } = useGLTF(range.model, false, true);
-  const { actions } = useAnimations(animations, scene);
-  const rig = useRef<Group>(null);
-  const club = useRef<Group>(null);
-  const headMark = useRef<Mesh>(null);
   const impact = useRef(onImpact);
   const sent = useRef(0);
-  const placed = useRef(false);
-  const head = useMemo(() => new Vector3(), []);
+  const swingTime = useRef(0);
+  const trail = useRef<Vec[]>([]);
+  const bones = useRef<Partial<Record<(typeof boneNames)[number], Mesh>>>({});
+  const joints = useRef<Partial<Record<(typeof jointNames)[number], Mesh>>>({});
+  const headRing = useRef<Mesh>(null);
+  const grip = useRef<Mesh>(null);
+  const shaft = useRef<Mesh>(null);
+  const clubHead = useRef<Mesh>(null);
+  const clubFace = useRef<Mesh>(null);
+  const trailPositions = useMemo(() => new Float32Array(16 * 3), []);
+  const trailLine = useMemo(() => {
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new BufferAttribute(trailPositions, 3));
+    geometry.setDrawRange(0, 0);
+    const material = new LineBasicMaterial({ color: theme.clay, transparent: true, opacity: 0.7 });
+    const line = new ThreeLine(geometry, material);
+    line.frustumCulled = false;
+    return line;
+  }, [trailPositions]);
+
   useEffect(() => {
     impact.current = onImpact;
   }, [onImpact]);
 
   useEffect(() => {
-    if (!placed.current || swingId === 0) return;
-    const action = actions[range.clip] ?? Object.values(actions)[0];
-    if (!action) return;
-    armClip(action, true);
-  }, [actions, swingId]);
+    onReady();
+  }, [onReady]);
 
-  useLayoutEffect(() => {
-    scene.traverse((node) => {
-      const mesh = node as Mesh;
-      if (mesh.isMesh) {
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        mesh.frustumCulled = false;
-      }
-    });
-    const action = actions[range.clip] ?? Object.values(actions)[0];
-    if (action && rig.current && !placed.current) {
-      placeRig(rig.current, scene, action);
-      placed.current = true;
-      onReady();
-    }
-  }, [actions, onReady, scene]);
+  useEffect(() => {
+    swingTime.current = 0;
+    sent.current = 0;
+    trail.current = [];
+  }, [swingId]);
 
-  useFrame((state) => {
-    const action = actions[range.clip] ?? Object.values(actions)[0];
-    if (action && scrub !== null) scrubFrame(action, scrub);
-    const leftBone = findBone(scene, "LeftHand");
-    const rightBone = findBone(scene, "RightHand");
-    if (leftBone && rightBone && club.current) {
-      scene.updateMatrixWorld(true);
-      aimClub(club.current, leftBone, rightBone);
-      if (headMark.current) {
-        clubheadPosition(leftBone, rightBone, head);
-        headMark.current.position.copy(head);
-      }
+  useFrame((state, delta) => {
+    const scrubbing = scrub !== null;
+    if (!scrubbing && !reduce && swingId > 0 && swingTime.current < SWING_END) {
+      swingTime.current = Math.min(SWING_END, swingTime.current + delta * (slow ? 0.25 : 1));
     }
-    if (!action || scrub !== null || swingId === 0 || sent.current === swingId) return;
-    if (action.time >= range.impactTime) {
+    const time = scrubbing ? scrub * SWING_END : reduce ? 0 : swingTime.current;
+    const pose = swingPose(time);
+    const parts: [Mesh | null, Vec, Vec][] = [
+      [bones.current.spine ?? null, pose.P, pose.S],
+      [bones.current.neck ?? null, pose.S, pose.neck],
+      [bones.current.shoulders ?? null, pose.leadSh, pose.trailSh],
+      [bones.current.hips ?? null, pose.leadHip, pose.trailHip],
+      [bones.current.lUp ?? null, pose.leadSh, pose.leadElbow],
+      [bones.current.lLo ?? null, pose.leadElbow, pose.leadWrist],
+      [bones.current.tUp ?? null, pose.trailSh, pose.trailElbow],
+      [bones.current.tLo ?? null, pose.trailElbow, pose.trailWrist],
+      [bones.current.lTh ?? null, pose.leadHip, pose.leadKnee],
+      [bones.current.lSh ?? null, pose.leadKnee, pose.leadAnkle],
+      [bones.current.tTh ?? null, pose.trailHip, pose.trailKnee],
+      [bones.current.tSh ?? null, pose.trailKnee, pose.trailAnkle],
+      [bones.current.lFoot ?? null, pose.leadAnkle, LEAD_TOE],
+      [bones.current.tFoot ?? null, pose.trailAnkle, TRAIL_TOE],
+    ];
+    for (const [mesh, from, to] of parts) if (mesh) setBone(mesh, from, to);
+    for (const name of jointNames) {
+      const mesh = joints.current[name];
+      if (mesh) setJoint(mesh, pose[name]);
+    }
+    if (headRing.current) {
+      headRing.current.position.set(pose.headPos.x, pose.headPos.y, pose.headPos.z);
+      headRing.current.lookAt(state.camera.position);
+    }
+    if (grip.current && shaft.current && clubHead.current && clubFace.current) {
+      drawDriver(grip.current, shaft.current, clubHead.current, clubFace.current, pose);
+    }
+    if (scrubbing) trail.current = [];
+    else if (!reduce && swingId > 0) {
+      trail.current.push(pose.head.clone());
+      if (trail.current.length > 16) trail.current.shift();
+    } else if (trail.current.length) trail.current.shift();
+    showTrail(trailLine, trailPositions, trail.current, pose.head);
+    if (reduce && swingId > 0 && sent.current !== swingId) {
+      sent.current = swingId;
+      impact.current(state.clock.elapsedTime);
+    }
+    if (scrubbing || reduce || swingId === 0 || sent.current === swingId) return;
+    if (time >= IMPACT_TIME) {
       sent.current = swingId;
       impact.current(state.clock.elapsedTime);
     }
   });
 
+  const boneMaterial = useMemo(() => new MeshBasicMaterial({ color: theme.paper }), []);
+  const jointMaterial = useMemo(() => new MeshBasicMaterial({ color: theme.clay }), []);
+
   return (
-    <>
-      <group ref={rig}>
-        <primitive object={scene} />
-        {debug ? <SkeletonDebug root={scene} /> : null}
-      </group>
-      <group ref={club}>
-        <Club />
-      </group>
-      {debug ? (
-        <mesh ref={headMark}>
-          <sphereGeometry args={[0.015, 10, 8]} />
-          <meshBasicMaterial color={theme.clay} />
+    <group>
+      {boneNames.map((name) => (
+        <mesh
+          key={name}
+          ref={(node) => {
+            bones.current[name] = node ?? undefined;
+          }}
+          material={boneMaterial}
+          frustumCulled={false}
+        >
+          <cylinderGeometry args={[0.012, 0.012, 1, 6]} />
         </mesh>
-      ) : null}
-    </>
+      ))}
+      {jointNames.map((name) => (
+        <mesh
+          key={name}
+          ref={(node) => {
+            joints.current[name] = node ?? undefined;
+          }}
+          material={jointMaterial}
+          frustumCulled={false}
+        >
+          <sphereGeometry args={[0.022, 10, 8]} />
+        </mesh>
+      ))}
+      <mesh ref={headRing} material={boneMaterial} frustumCulled={false}>
+        <torusGeometry args={[0.09, 0.013, 8, 28]} />
+      </mesh>
+      <mesh ref={grip} frustumCulled={false}>
+        <cylinderGeometry args={[0.0115, 0.0095, 1, 10]} />
+        <meshLambertMaterial color={theme.grip} />
+      </mesh>
+      <mesh ref={shaft} frustumCulled={false}>
+        <cylinderGeometry args={[0.0055, 0.0045, 1, 8]} />
+        <meshBasicMaterial color={theme.shaft} />
+      </mesh>
+      <mesh ref={clubHead} scale={[0.058, 0.031, 0.053]} frustumCulled={false}>
+        <sphereGeometry args={[1, 24, 16]} />
+        <meshStandardMaterial color={theme.ink} roughness={0.35} metalness={0.4} />
+      </mesh>
+      <mesh ref={clubFace} scale={[0.045, 0.024, 1]} frustumCulled={false}>
+        <circleGeometry args={[1, 24]} />
+        <meshStandardMaterial color={theme.muted} roughness={0.6} metalness={0.3} side={DoubleSide} />
+      </mesh>
+      <primitive object={trailLine} />
+    </group>
   );
 }
 
@@ -320,6 +359,7 @@ function FollowCamera({
 function World({
   swingId,
   scrub,
+  slow,
   debug,
   reduce,
   outcomes,
@@ -328,6 +368,7 @@ function World({
 }: {
   swingId: number;
   scrub: number | null;
+  slow: boolean;
   debug: boolean;
   reduce: boolean;
   outcomes: { [key: string]: ShotCopy };
@@ -341,6 +382,13 @@ function World({
     hold.current = null;
     if (tee.current) tee.current.visible = true;
   }, [swingId]);
+
+  useEffect(() => {
+    if (scrub !== null && scrub * SWING_END < IMPACT_TIME) {
+      hold.current = null;
+      if (tee.current) tee.current.visible = true;
+    }
+  }, [scrub]);
 
   const launch = (clock: number) => {
     const input = gentleStrike();
@@ -402,7 +450,7 @@ function World({
         </mesh>
       </group>
       <Suspense fallback={null}>
-        <Golfer swingId={swingId} scrub={scrub} debug={debug} onImpact={launch} onReady={onReady} />
+        <Golfer swingId={swingId} scrub={scrub} slow={slow} reduce={reduce} onImpact={launch} onReady={onReady} />
         <Markers />
       </Suspense>
       <Shot hold={hold} reduce={reduce} onLanded={landed} />
@@ -427,6 +475,7 @@ export function Golf3dRange({ outcomes }: { outcomes: { [key: string]: ShotCopy 
   const [webgl] = useState(supportsWebGL);
   const [swingId, setSwingId] = useState(0);
   const [scrub, setScrub] = useState<number | null>(null);
+  const [slow, setSlow] = useState(false);
   const debug = useMemo(() => typeof window !== "undefined" && window.location.search === "?debug", []);
   const [ready, setReady] = useState(false);
   const [panel, setPanel] = useState<Panel | null>(null);
@@ -483,6 +532,7 @@ export function Golf3dRange({ outcomes }: { outcomes: { [key: string]: ShotCopy 
           <World
             swingId={swingId}
             scrub={scrub}
+            slow={slow}
             debug={debug}
             reduce={reduce}
             outcomes={outcomes}
@@ -523,22 +573,30 @@ export function Golf3dRange({ outcomes }: { outcomes: { [key: string]: ShotCopy 
       >
         {theme.copy.swing}
       </button>
-      {debug ? (
-        <label className="mt-4 block text-sm">
-          <span>{theme.copy.scrub}</span>
-          <input
-            className="mt-2 w-full accent-clay"
-            type="range"
-            min={0}
-            max={1}
-            step={0.001}
-            value={scrub ?? 0}
-            onChange={(event) => setScrub(Number(event.target.value))}
-          />
-        </label>
-      ) : null}
+      <button
+        type="button"
+        className="ml-2 mt-4 rounded-full border border-line bg-card px-4 py-2 text-sm"
+        aria-pressed={slow}
+        onClick={() => setSlow((value) => !value)}
+      >
+        {theme.copy.slow}
+      </button>
+      <label className="mt-4 block text-sm">
+        <span>{theme.copy.scrub}</span>
+        <input
+          className="mt-2 w-full accent-clay"
+          type="range"
+          min={0}
+          max={1}
+          step={0.001}
+          value={scrub ?? 0}
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            setScrub(next);
+            if (next * SWING_END < IMPACT_TIME) setPanel(null);
+          }}
+        />
+      </label>
     </main>
   );
 }
-
-useGLTF.preload(range.model, false, true);

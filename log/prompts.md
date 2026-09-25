@@ -1302,3 +1302,30 @@ Check /golf-agent loads without errors. Don't use the built-in browser. Run the 
 ```
 Changed: Replaced the Golf Agent example with the real answer from 25 Sep 2026.
 Files: content/builds/golf-agent.md, log/prompts.md
+
+### 2026-09-25 15:53
+Prompt:
+```
+Bring the procedural golfer into the site's golf kit, replacing the Mixamo golfer. Work on main. Stop and tell me if anything fails.
+
+1. The reference is reference/golf-procedural.html (my prototype, signed off). Port its swing exactly into plain TypeScript modules in src/games/golf/, with no React or three.js inside the maths modules:
+   - the per-body-part key tables and the smooth interpolation (keep every number exactly)
+   - the pose solver (body frame, two-bone IK for arms and legs, elbow and knee directions, the finish blend, the club frame)
+   - the driver model (grip, shaft, head and face)
+
+2. Prove the port matches: write a test that loads the prototype's pose maths and the port side by side, samples every joint and the clubhead at 0, 0.3, 0.5, 0.75, 0.9, 0.98, 1.1 and 1.38 seconds, and checks they match within 1 mm.
+
+3. On /lab/golf3d: keep the current scene, sky, grass, mat, flags, camera and lighting. Replace the Mixamo golfer with the procedural skeleton, drawn in the prototype's style (off-white bones, clay-orange joints, head ring, the driver, the clubhead trail), using the settings in the brand config.
+
+4. Ball flight: at impact, launch the ball using the site's calibrated flight engine from src/games/golf/ (not the prototype's simple flight), with the clay-orange tracer. The result panel stays until a click or tap.
+
+5. Keep the Swing button, Slow motion and the swing scrubber. Reduced motion as before. The page stays hidden (noindex, unlinked).
+
+6. Clean up: delete public/games/golf/golfer.glb and every piece of Mixamo-specific code (conversion scripts, correction layer, grip solver, placement code). Leave the golf-correction-layer branch unmerged as a record. Remove *.fbx handling except the .gitignore entry.
+
+7. Don't use the built-in browser. Run the tests, a clean production build, the code check and gitleaks git -v, commit with "Golf kit: procedural golfer replaces Mixamo" and push to main.
+
+Tell me in plain English what changed, whether the match test passes, and what to look at.
+```
+Changed: Replaced the Mixamo golfer with the signed-off procedural swing, and the ball still uses the site's flight.
+Files: reference/golf-procedural.html, src/games/golf/swing-vec.ts, src/games/golf/swing-keys.ts, src/games/golf/swing-pose.ts, src/games/golf/swing-pose.test.ts, src/games/golf/swing-draw.ts, src/games/golf/range-play.ts, src/games/golf/settings.ts, src/games/golf/theme.ts, src/games/golf/place-check.test.ts, components/golf3d-range.tsx, public/games/golf/golfer.glb, log/prompts.md

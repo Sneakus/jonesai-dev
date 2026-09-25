@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Driving range prototype</title>
+<style>
+  :root {
+    --paper: #F3EFE6;
+    --ink: #161514;
+    --muted: #6B665E;
+    --clay: #E8480C;
+    --field: #EAE3D6;
+    --line: #D9D1C2;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #1C1B19; --ink: #F1ECE3; --muted: #A59F95; --field: #26241F; --line: #3A372F;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #1C1B19; --ink: #F1ECE3; --muted: #A59F95; --field: #26241F; --line: #3A372F;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  *, *::before, *::after { box-sizing: inherit; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 1040px; margin: 0 auto; padding: 28px 20px 48px; }
+  h1 { font-size: 1.5rem; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }
+  p.lede { margin: 0 0 18px; color: var(--muted); max-width: 62ch; line-height: 1.5; }
+  .stage {
+    position: relative; width: 100%; border-radius: 14px; overflow: hidden;
+    background: var(--field); border: 1px solid var(--line);
+  }
+  canvas { display: block; width: 100%; height: auto; touch-action: pan-y; }
+  .readout {
+    position: absolute; left: 14px; bottom: 12px; font-size: 0.85rem;
+    color: #F3EFE6; text-shadow: 0 1px 2px rgba(22,21,20,0.6); pointer-events: none;
+  }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
+  button {
+    font: inherit; font-size: 0.95rem; padding: 9px 18px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--paper); color: var(--ink); cursor: pointer;
+  }
+  button:hover { border-color: var(--muted); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--clay); outline-offset: 2px; }
+  button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .scrub { display: block; margin-top: 16px; font-size: 0.85rem; color: var(--muted); }
+  input[type="range"] { width: 100%; margin-top: 6px; accent-color: var(--clay); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Driving range</h1>
+  <p class="lede">Prototype: a golfer built entirely from swing positions. The body, both arms and the club all come from the same numbers, so the club stays in both hands and returns to the ball.</p>
+  <div class="stage" id="stage">
+    <canvas id="c" aria-label="A stick-figure golfer on a driving range"></canvas>
+    <div class="readout" id="readout" aria-live="polite"></div>
+  </div>
+  <div class="controls">
+    <button id="swing">Swing</button>
+    <button id="slow" aria-pressed="false">Slow motion</button>
+  </div>
+  <label class="scrub">Swing moment
+    <input id="scrub" type="range" min="0" max="1380" step="1" value="0">
+  </label>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  if (!window.THREE) { document.getElementById('readout').textContent = '3D could not load.'; return; }
+  var T = THREE;
+  var deg = Math.PI / 180;
+
+  // ---------- Colours ----------
+  var COL = {
+    paper: 0xF3EFE6, clay: 0xE8480C, ink: 0x161514,
+    skyTop: 0xD2743E, horizon: 0xE6D8C2,
+    grassA: '#3E4128', grassB: '#464A2F', mat: 0xA98A67, shaft: 0xD8D2C4
+  };
+
+  // ---------- Renderer, scene, camera ----------
+  var canvas = document.getElementById('c');
+  var stage = document.getElementById('stage');
+  var renderer;
+  try {
+    renderer = new T.WebGLRenderer({ canvas: canvas, antialias: true });
+  } catch (e) {
+    document.getElementById('readout').textContent = 'Your browser could not start 3D.';
+    return;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  var scene = new T.Scene();
+  scene.fog = new T.Fog(COL.horizon, 40, 380);
+  var camera = new T.PerspectiveCamera(50, 16 / 10, 0.05, 1200);
+  camera.position.set(-0.35, 1.55, 3.6);
+  camera.lookAt(-0.35, 0.2, -10);
+
+  function resize() {
+    var w = stage.clientWidth;
+    var h = w < 600 ? Math.round(w * 1.05) : Math.round(w * 0.62);
+    renderer.setSize(w, h, false);
+    canvas.style.height = h + 'px';
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+
+  // Sky dome
+  var sky = new T.Mesh(
+    new T.SphereGeometry(900, 32, 16),
+    new T.ShaderMaterial({
+      side: T.BackSide, depthWrite: false, fog: false,
+      uniforms: { top: { value: new T.Color(COL.skyTop) }, hor: { value: new T.Color(COL.horizon) } },
+      vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      fragmentShader: 'uniform vec3 top; uniform vec3 hor; varying vec3 vP; void main(){ float h = clamp(vP.y, 0.0, 1.0); gl_FragColor = vec4(mix(hor, top, smoothstep(0.0, 0.32, h)), 1.0); }'
+    })
+  );
+  scene.add(sky);
+
+  scene.add(new T.HemisphereLight(0xFFE7CC, 0x3E4128, 0.9));
+  var sun = new T.DirectionalLight(0xFFD2A8, 0.7);
+  sun.position.set(-30, 25, 20);
+  scene.add(sun);
+
+  // Ground with mowing stripes across the range
+  var gc = document.createElement('canvas'); gc.width = 4; gc.height = 256;
+  var gx = gc.getContext('2d');
+  gx.fillStyle = COL.grassA; gx.fillRect(0, 0, 4, 128);
+  gx.fillStyle = COL.grassB; gx.fillRect(0, 128, 4, 128);
+  var gTex = new T.CanvasTexture(gc);
+  gTex.wrapS = gTex.wrapT = T.RepeatWrapping;
+  gTex.repeat.set(1, 40);
+  var ground = new T.Mesh(new T.PlaneGeometry(800, 800), new T.MeshLambertMaterial({ map: gTex }));
+  ground.rotation.x = -Math.PI / 2;
+  scene.add(ground);
+
+  // Tee mat, tee and ball
+  var mat = new T.Mesh(new T.BoxGeometry(1.7, 0.02, 1.3), new T.MeshLambertMaterial({ color: COL.mat }));
+  mat.position.set(-0.55, 0.01, 0.2);
+  scene.add(mat);
+  var BALL_R = 0.0214;
+  var BALL_HOME = new T.Vector3(0, 0.046, 0);
+  var tee = new T.Mesh(new T.CylinderGeometry(0.004, 0.002, 0.03, 8), new T.MeshLambertMaterial({ color: 0xE9DCC3 }));
+  tee.position.set(0, 0.035, 0);
+  scene.add(tee);
+  var ball = new T.Mesh(new T.SphereGeometry(BALL_R, 16, 12), new T.MeshLambertMaterial({ color: 0xFFFFFF }));
+  ball.position.copy(BALL_HOME);
+  scene.add(ball);
+
+  // Flags and yardage boards down the range
+  function yardBoard(txt) {
+    var c = document.createElement('canvas'); c.width = 128; c.height = 64;
+    var x = c.getContext('2d');
+    x.fillStyle = '#F3EFE6'; x.fillRect(0, 0, 128, 64);
+    x.fillStyle = '#161514'; x.font = '600 36px system-ui, sans-serif';
+    x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(txt, 64, 34);
+    var s = new T.Sprite(new T.SpriteMaterial({ map: new T.CanvasTexture(c) }));
+    s.scale.set(4, 2, 1);
+    return s;
+  }
+  [[100, 6], [150, -9], [200, 4], [250, -6]].forEach(function (f) {
+    var z = -f[0] * 0.9144;
+    var pole = new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 3, 6), new T.MeshLambertMaterial({ color: 0xF3EFE6 }));
+    pole.position.set(f[1], 1.5, z); scene.add(pole);
+    var flag = new T.Mesh(new T.PlaneGeometry(1.4, 0.9), new T.MeshBasicMaterial({ color: COL.clay, side: T.DoubleSide }));
+    flag.position.set(f[1] + 0.7, 2.5, z); scene.add(flag);
+    var b = yardBoard(String(f[0])); b.position.set(f[1] > 0 ? -14 : 14, 1.2, z); scene.add(b);
+  });
+
+  // ---------- Swing definition ----------
+  // World: y up, target straight down -z. Right-handed golfer on the -x side, facing +x.
+  var CLUB = 1.12;
+  var dp = new T.Vector3(0.743, -0.669, 0).normalize();   // down the shaft plane, hands towards ball
+  var AWAY = new T.Vector3(0, 0, 1);                        // away from the target
+  function clubDirAt(gDeg) {
+    var g = gDeg * deg;
+    return dp.clone().multiplyScalar(Math.cos(g)).addScaledVector(AWAY, Math.sin(g)).normalize();
+  }
+  // The club's face centre sits just behind the ball at address and impact.
+  var CLUB_TARGET = BALL_HOME.clone().add(new T.Vector3(0, 0, 0.030));
+  var H_ADDR = CLUB_TARGET.clone().addScaledVector(clubDirAt(0), -CLUB);  // address
+  var H_IMP = CLUB_TARGET.clone().addScaledVector(clubDirAt(6), -CLUB);   // hands slightly ahead at impact
+
+  // Each body part has its own keys, so they move in the order a real golfer's do:
+  // in the downswing the hips turn first, then the chest, then the arms, and the club last.
+  // g = club angle in the shaft plane (0 = at the ball, 90 = pointing away from target,
+  // 180 = up the plane, 270 = at the target). sy / py = shoulder / pelvis turn in degrees
+  // (negative = turned away from the target). sb = shoulder side bend (lead shoulder higher).
+  var CH = {
+    g:    [[0, 0], [0.30, 90], [0.50, 175], [0.79, 268], [0.88, 215], [0.945, 95], [0.98, 6], [1.03, -90], [1.12, -175], [1.38, -250]],
+    H:    [[0, H_ADDR.toArray()], [0.30, [-0.88, 0.80, 0.40]], [0.50, [-0.84, 1.10, 0.66]], [0.76, [-0.93, 1.56, 0.47]],
+           [0.85, [-0.95, 1.37, 0.50]], [0.91, [-0.92, 1.10, 0.46]], [0.95, [-0.86, 0.88, 0.22]], [0.98, H_IMP.toArray()],
+           [1.04, [-0.80, 0.92, -0.30]], [1.14, [-1.045, 1.448, -0.516]], [1.38, [-1.018, 1.653, 0.233]]],
+    sy:   [[0, 0], [0.30, -25], [0.50, -50], [0.74, -92], [0.86, -65], [0.98, 20], [1.06, 55], [1.16, 85], [1.38, 110]],
+    py:   [[0, 0], [0.30, -10], [0.50, -25], [0.70, -45], [0.80, -30], [0.98, 40], [1.06, 55], [1.16, 70], [1.38, 88]],
+    P:    [[0, [-1.07, 0.88, 0.19]], [0.70, [-1.08, 0.89, 0.22]], [0.84, [-1.06, 0.86, 0.15]], [0.98, [-1.04, 0.88, 0.10]],
+           [1.10, [-0.97, 0.91, 0.05]], [1.38, [-0.90, 0.93, 0.01]]],
+    tilt: [[0, 38], [0.98, 39], [1.05, 34], [1.15, 22], [1.38, -6]],
+    sb:   [[0, 30], [0.30, 18], [0.50, 0], [0.76, 0], [0.88, 18], [0.98, 35], [1.06, 24], [1.18, 8], [1.38, 0]],
+    lift: [[0, 0], [0.98, 0.01], [1.06, 0.04], [1.18, 0.08], [1.38, 0.10]]
+  };
+  var IMPACT_T = 0.98, END_T = 1.38;
+
+  // Smooth cubic interpolation through every key, at rest at the start and the finish.
+  function sample(field, t) {
+    var K = CH[field], n = K.length;
+    function v(i) { return Array.isArray(K[i][1]) ? K[i][1] : [K[i][1]]; }
+    function m(i) {
+      if (i === 0 || i === n - 1) return v(i).map(function () { return 0; });
+      var a = v(i - 1), b = v(i + 1), dt = K[i + 1][0] - K[i - 1][0];
+      return a.map(function (_, k) { return (b[k] - a[k]) / dt; });
+    }
+    if (t <= K[0][0]) return v(0);
+    if (t >= K[n - 1][0]) return v(n - 1);
+    var i = 0;
+    while (i < n - 2 && t > K[i + 1][0]) i++;
+    var t0 = K[i][0], h = K[i + 1][0] - t0, s = (t - t0) / h;
+    var v0 = v(i), v1 = v(i + 1), m0 = m(i), m1 = m(i + 1);
+    var s2 = s * s, s3 = s2 * s;
+    var a = 2 * s3 - 3 * s2 + 1, b = s3 - 2 * s2 + s, c = -2 * s3 + 3 * s2, d = s3 - s2;
+    return v0.map(function (_, k) { return a * v0[k] + b * h * m0[k] + c * v1[k] + d * h * m1[k]; });
+  }
+
+  // Two-bone IK: root, target, lengths, pole point. Bone lengths never change.
+  function twoBone(root, target, l1, l2, pole) {
+    var toT = target.clone().sub(root);
+    var dist = toT.length();
+    var maxR = (l1 + l2) * 0.985, minR = Math.abs(l1 - l2) + 0.01;
+    var d = Math.min(Math.max(dist, minR), maxR);
+    var u = toT.normalize();
+    var cosA = (l1 * l1 + d * d - l2 * l2) / (2 * l1 * d);
+    var sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
+    var toP = pole.clone().sub(root);
+    var bend = toP.sub(u.clone().multiplyScalar(toP.dot(u)));
+    if (bend.lengthSq() < 1e-8) bend.set(0, -1, 0);
+    bend.normalize();
+    var mid = root.clone().addScaledVector(u, l1 * cosA).addScaledVector(bend, l1 * sinA);
+    var end = root.clone().addScaledVector(u, d);
+    return { mid: mid, end: end };
+  }
+
+  var Y = new T.Vector3(0, 1, 0);
+  var LEAD_ANKLE = new T.Vector3(-0.95, 0.07, -0.02), LEAD_TOE = new T.Vector3(-0.77, 0.02, -0.06);
+  var TRAIL_ANKLE0 = new T.Vector3(-0.95, 0.07, 0.44), TRAIL_TOE = new T.Vector3(-0.77, 0.02, 0.44);
+
+  function smoothstep(x) { x = Math.min(1, Math.max(0, x)); return x * x * (3 - 2 * x); }
+  function slerpVec(a, b, w) {
+    var d = Math.min(1, Math.max(-1, a.dot(b))), th = Math.acos(d);
+    if (th < 1e-4) return a.clone();
+    var s = Math.sin(th);
+    return a.clone().multiplyScalar(Math.sin((1 - w) * th) / s).addScaledVector(b, Math.sin(w * th) / s).normalize();
+  }
+  var GRIP_GAP = 0.06; // distance between the hands on the grip
+
+  function pose(t) {
+    var H = new T.Vector3().fromArray(sample('H', t));
+    var sy = sample('sy', t)[0] * deg;
+    var py = sample('py', t)[0] * deg;
+    var P = new T.Vector3().fromArray(sample('P', t));
+    var tilt = sample('tilt', t)[0] * deg;
+    var lift = sample('lift', t)[0];
+    var sb = sample('sb', t)[0] * deg;
+
+    // Body frame
+    // After impact the spine's lean turns with the hips, ending tall and leaning slightly back.
+    var turnK = 0.5 + 0.5 * smoothstep((t - IMPACT_T) / 0.15);
+    var fwd = new T.Vector3(1, 0, 0).applyAxisAngle(Y, Math.max(0, py) * turnK);
+    var spine = fwd.multiplyScalar(Math.sin(tilt)).addScaledVector(Y, Math.cos(tilt)).normalize();
+    var S = P.clone().addScaledVector(spine, 0.48);
+    var sLat = new T.Vector3(0, 0, -1).applyAxisAngle(spine, sy);
+    var chestF = new T.Vector3().crossVectors(sLat, spine).normalize();
+    sLat.applyAxisAngle(chestF, sb);
+    var chestFwd = new T.Vector3().crossVectors(sLat, spine).normalize(); // the way the chest faces
+    var leadSh = S.clone().addScaledVector(sLat, 0.17);
+    var trailSh = S.clone().addScaledVector(sLat, -0.17);
+    var pLat = new T.Vector3(0, 0, -1).applyAxisAngle(Y, py);
+    var leadHip = P.clone().addScaledVector(pLat, 0.10);
+    var trailHip = P.clone().addScaledVector(pLat, -0.10);
+    var headPos = S.clone().addScaledVector(spine, 0.26);
+    var neck = S.clone().addScaledVector(spine, 0.13);
+
+    // Club: turns round the swing plane, then settles across the neck in the finish
+    var gDeg = sample('g', t)[0];
+    var gr = gDeg * deg;
+    var clubDir = clubDirAt(gDeg);
+    var faceN = dp.clone().multiplyScalar(Math.sin(gr)).addScaledVector(AWAY, -Math.cos(gr)).normalize();
+    var finW = smoothstep((t - 1.10) / 0.28);
+    if (finW > 0) {
+      var acrossNeck = sLat.clone().multiplyScalar(-0.5).addScaledVector(chestFwd, -0.7).addScaledVector(Y, -0.5).normalize();
+      clubDir = slerpVec(clubDir, acrossNeck, finW);
+      faceN.addScaledVector(clubDir, -faceN.dot(clubDir)).normalize();
+    }
+    var eAx = new T.Vector3().crossVectors(clubDir, faceN).normalize();
+    var toe = clubDir.clone().multiplyScalar(Math.cos(42 * deg)).addScaledVector(eAx, Math.sin(42 * deg)).normalize();
+    var crown = new T.Vector3().crossVectors(toe, faceN).normalize();
+    var head = H.clone().addScaledVector(clubDir, CLUB);
+    var trailHand = H.clone().addScaledVector(clubDir, GRIP_GAP);
+    var hosel = head.clone().addScaledVector(toe, -0.05).addScaledVector(crown, 0.02).addScaledVector(faceN, -0.01);
+
+    // Arms. Up to impact the elbows point towards the hips; straight after impact both
+    // elbows point down, so the forearms make a narrow triangle up to the hands.
+    var w = Math.min(1, Math.max(0, (t - IMPACT_T) / 0.07));
+    // Lead elbow: down along the spine and out to the side. (Pointing it straight down made it flick
+    // at the finish, when the forearm itself points almost straight down.)
+    var leadPole = P.clone().lerp(leadSh.clone().addScaledVector(spine, -0.4).addScaledVector(sLat, 0.35), w);
+    var trailPole = P.clone().lerp(trailSh.clone().addScaledVector(Y, -0.6).addScaledVector(sLat, -0.10), w);
+    var leadArm = twoBone(leadSh, H, 0.31, 0.31, leadPole);
+    var trailArm = twoBone(trailSh, trailHand, 0.31, 0.31, trailPole);
+
+    // Legs. After impact the trail knee turns in towards the lead knee and the trail foot
+    // comes up onto its toe, with the top of the foot facing the target.
+    var fw = Math.min(1, lift / 0.10);
+    var trailAnkle = TRAIL_ANKLE0.clone().lerp(TRAIL_TOE.clone().add(new T.Vector3(-0.02, 0.17, -0.03)), fw);
+    var leadLeg = twoBone(leadHip, LEAD_ANKLE, 0.46, 0.44, leadHip.clone().add(new T.Vector3(0.7, -0.3, -0.15)));
+    var trailKneePole = trailHip.clone().add(new T.Vector3(0.7, -0.3, 0.15))
+      .lerp(trailHip.clone().addScaledVector(chestFwd, 0.6).addScaledVector(sLat, 0.1).addScaledVector(Y, -0.2), fw);
+    var trailLeg = twoBone(trailHip, trailAnkle, 0.46, 0.44, trailKneePole);
+
+    return {
+      H: H, head: head, clubDir: clubDir, faceN: faceN, toe: toe, crown: crown, hosel: hosel, S: S, P: P, neck: neck, headPos: headPos,
+      leadSh: leadSh, trailSh: trailSh, leadHip: leadHip, trailHip: trailHip,
+      leadElbow: leadArm.mid, leadWrist: leadArm.end, trailElbow: trailArm.mid, trailWrist: trailArm.end,
+      leadKnee: leadLeg.mid, leadAnkle: leadLeg.end, trailKnee: trailLeg.mid, trailAnkle: trailLeg.end
+    };
+  }
+
+  // ---------- Skeleton drawing ----------
+  var boneMat = new T.MeshBasicMaterial({ color: COL.paper });
+  var jointMat = new T.MeshBasicMaterial({ color: COL.clay });
+  var boneGeo = new T.CylinderGeometry(0.012, 0.012, 1, 6);
+  var jointGeo = new T.SphereGeometry(0.022, 10, 8);
+  var bones = [], joints = [];
+  function makeBone(r) {
+    var m = new T.Mesh(r ? new T.CylinderGeometry(r, r, 1, 6) : boneGeo, boneMat);
+    scene.add(m); bones.push(m); return m;
+  }
+  function makeJoint() { var m = new T.Mesh(jointGeo, jointMat); scene.add(m); joints.push(m); return m; }
+  var UP = new T.Vector3(0, 1, 0);
+  function setBone(m, a, b) {
+    var dir = b.clone().sub(a); var len = dir.length();
+    m.position.copy(a).addScaledVector(dir, 0.5);
+    m.scale.set(1, Math.max(len, 0.0001), 1);
+    m.quaternion.setFromUnitVectors(UP, dir.normalize());
+  }
+  var B = {
+    spine: makeBone(), neck: makeBone(), shoulders: makeBone(), hips: makeBone(),
+    lUp: makeBone(), lLo: makeBone(), tUp: makeBone(), tLo: makeBone(),
+    lTh: makeBone(), lSh: makeBone(), tTh: makeBone(), tSh: makeBone(),
+    lFoot: makeBone(), tFoot: makeBone()
+  };
+  var J = {};
+  ['leadSh', 'trailSh', 'leadElbow', 'trailElbow', 'leadWrist', 'trailWrist', 'leadHip', 'trailHip',
+   'leadKnee', 'trailKnee', 'leadAnkle', 'trailAnkle', 'P', 'S'].forEach(function (k) { J[k] = makeJoint(); });
+  var headRing = new T.Mesh(new T.TorusGeometry(0.09, 0.013, 8, 28), boneMat);
+  scene.add(headRing);
+
+  // Driver: thin shaft, darker grip, and a big rounded head (about 460cc).
+  var shaft = new T.Mesh(new T.CylinderGeometry(0.0055, 0.0045, 1, 8), new T.MeshBasicMaterial({ color: COL.shaft }));
+  scene.add(shaft);
+  var grip = new T.Mesh(new T.CylinderGeometry(0.0115, 0.0095, 1, 10), new T.MeshLambertMaterial({ color: 0x2A2825 }));
+  scene.add(grip);
+  var clubHead = new T.Mesh(new T.SphereGeometry(1, 24, 16), new T.MeshStandardMaterial({ color: 0x1E1D1B, roughness: 0.35, metalness: 0.4 }));
+  clubHead.scale.set(0.058, 0.031, 0.053);
+  scene.add(clubHead);
+  var faceGeo = new T.CircleGeometry(1, 24);
+  var clubFace = new T.Mesh(faceGeo, new T.MeshStandardMaterial({ color: 0x55524C, roughness: 0.6, metalness: 0.3, side: T.DoubleSide }));
+  clubFace.scale.set(0.045, 0.024, 1);
+  scene.add(clubFace);
+  var headBasis = new T.Matrix4();
+
+  // Clubhead trail
+  var TRAIL_N = 16;
+  var trailPts = [];
+  var trailGeo = new T.BufferGeometry();
+  trailGeo.setAttribute('position', new T.BufferAttribute(new Float32Array(TRAIL_N * 3), 3));
+  var trailLine = new T.Line(trailGeo, new T.LineBasicMaterial({ color: COL.clay, transparent: true, opacity: 0.7 }));
+  trailLine.frustumCulled = false;
+  scene.add(trailLine);
+
+  function drawPose(p) {
+    setBone(B.spine, p.P, p.S); setBone(B.neck, p.S, p.neck);
+    setBone(B.shoulders, p.leadSh, p.trailSh); setBone(B.hips, p.leadHip, p.trailHip);
+    setBone(B.lUp, p.leadSh, p.leadElbow); setBone(B.lLo, p.leadElbow, p.leadWrist);
+    setBone(B.tUp, p.trailSh, p.trailElbow); setBone(B.tLo, p.trailElbow, p.trailWrist);
+    setBone(B.lTh, p.leadHip, p.leadKnee); setBone(B.lSh, p.leadKnee, p.leadAnkle);
+    setBone(B.tTh, p.trailHip, p.trailKnee); setBone(B.tSh, p.trailKnee, p.trailAnkle);
+    setBone(B.lFoot, p.leadAnkle, LEAD_TOE); setBone(B.tFoot, p.trailAnkle, TRAIL_TOE);
+    Object.keys(J).forEach(function (k) { J[k].position.copy(p[k]); });
+    headRing.position.copy(p.headPos);
+    headRing.lookAt(camera.position);
+    // Club: grip in both hands, shaft down to the hosel, head sitting behind its face
+    var gripEnd = p.H.clone().addScaledVector(p.clubDir, -0.03);
+    var gripLow = p.H.clone().addScaledVector(p.clubDir, 0.24);
+    setBone(grip, gripEnd, gripLow);
+    setBone(shaft, gripLow, p.hosel);
+    headBasis.makeBasis(p.toe, p.crown, p.faceN.clone().negate());
+    clubHead.quaternion.setFromRotationMatrix(headBasis);
+    clubHead.position.copy(p.head).addScaledVector(p.faceN, -0.045);
+    clubFace.quaternion.copy(clubHead.quaternion);
+    clubFace.position.copy(p.head).addScaledVector(p.faceN, 0.009);
+  }
+
+  // ---------- Ball flight ----------
+  var TR_N = 600;
+  var tracerGeo = new T.BufferGeometry();
+  tracerGeo.setAttribute('position', new T.BufferAttribute(new Float32Array(TR_N * 3), 3));
+  tracerGeo.setDrawRange(0, 0);
+  var tracer = new T.Line(tracerGeo, new T.LineBasicMaterial({ color: COL.clay }));
+  tracer.frustumCulled = false;
+  scene.add(tracer);
+  var flight = null;
+
+  function launch() {
+    var aim = (Math.random() - 0.5) * 3 * deg;
+    var launchA = 12 * deg, v = 66 + Math.random() * 4;
+    flight = {
+      pos: BALL_HOME.clone(),
+      vel: new T.Vector3(Math.sin(aim) * v * Math.cos(launchA), Math.sin(launchA) * v, -Math.cos(aim) * v * Math.cos(launchA)),
+      side: (Math.random() - 0.5) * 5, // sideways curve, m/s^2
+      landed: false, stopped: false, count: 0, carry: 0
+    };
+    tracerGeo.setDrawRange(0, 0);
+    readout.textContent = '';
+  }
+  function stepFlight(dt) {
+    if (!flight || flight.stopped) return;
+    var f = flight;
+    var steps = 4, h = dt / steps;
+    for (var i = 0; i < steps; i++) {
+      if (!f.landed) {
+        f.vel.y -= 9.81 * h;
+        f.vel.x += f.side * h;
+        f.pos.addScaledVector(f.vel, h);
+        if (f.pos.y <= BALL_R) {
+          f.pos.y = BALL_R; f.landed = true;
+          f.carry = Math.hypot(f.pos.x, f.pos.z);
+          f.vel.set(f.vel.x * 0.3, 0, f.vel.z * 0.3);
+        }
+      } else {
+        var sp = Math.hypot(f.vel.x, f.vel.z);
+        var ns = Math.max(0, sp - 6 * h);
+        if (sp > 0) f.vel.multiplyScalar(ns / sp);
+        f.pos.addScaledVector(f.vel, h);
+        if (ns === 0) {
+          f.stopped = true;
+          var yds = Math.round(f.carry / 0.9144);
+          var off = Math.round(Math.abs(f.pos.x) / 0.9144);
+          readout.textContent = 'Carry ' + yds + ' yds' + (off > 0 ? ', ' + off + ' yds ' + (f.pos.x > 0 ? 'right' : 'left') : ', dead straight');
+        }
+      }
+    }
+    ball.position.copy(f.pos);
+    if (!f.landed && f.count < TR_N) {
+      tracerGeo.attributes.position.setXYZ(f.count, f.pos.x, f.pos.y, f.pos.z);
+      f.count++;
+      tracerGeo.attributes.position.needsUpdate = true;
+      tracerGeo.setDrawRange(0, f.count);
+    }
+  }
+
+  // ---------- Controls and loop ----------
+  var readout = document.getElementById('readout');
+  var swingBtn = document.getElementById('swing');
+  var slowBtn = document.getElementById('slow');
+  var scrub = document.getElementById('scrub');
+  var t = 0, playing = false, speed = 1;
+
+  swingBtn.addEventListener('click', function () {
+    t = 0; playing = true; trailPts = [];
+    flight = null; ball.position.copy(BALL_HOME); tracerGeo.setDrawRange(0, 0); readout.textContent = '';
+  });
+  slowBtn.addEventListener('click', function () {
+    var on = slowBtn.getAttribute('aria-pressed') !== 'true';
+    slowBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    speed = on ? 0.25 : 1;
+  });
+  scrub.addEventListener('input', function () {
+    playing = false; t = scrub.value / 1000; trailPts = [];
+    if (t < IMPACT_T) { flight = null; ball.position.copy(BALL_HOME); tracerGeo.setDrawRange(0, 0); }
+  });
+
+  function updateTrail(p, active) {
+    if (active) { trailPts.push(p.head.clone()); if (trailPts.length > TRAIL_N) trailPts.shift(); }
+    else if (trailPts.length) trailPts.shift();
+    var attr = trailGeo.attributes.position;
+    for (var i = 0; i < TRAIL_N; i++) {
+      var q = trailPts[Math.min(i, trailPts.length - 1)] || p.head;
+      attr.setXYZ(i, q.x, q.y, q.z);
+    }
+    attr.needsUpdate = true;
+    trailGeo.setDrawRange(0, trailPts.length);
+  }
+
+  var last = performance.now();
+  var visible = true;
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (e) { visible = e[0].isIntersecting; }).observe(stage);
+  }
+  function loop(now) {
+    requestAnimationFrame(loop);
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!visible || document.hidden) return;
+    var prev = t;
+    if (playing) {
+      t += dt * speed;
+      if (prev < IMPACT_T && t >= IMPACT_T) launch();
+      if (t >= END_T) { t = END_T; playing = false; }
+      scrub.value = Math.round(t * 1000);
+    }
+    var p = pose(t);
+    drawPose(p);
+    updateTrail(p, playing);
+    stepFlight(dt * speed);
+    renderer.render(scene, camera);
+  }
+  resize();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

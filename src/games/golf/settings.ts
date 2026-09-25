@@ -75,19 +75,8 @@ export const outcomeSettings = {
 
 /** Numbers for the 3D range. Colours and words live in theme.ts. */
 export const rangeSettings = {
-  model: "/games/golf/golfer.glb",
-  /** Three drops the colon from the Mixamo names. Left hand is the top hand. */
-  leftHand: "mixamorig12LeftHand",
-  rightHand: "mixamorig12RightHand",
-  clip: "Armature|mixamo.com|Layer0",
-  /** Seconds into the clip when the hands are lowest on the way through. */
-  impactTime: 0.984,
-  /** How far the top of the grip sits above the left hand, along the shaft. */
-  gripOffset: 0.04,
-  gripLength: 0.24,
-  shaftLength: 0.67,
-  /** Ball on the tee. The range runs toward -Z. */
-  ball: [0, 0.04, 0] as [number, number, number],
+  /** Ball on the tee. The range runs toward -Z. Matches the signed-off swing. */
+  ball: [0, 0.046, 0] as [number, number, number],
   cameraHome: [0, 1.5, 3.5] as [number, number, number],
   cameraLook: [0, 0.8, -16.5] as [number, number, number],
   yards: [100, 150, 200, 250, 300],
