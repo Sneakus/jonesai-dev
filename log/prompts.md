@@ -1280,3 +1280,25 @@ Tell me in plain English what was wrong, and paste the printed checks.
 ```
 Changed: Stopped before committing. The hip movement is now in centimetres, but the feet, the trail hand and the clubhead still fail the swing checks.
 Files: public/games/golf/golfer.glb, src/games/golf/range-play.ts, components/golf3d-range.tsx, src/games/golf/place-check.test.ts, log/prompts.md
+
+### 2026-09-25 03:12
+Prompt:
+```
+In content/builds/golf-agent.md, replace the whole example block in the frontmatter with this, exactly as written. Change nothing else.
+
+example:
+  label: One of my test questions, in my own words
+  question: "3w shot where ball was beneath my feet ended up in a slice wide right"
+  answerLabel: What it said back (a real answer, 25 Sep 2026)
+  answer:
+    - "What happened: A ball-below-feet sidehill lie naturally promotes a slice with a fairway wood."
+    - "Before your next shot:"
+    - "- Aim left to allow for the right curve."
+    - "- Flex your knees more at address to get down to the ball."
+    - "- Hold the club near the end of the grip, ball is further away."
+    - "Swing thought: Feel the same height through the ball, no rising up."
+
+Check /golf-agent loads without errors. Don't use the built-in browser. Run the code check and gitleaks git -v, commit with "Golf Agent: updated real example" and push to main.
+```
+Changed: Replaced the Golf Agent example with the real answer from 25 Sep 2026.
+Files: content/builds/golf-agent.md, log/prompts.md
