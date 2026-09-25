@@ -25,10 +25,30 @@ export type AirShot = {
   slow: string[];
 };
 
+export type RangeWords = {
+  hint: string;
+  play: string;
+  done: string;
+  perfect: string;
+  perfectName: string;
+  longest: string;
+  balance: string;
+  close: string;
+  carry: string;
+  noContact: string;
+  onLine: string;
+  also: string;
+  letDown: string;
+  onRange: string;
+  purity: string;
+  pureTail: string;
+};
+
 export type GolfRangeCopy = {
   good: GoodShot[];
   faults: FaultShot[];
   air: AirShot;
+  words: RangeWords;
 };
 
 function asRecord(value: FrontmatterValue | undefined): { [key: string]: FrontmatterValue } | null {
@@ -96,5 +116,23 @@ export function readGolfRange(): GolfRangeCopy {
   if (!air) {
     throw new Error("content/golf-range.md is missing the air shot");
   }
-  return { good, faults, air };
+  const words: RangeWords = {
+    hint: asString(data.hint),
+    play: asString(data.play),
+    done: asString(data.done),
+    perfect: asString(data.perfect),
+    perfectName: asString(data.perfectName),
+    longest: asString(data.longest),
+    balance: asString(data.balance),
+    close: asString(data.close),
+    carry: asString(data.carry),
+    noContact: asString(data.noContact),
+    onLine: asString(data.onLine),
+    also: asString(data.also),
+    letDown: asString(data.letDown),
+    onRange: asString(data.onRange),
+    purity: asString(data.purity),
+    pureTail: asString(data.pureTail),
+  };
+  return { good, faults, air, words };
 }

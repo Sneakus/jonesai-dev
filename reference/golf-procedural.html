@@ -42,6 +42,40 @@
     position: absolute; left: 14px; bottom: 12px; font-size: 0.85rem;
     color: #F3EFE6; text-shadow: 0 1px 2px rgba(22,21,20,0.6); pointer-events: none;
   }
+  #overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .hint {
+    position: absolute; left: 14px; top: 12px; margin: 0; max-width: 60%;
+    font-size: 0.85rem; color: #F3EFE6; text-shadow: 0 1px 2px rgba(22,21,20,0.6); pointer-events: none;
+  }
+  .stats {
+    position: absolute; left: 14px; top: 12px; margin: 0; font-size: 0.85rem; font-weight: 600;
+    color: #F3EFE6; text-shadow: 0 1px 2px rgba(22,21,20,0.6); pointer-events: none;
+  }
+  .hint { top: 34px !important; }
+  .live {
+    position: absolute; left: 50%; top: 18%; transform: translateX(-50%); margin: 0;
+    font-size: 1.6rem; font-weight: 600; color: #F3EFE6; text-shadow: 0 2px 6px rgba(22,21,20,0.5); pointer-events: none;
+  }
+  .perfect {
+    position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); margin: 0;
+    font-size: 2.4rem; font-weight: 700; letter-spacing: 0.02em; color: #E8480C;
+    text-shadow: 0 2px 10px rgba(243,239,230,0.8); pointer-events: none;
+  }
+  .perfect[hidden] { display: none; }
+  .result .r-check { color: #6B665E; font-size: 0.82rem; }
+  .result .r-fix span, .result .r-tip span { font-weight: 600; }
+  .result .r-fix2 { color: #6B665E; }
+  .result {
+    position: absolute; left: 12px; bottom: 12px; max-width: min(360px, calc(100% - 24px));
+    background: rgba(243,239,230,0.94); color: #161514; border-radius: 12px; padding: 12px 14px;
+    box-shadow: 0 2px 12px rgba(22,21,20,0.2); cursor: pointer; font-size: 0.9rem; line-height: 1.4;
+  }
+  .result[hidden] { display: none; }
+  .result p { margin: 0 0 6px; }
+  .result .r-name { font-weight: 600; font-size: 1.05rem; }
+  .result .r-dist { color: #6B665E; }
+  .result .r-tip span { font-weight: 600; }
+  .result .r-close { margin: 4px 0 0; font-size: 0.75rem; color: #6B665E; }
   .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
   button {
     font: inherit; font-size: 0.95rem; padding: 9px 18px; border-radius: 999px;
@@ -57,10 +91,16 @@
 <body>
 <main>
   <h1>Driving range</h1>
-  <p class="lede">Prototype: a golfer built entirely from swing positions. The body, both arms and the club all come from the same numbers, so the club stays in both hands and returns to the ball.</p>
+  <p class="lede">Prototype: press and drag down to take the club back, then swipe up through the ball. How far back, how fast, which way and how your swipe curls all change the shot.</p>
   <div class="stage" id="stage">
-    <canvas id="c" aria-label="A stick-figure golfer on a driving range"></canvas>
-    <div class="readout" id="readout" aria-live="polite"></div>
+    <canvas id="c" aria-label="Driving range game. Press and drag down to swing back, then swipe up through the ball."></canvas>
+    <canvas id="overlay" aria-hidden="true"></canvas>
+    <p class="hint" id="hint">Press when the balance marker crosses the gold bullseye, drag down into the gold band, then swipe up through the ball.</p>
+    <p class="stats" id="stats">Longest drive: none yet</p>
+    <p class="live" id="live" aria-hidden="true"></p>
+    <p class="perfect" id="perfect" aria-hidden="true" hidden>Perfect</p>
+    <div class="result" id="result" role="status" aria-live="polite" hidden></div>
+    <div class="readout" id="readout"></div>
   </div>
   <div class="controls">
     <button id="swing">Swing</button>
@@ -259,14 +299,37 @@
   }
   var GRIP_GAP = 0.06; // distance between the hands on the grip
 
-  function pose(t) {
-    var H = new T.Vector3().fromArray(sample('H', t));
-    var sy = sample('sy', t)[0] * deg;
-    var py = sample('py', t)[0] * deg;
-    var P = new T.Vector3().fromArray(sample('P', t));
-    var tilt = sample('tilt', t)[0] * deg;
-    var lift = sample('lift', t)[0];
-    var sb = sample('sb', t)[0] * deg;
+  function bell(t, c, w) { var x = (t - c) / w; return Math.exp(-x * x); }
+
+  // mods (all optional): from/fromW = blend in from a paused backswing moment; over = overswing 0..1;
+  // pathDeg (+ = out to the right), faceDeg (+ = open), dy (strike height offset, m), dToe (m), bal (0..1 off balance)
+  function pose(t, mods) {
+    var M = mods || {};
+    function ch(name) {
+      var v = sample(name, t);
+      if (M.from != null && M.fromW < 1) {
+        var a = sample(name, M.from);
+        v = a.map(function (x, k) { return x + (v[k] - x) * M.fromW; });
+      }
+      return v;
+    }
+    var over = (M.over || 0) * (M.from != null ? 1 - M.fromW : 1); // overswing eases out through the downswing
+    var H = new T.Vector3().fromArray(ch('H'));
+    var sy = (ch('sy')[0] - 10 * over) * deg;
+    var py = ch('py')[0] * deg;
+    var P = new T.Vector3().fromArray(ch('P'));
+    // Balance: the whole body sways with the balance marker, and a bad balance carries on into the finish
+    if (M.sway) { P.x += M.sway.x; P.z += M.sway.z; }
+    var fall = M.fall || { x: -1, z: 0 };
+    var afterImpact = smoothstep((t - IMPACT_T) / 0.4) * (M.bal || 0);
+    P.x += 0.12 * afterImpact * fall.x;
+    P.z += 0.12 * afterImpact * fall.z;
+    var tilt = (ch('tilt')[0] + (fall.x < 0 ? -12 : 8) * afterImpact) * deg;
+    var lift = ch('lift')[0] * (1 - 0.7 * afterImpact);
+    var sb = ch('sb')[0] * deg;
+    H.y += 0.05 * over;
+    // Swing path shows in the transition: over the top pushes the hands out, from the inside drops them in
+    H.x += -(M.pathDeg || 0) * 0.007 * bell(t, 0.90, 0.035);
 
     // Body frame
     // After impact the spine's lean turns with the hips, ending tall and leaning slightly back.
@@ -287,7 +350,7 @@
     var neck = S.clone().addScaledVector(spine, 0.13);
 
     // Club: turns round the swing plane, then settles across the neck in the finish
-    var gDeg = sample('g', t)[0];
+    var gDeg = ch('g')[0] + 20 * over;
     var gr = gDeg * deg;
     var clubDir = clubDirAt(gDeg);
     var faceN = dp.clone().multiplyScalar(Math.sin(gr)).addScaledVector(AWAY, -Math.cos(gr)).normalize();
@@ -300,6 +363,12 @@
     var eAx = new T.Vector3().crossVectors(clubDir, faceN).normalize();
     var toe = clubDir.clone().multiplyScalar(Math.cos(42 * deg)).addScaledVector(eAx, Math.sin(42 * deg)).normalize();
     var crown = new T.Vector3().crossVectors(toe, faceN).normalize();
+    // Strike: how the club arrives at the ball (face open or shut, high or low, heel or toe)
+    var wI = bell(t, IMPACT_T, 0.03);
+    var twist = (M.faceDeg || 0) * 2 * deg * bell(t, IMPACT_T, 0.05);
+    if (twist) { faceN.applyAxisAngle(clubDir, -twist); toe.applyAxisAngle(clubDir, -twist); crown.applyAxisAngle(clubDir, -twist); }
+    H.y += (M.dy || 0) * wI;
+    H.addScaledVector(toe, (M.dToe || 0) * wI);
     var head = H.clone().addScaledVector(clubDir, CLUB);
     var trailHand = H.clone().addScaledVector(clubDir, GRIP_GAP);
     var hosel = head.clone().addScaledVector(toe, -0.05).addScaledVector(crown, 0.02).addScaledVector(faceN, -0.01);
@@ -332,8 +401,8 @@
   }
 
   // ---------- Skeleton drawing ----------
-  var boneMat = new T.MeshBasicMaterial({ color: COL.paper });
-  var jointMat = new T.MeshBasicMaterial({ color: COL.clay });
+  var boneMat = new T.MeshBasicMaterial({ color: 0x3D7FE0 });
+  var jointMat = new T.MeshBasicMaterial({ color: 0x0E9A55 });
   var boneGeo = new T.CylinderGeometry(0.012, 0.012, 1, 6);
   var jointGeo = new T.SphereGeometry(0.022, 10, 8);
   var bones = [], joints = [];
@@ -358,7 +427,7 @@
   var J = {};
   ['leadSh', 'trailSh', 'leadElbow', 'trailElbow', 'leadWrist', 'trailWrist', 'leadHip', 'trailHip',
    'leadKnee', 'trailKnee', 'leadAnkle', 'trailAnkle', 'P', 'S'].forEach(function (k) { J[k] = makeJoint(); });
-  var headRing = new T.Mesh(new T.TorusGeometry(0.09, 0.013, 8, 28), boneMat);
+  var headRing = new T.Mesh(new T.TorusGeometry(0.09, 0.013, 8, 28), jointMat);
   scene.add(headRing);
 
   // Driver: thin shaft, darker grip, and a big rounded head (about 460cc).
@@ -408,7 +477,7 @@
   }
 
   // ---------- Ball flight ----------
-  var TR_N = 600;
+  var TR_N = 900;
   var tracerGeo = new T.BufferGeometry();
   tracerGeo.setAttribute('position', new T.BufferAttribute(new Float32Array(TR_N * 3), 3));
   tracerGeo.setDrawRange(0, 0);
@@ -417,47 +486,110 @@
   scene.add(tracer);
   var flight = null;
 
-  function launch() {
-    var aim = (Math.random() - 0.5) * 3 * deg;
-    var launchA = 12 * deg, v = 66 + Math.random() * 4;
-    flight = {
-      pos: BALL_HOME.clone(),
-      vel: new T.Vector3(Math.sin(aim) * v * Math.cos(launchA), Math.sin(launchA) * v, -Math.cos(aim) * v * Math.cos(launchA)),
-      side: (Math.random() - 0.5) * 5, // sideways curve, m/s^2
-      landed: false, stopped: false, count: 0, carry: 0
-    };
-    tracerGeo.setDrawRange(0, 0);
-    readout.textContent = '';
+  // Words: tips are plain-English versions of AJ's Golf Agent notes (content/golf-range.md)
+  var SHOTS = {
+    'straight':   { name: 'Straight', cause: 'Smooth tempo, and your swipe came straight back up through where you started.' },
+    'draw':       { name: 'Draw', cause: 'A slight curl left at the end of your swipe closed the face a touch.' },
+    'fade':       { name: 'Fade', cause: 'A slight curl right at the end of your swipe opened the face a touch.' },
+    'pull':       { name: 'Pull', cause: 'You swiped up and to the left with no curl, so it started left and stayed left.', tip: "Check where you're aiming before changing your swing. This one is usually an aim problem." },
+    'push':       { name: 'Push', cause: 'You swiped up and to the right with no curl, so it started right and stayed right.', tip: "Check where you're aiming first." },
+    'slice':      { name: 'Slice', cause: 'You swiped up and to the left, then curled right: across the ball with the face open.', tip: 'Feel the clubhead swing out to the right of the target as it hits the ball.' },
+    'pull-slice': { name: 'Pull-slice', cause: 'You swiped well up and to the left and curled right, so it started left and bent right.', tip: "Swing more out to the right, but keep the clubface pointing at the target, or it'll just fly straight left instead." },
+    'push-slice': { name: 'Push-slice', cause: 'Your swipe curled right at the end, so the face was open: it started right and kept going.', tip: 'Let the clubface close a little earlier as you hit the ball.' },
+    'hook':       { name: 'Hook', cause: 'Your swipe curled left at the end, shutting the face.', tip: 'Keep your chest turning through the ball, instead of letting your hands flick it.' },
+    'heel':       { name: 'Heel strike', cause: 'Your swipe came back up left of where you started, so you caught it near the heel.', tip: "Check how far you're standing from the ball before you change anything in your swing." },
+    'toe':        { name: 'Toe strike', cause: 'Your swipe came back up right of where you started, so you caught it out on the toe.', tip: 'Keep your chest turning through, instead of pulling your arms in.' },
+    'fat':        { name: 'Fat', cause: 'You slowed down or let go on the way up, so the club hit the ground first.', tip: 'Get your hands slightly ahead of the club as you hit the ball.' },
+    'thin':       { name: 'Thin', cause: 'You rushed the downswing and caught the middle of the ball.', tip: 'Feel the club brush the grass just after the ball.' },
+    'topped':     { name: 'Topped', cause: 'You snatched at it, far too fast, and only caught the top of the ball.', tip: 'Keep your chest over the ball as you hit it.' },
+    'air-shot':   { name: 'Air shot', cause: 'Your swipe missed the ball completely.' }
+  };
+  var GOOD_MSG = {
+    'straight': ['Pure. Frame that one.', 'Right down the middle.'],
+    'draw': ['A tidy little draw.'],
+    'fade': ['A gentle fade. Very controlled.']
+  };
+  var AIR_MSG = {
+    hard: ["Swung like you meant it. The ball didn't notice. Try easing off a bit.", "Big swing, no contact. Golf isn't a strength contest.", "All that effort and it's still on the tee. Swing at 80% and watch what happens."],
+    normal: ['Missed it. Happens to the best of us. Mostly to the rest of us.', 'The ball is still sat there, judging you.'],
+    slow: ['Was that a practice swing? Give it a proper go.', 'Gentle. Too gentle. Commit to it.', "The ball will wait, but it won't move itself. Swing through it."]
+  };
+  var lastMsg = {};
+  function pick(list, key) {
+    if (list.length === 1) return list[0];
+    var m;
+    do { m = list[Math.floor(Math.random() * list.length)]; } while (m === lastMsg[key]);
+    lastMsg[key] = m; return m;
   }
+
+  function classify(sh) {
+    if (sh.strike === 'air') return 'air-shot';
+    if (sh.contact === 'top') return 'topped';
+    if (sh.contact === 'thin') return 'thin';
+    if (sh.contact === 'fat') return 'fat';
+    if (sh.strike === 'heel') return 'heel';
+    if (sh.strike === 'toe') return 'toe';
+    var start = 0.85 * sh.face + 0.15 * sh.path, curve = sh.face - sh.path;
+    if (curve > 6) return start < -3 ? 'pull-slice' : (start > 3 ? 'push-slice' : 'slice');
+    if (curve < -6) return 'hook';
+    if (start < -4) return 'pull';
+    if (start > 4) return 'push';
+    if (curve >= 2.5) return 'fade';
+    if (curve <= -2.5) return 'draw';
+    return 'straight';
+  }
+
+  function launch(sh) {
+    sh.key = classify(sh);
+    tracerGeo.setDrawRange(0, 0);
+    showImpact(sh);
+    if (sh.strike === 'air') { flight = null; return; }
+    var smash = sh.strike === 'center' ? 1.48 : 1.36, launchDeg = 12, mph = sh.clubMph, top = sh.contact === 'top';
+    if (sh.contact === 'fat') { mph *= 0.65; smash = 1.1; launchDeg = 18; }
+    else if (sh.contact === 'thin') { smash = Math.min(smash, 1.33); launchDeg = 5; }
+    var v = top ? 10 + Math.random() * 4 : mph * 0.447 * smash;
+    var start = (0.85 * sh.face + 0.15 * sh.path) * deg, la = (top ? 1 : launchDeg) * deg;
+    var curveMul = (sh.contact === 'clean') ? 1 : 0.4;
+    flight = {
+      sh: sh,
+      pos: BALL_HOME.clone(),
+      vel: new T.Vector3(Math.sin(start) * Math.cos(la) * v, Math.sin(la) * v, -Math.cos(start) * Math.cos(la) * v),
+      side: ((sh.face - sh.path) * 0.85 + (sh.strike === 'heel' ? 2.5 : sh.strike === 'toe' ? -2.5 : 0)) * curveMul,
+      lift: !top,
+      landed: top, stopped: false, count: 0, carry: 0, time: 0
+    };
+  }
+
   function stepFlight(dt) {
     if (!flight || flight.stopped) return;
     var f = flight;
-    var steps = 4, h = dt / steps;
+    var steps = 6, h = dt / steps;
     for (var i = 0; i < steps; i++) {
+      f.time += h;
       if (!f.landed) {
-        f.vel.y -= 9.81 * h;
-        f.vel.x += f.side * h;
-        f.pos.addScaledVector(f.vel, h);
-        if (f.pos.y <= BALL_R) {
+        var v = f.vel, sp = v.length(), hs = Math.hypot(v.x, v.z) || 1;
+        var ax = -0.0011 * sp * v.x + f.side * (-v.z / hs) * (f.time < 6 ? 1 : 0);
+        var az = -0.0011 * sp * v.z + f.side * (v.x / hs) * (f.time < 6 ? 1 : 0);
+        var ay = -9.81 - 0.0011 * sp * v.y + (f.lift ? 0.00055 * (v.x * v.x + v.z * v.z) : 0);
+        v.x += ax * h; v.y += ay * h; v.z += az * h;
+        f.pos.addScaledVector(v, h);
+        if (f.pos.y <= BALL_R && f.time > 0.05) {
           f.pos.y = BALL_R; f.landed = true;
           f.carry = Math.hypot(f.pos.x, f.pos.z);
-          f.vel.set(f.vel.x * 0.3, 0, f.vel.z * 0.3);
+          f.vel.set(f.vel.x * 0.35, 0, f.vel.z * 0.35);
         }
       } else {
-        var sp = Math.hypot(f.vel.x, f.vel.z);
-        var ns = Math.max(0, sp - 6 * h);
-        if (sp > 0) f.vel.multiplyScalar(ns / sp);
+        var s2 = Math.hypot(f.vel.x, f.vel.z);
+        var ns = Math.max(0, s2 - (f.sh.contact === 'top' ? 3 : 5) * h);
+        if (s2 > 0) { f.vel.x *= ns / s2; f.vel.z *= ns / s2; }
+        f.vel.y = 0; f.pos.y = BALL_R;
         f.pos.addScaledVector(f.vel, h);
-        if (ns === 0) {
-          f.stopped = true;
-          var yds = Math.round(f.carry / 0.9144);
-          var off = Math.round(Math.abs(f.pos.x) / 0.9144);
-          readout.textContent = 'Carry ' + yds + ' yds' + (off > 0 ? ', ' + off + ' yds ' + (f.pos.x > 0 ? 'right' : 'left') : ', dead straight');
-        }
+        if (ns === 0) { f.stopped = true; updateDistance(f, true); break; }
       }
     }
     ball.position.copy(f.pos);
-    if (!f.landed && f.count < TR_N) {
+    if (!f.stopped) { liveEl.textContent = Math.round(Math.hypot(f.pos.x, f.pos.z) / 0.9144) + ' yds'; updateDistance(f, false); }
+    if (f.count < TR_N && (!f.landed || f.sh.contact === 'top')) {
       tracerGeo.attributes.position.setXYZ(f.count, f.pos.x, f.pos.y, f.pos.z);
       f.count++;
       tracerGeo.attributes.position.needsUpdate = true;
@@ -465,16 +597,97 @@
     }
   }
 
-  // ---------- Controls and loop ----------
-  var readout = document.getElementById('readout');
+  // ---------- Result panel ----------
+  var panel = document.getElementById('result');
+  var statsEl = document.getElementById('stats'), liveEl = document.getElementById('live'), perfectEl = document.getElementById('perfect');
+  var longest = 0, slowMo = false;
+  var distEl = null;
+  // Shown the instant the club meets the ball: what happened, what let it down, what to do next time
+  function showImpact(sh) {
+    var info = SHOTS[sh.key];
+    var lines = '<p class="r-name">' + (sh.perfect ? 'Perfect strike' : info.name) + '</p>';
+    lines += '<p class="r-dist" id="rdist">' + (sh.strike === 'air' ? 'No contact' : 'Carry ... ') + '</p>';
+    if (sh.perfect) {
+      lines += '<p class="r-cause">Everything lined up: balance, length, tempo, path, face and strike. This one was ' + Math.round(sh.purity * 100) + '% pure.</p>';
+    } else {
+      lines += '<p class="r-cause">' + info.cause + '</p>';
+      if (sh.letDown && sh.letDown.length) {
+        lines += '<p class="r-fix"><span>What let it down:</span> ' + sh.letDown[0].what + ' ' + sh.letDown[0].fix + '</p>';
+        if (sh.letDown[1]) lines += '<p class="r-fix2">Also: ' + sh.letDown[1].what + '</p>';
+      }
+    }
+    if (sh.key === 'air-shot') lines += '<p class="r-tip">' + pick(AIR_MSG[sh.speedTier], 'air-' + sh.speedTier) + '</p>';
+    else if (GOOD_MSG[sh.key] && !sh.perfect) lines += '<p class="r-tip">' + pick(GOOD_MSG[sh.key], sh.key) + '</p>';
+    else if (info.tip) lines += '<p class="r-tip"><span>On a real range:</span> ' + info.tip + '</p>';
+    if (sh.checks && !sh.perfect) {
+      var n = Object.keys(sh.checks).filter(function (k) { return sh.checks[k]; }).length;
+      lines += '<p class="r-check">' + n + ' of 6 perfect: ' + Object.keys(sh.checks).map(function (k) { return (sh.checks[k] ? '\u2713 ' : '\u2717 ') + k; }).join(', ') + '</p>';
+    }
+    panel.innerHTML = lines + '<p class="r-close">Tap to close</p>';
+    panel.hidden = false;
+    distEl = document.getElementById('rdist');
+  }
+  function updateDistance(f, done) {
+    if (!distEl || !f) return;
+    var total = Math.round(Math.hypot(f.pos.x, f.pos.z) / 0.9144);
+    var carry = f.sh.contact === 'top' ? 0 : Math.round((f.landed ? f.carry : Math.hypot(f.pos.x, f.pos.z)) / 0.9144);
+    var off = Math.round(Math.abs(f.pos.x) / 0.9144);
+    var side = off > 1 ? ', ' + off + ' yds ' + (f.pos.x > 0 ? 'right' : 'left') : ', on line';
+    distEl.textContent = (f.sh.contact === 'top' ? 'Rolled ' + total + ' yds' : 'Carry ' + carry + ' yds' + (f.landed ? ', total ' + total + ' yds' : '')) + (done ? side : '');
+    if (done) {
+      if (total > longest) { longest = total; statsEl.textContent = 'Longest drive: ' + longest + ' yds'; }
+      liveEl.textContent = '';
+    }
+  }
+  panel.addEventListener('click', function () { panel.hidden = true; });
+
+  // ---------- Balance marker ----------
+  // A top-down "dartboard": the marker swings round the bullseye like a loose pendulum.
+  // Where it is when you press is where the golfer's weight is for the whole swing.
+  // Marker left = weight on his right (trail) side, marker down = weight back on his heels.
+  // The marker swings back and forth through the centre like a pendulum whose swing plane slowly
+  // turns, so it crosses the bullseye often but quickly. It doesn't always pass dead centre.
+  var balM = { x: 0, y: 0 }, locked = null;
+  var BULL = 0.14;
+  var pend = { phase: 0, plane: Math.random() * Math.PI, planeVel: 0.8, amp: 0.85, miss: 0, missT: 0 };
+  var PEND_W = 2 * Math.PI / 1.0; // one full swing a second, so it crosses the centre twice a second
+  function stepBalance(dt) {
+    if (locked) return;
+    pend.phase += PEND_W * dt;
+    pend.planeVel += (Math.random() - 0.5) * 1.5 * dt; pend.planeVel = Math.max(0.4, Math.min(1.4, pend.planeVel));
+    pend.plane += pend.planeVel * dt;
+    pend.missT += dt * 0.37; pend.miss = 0.13 * Math.sin(pend.missT * 2.1) * Math.sin(pend.missT * 0.9 + 1);
+    pend.amp = 0.8 + 0.15 * Math.sin(pend.phase * 0.13);
+    var ux = Math.cos(pend.plane), uy = Math.sin(pend.plane);
+    var along = pend.amp * Math.sin(pend.phase), across = pend.miss * Math.cos(pend.phase);
+    balM.x = ux * along - uy * across;
+    balM.y = uy * along + ux * across;
+  }
+  // Marker to body: x = towards the ball (toes +, heels -), z = along the target line (trail +, lead -)
+  function swayOf(m) { return { x: m.y * 0.05, z: -m.x * 0.06 }; }
+
+  // ---------- Controls ----------
   var swingBtn = document.getElementById('swing');
   var slowBtn = document.getElementById('slow');
   var scrub = document.getElementById('scrub');
-  var t = 0, playing = false, speed = 1;
+  var hint = document.getElementById('hint');
+  var overlay = document.getElementById('overlay');
+  var octx = overlay.getContext('2d');
+  var speed = 1;
+  var state = 'idle';          // idle, back, down, through, demo
+  var tDisp = 0, tVel = 0;     // displayed backswing time, with a springy follow
+  var tSwing = 0;              // downswing and follow-through time
+  var mods = {};
+  var shot = null, launched = false, shotsTaken = 0;
+  var g0 = null, bottom = null, samples = [], trailPts2 = [], maxDy = 0, bLen = 0;
+
+  function resetBall() { flight = null; ball.position.copy(BALL_HOME); tracerGeo.setDrawRange(0, 0); }
 
   swingBtn.addEventListener('click', function () {
-    t = 0; playing = true; trailPts = [];
-    flight = null; ball.position.copy(BALL_HOME); tracerGeo.setDrawRange(0, 0); readout.textContent = '';
+    panel.hidden = true; resetBall(); liveEl.textContent = ''; perfectEl.hidden = true; slowMo = false; locked = null;
+    state = 'demo'; tSwing = 0; launched = false; trailPts = [];
+    mods = {};
+    shot = { clubMph: 100, path: 0, face: (Math.random() - 0.5) * 3, strike: 'center', contact: 'clean', speedTier: 'normal', bal: 0 };
   });
   slowBtn.addEventListener('click', function () {
     var on = slowBtn.getAttribute('aria-pressed') !== 'true';
@@ -482,9 +695,160 @@
     speed = on ? 0.25 : 1;
   });
   scrub.addEventListener('input', function () {
-    playing = false; t = scrub.value / 1000; trailPts = [];
-    if (t < IMPACT_T) { flight = null; ball.position.copy(BALL_HOME); tracerGeo.setDrawRange(0, 0); }
+    state = 'scrub'; tSwing = scrub.value / 1000; trailPts = []; mods = {};
+    if (tSwing < IMPACT_T) resetBall();
   });
+
+  function local(e) {
+    var r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now() / 1000, w: r.width, h: r.height };
+  }
+  function angleOf(a, b) { return Math.atan2(b.x - a.x, a.y - b.y) / deg; } // 0 = straight up, + = to the right
+  function deadzone(v, d) { return Math.abs(v) <= d ? 0 : v - Math.sign(v) * d; }
+
+  canvas.style.touchAction = 'none';
+  canvas.addEventListener('pointerdown', function (e) {
+    if (state === 'down' || (state === 'through' && tSwing < END_T)) return;
+    canvas.setPointerCapture(e.pointerId);
+    panel.hidden = true; resetBall(); if (hint) hint.hidden = true;
+    liveEl.textContent = ''; perfectEl.hidden = true; slowMo = false;
+    state = 'back'; tDisp = 0; tVel = 0; tSwing = 0; trailPts = [];
+    locked = { x: balM.x, y: balM.y };
+    g0 = local(e); bottom = g0; maxDy = 0; bLen = 0; samples = []; trailPts2 = [g0];
+    mods = {};
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (state !== 'back' && state !== 'down') return;
+    var p = local(e);
+    trailPts2.push(p); if (trailPts2.length > 40) trailPts2.shift();
+    if (state === 'back') {
+      var dy = p.y - g0.y;
+      if (dy > maxDy) { maxDy = dy; bottom = p; }
+      bLen = Math.min(1.25, maxDy / (0.30 * p.h));
+      if (maxDy > 20 && bottom.y - p.y > 12) {       // turned round: start the downswing
+        state = 'down'; samples = [bottom, p];
+        mods = { from: tDisp, fromW: 0, over: Math.max(0, (bLen - 1) / 0.2) };
+        tSwing = TOP_T;
+      }
+    } else {
+      samples.push(p);
+      mods.pathDeg = pathFrom(samples[0], p, shotsTaken);
+      if (p.y <= g0.y) commit(p, false);
+    }
+  });
+  function endGesture(e) {
+    if (state === 'back') { state = 'idle'; locked = null; return; }  // never swung: settle back to address
+    if (state === 'down') { var p = local(e); samples.push(p); commit(p, true); }
+  }
+  canvas.addEventListener('pointerup', endGesture);
+  canvas.addEventListener('pointercancel', endGesture);
+
+  function pathFrom(a, b, n) {
+    var soft = n < 3 ? 0.5 : 1;
+    return Math.max(-14, Math.min(14, deadzone(angleOf(a, b), n < 3 ? 10 : 3) * 0.45 * soft));
+  }
+
+  // Read the swing from the swipe
+  function commit(cross, letGo) {
+    var n = shotsTaken, soft = n < 3 ? 1.3 : 1;
+    var rev = samples[0];
+    var progress = (rev.y - cross.y) / Math.max(1, rev.y - g0.y);
+    var hC = cross.h, wC = cross.w;
+    // speed: upward pixels per second over the last ~80 ms, in canvas heights
+    var i = samples.length - 1, j = i;
+    while (j > 0 && cross.t - samples[j].t < 0.08) j--;
+    var dtS = Math.max(0.016, cross.t - samples[j].t);
+    var speedN = ((samples[j].y - cross.y) / dtS) / hC;
+    var peak = 0;
+    for (var k = 1; k < samples.length; k++) {
+      var m = k;
+      while (m > 0 && samples[k].t - samples[m].t < 0.05) m--;
+      var d = samples[k].t - samples[m].t;
+      if (d >= 0.03) peak = Math.max(peak, ((samples[m].y - samples[k].y) / d) / hC);
+    }
+    var tBack = Math.max(0.05, rev.t - g0.t), tDown = Math.max(0.02, cross.t - rev.t), ratio = tDown / tBack;
+    // curl: direction of the last third of the swipe against the rest
+    var cut = Math.max(1, Math.floor(samples.length * 0.65));
+    var a1 = angleOf(samples[0], samples[cut]), a2 = angleOf(samples[cut], samples[samples.length - 1]);
+    var curl = samples.length > 4 ? a2 - a1 : 0;
+    var path = pathFrom(rev, cross, n);
+    var faceOff = Math.max(-12, Math.min(12, deadzone(curl, n < 3 ? 14 : 5) * 0.4 * (n < 3 ? 0.5 : 1)));
+    var contact = 'clean';
+    if (letGo && progress < 0.8) contact = 'fat';
+    else if (speedN < 0.55 * peak && samples.length > 5) contact = 'fat';
+    else if (speedN > 6.5 * soft) contact = 'top';
+    else if (speedN > 4.6 * soft || ratio < 0.08 / soft) contact = 'thin';
+    var offN = (cross.x - g0.x) / wC;
+    if (bLen < 0.15) { state = 'idle'; locked = null; return; }
+
+    // Balance locked when you pressed. bx: + = weight on the trail side, by: + = weight on the toes
+    var L = locked || { x: 0, y: 0 };
+    var bx = -L.x, by = L.y, bDist = Math.hypot(L.x, L.y);
+    var balOK = bDist < BULL;
+    // weight on the toes pushes the strike to the heel, weight on the heels pulls it to the toe
+    var strikeOff = offN - by * 0.12;
+    var strike = Math.abs(strikeOff) > 0.2 * soft ? 'air' : (strikeOff < -0.07 * soft ? 'heel' : (strikeOff > 0.07 * soft ? 'toe' : 'center'));
+    // hanging back on the trail side bottoms the club out early; lunging onto the lead side cuts across the ball
+    if (contact === 'clean' && bx > 0.4) contact = bx > 0.7 ? 'thin' : 'fat';
+    if (bx < 0) path += bx * 12;
+    var face = path + faceOff + (contact === 'thin' || contact === 'top' ? 2 : 0) - Math.max(0, bx) * 5;
+    var speedMul = Math.max(0.8, Math.min(1.12, 0.8 + 0.08 * speedN)) * (1 - 0.25 * Math.min(1, bDist));
+    var over = Math.max(0, (bLen - 1) / 0.2);
+
+    // Perfect: everything at once. Deliberately hard.
+    var checks = {
+      balance: balOK,
+      length: bLen >= 0.93 && bLen <= 1.07,
+      tempo: ratio >= 0.18 && ratio <= 0.5 && speedN >= 1.8 && speedN <= 4.5,
+      path: Math.abs(angleOf(rev, cross)) <= 3.5,
+      face: Math.abs(curl) <= 7,
+      strike: Math.abs(strikeOff) <= 0.04
+    };
+    var perfect = n >= 3 && contact === 'clean' && Object.keys(checks).every(function (k) { return checks[k]; });
+    // Even perfect strikes differ slightly: how close each check was to ideal decides how pure it was
+    function closeness(v) { return Math.max(0, Math.min(1, v)); }
+    var purity = (closeness(1 - bDist / BULL) + closeness(1 - Math.abs(bLen - 1) / 0.07) +
+      closeness(1 - 0.5 * Math.abs(ratio - 0.33) / 0.17 - 0.5 * Math.abs(speedN - 3) / 1.5) +
+      closeness(1 - Math.abs(angleOf(rev, cross)) / 3.5) + closeness(1 - Math.abs(curl) / 7) +
+      closeness(1 - Math.abs(strikeOff) / 0.04)) / 6;
+    if (perfect) {
+      strike = 'center';
+      path = angleOf(rev, cross) * 0.12;          // a whisker of the real swipe remains
+      face = path + curl * 0.12;
+      speedMul = 1.12 * 1.08 * (0.975 + 0.025 * purity);
+    }
+
+    // What let it down, worst first, in plain words with what to do instead
+    var ang = angleOf(rev, cross), issues = [];
+    var weight = Math.abs(by) > Math.abs(bx) ? (by > 0 ? 'forward on your toes' : 'back on your heels') : (bx > 0 ? 'back on your trail side' : 'lunging onto your lead side');
+    if (!checks.balance) issues.push({ s: bDist * 3, what: 'You pressed with your weight ' + weight + '.', fix: 'Press as the marker crosses the bullseye.' });
+    if (letGo && progress < 0.8) issues.push({ s: 3, what: 'You let go before your swipe got back to the dotted line.', fix: 'Swipe all the way up through where you started.' });
+    if (!checks.length) issues.push({ s: Math.abs(bLen - 1) * 6, what: bLen < 1 ? 'Your backswing was too short.' : 'You overswung.', fix: 'Stop in the gold band on the meter.' });
+    if (!checks.tempo) issues.push({ s: 1.5, what: (speedN > 4.5 || ratio < 0.18) ? 'You rushed the downswing.' : 'Your downswing was too slow.', fix: 'Swipe up at a smooth, even pace.' });
+    if (!checks.path) issues.push({ s: Math.abs(ang) / 6, what: 'Your swipe went up to the ' + (ang < 0 ? 'left' : 'right') + '.', fix: 'Swipe straight back up.' });
+    if (!checks.face) issues.push({ s: Math.abs(curl) / 8, what: 'Your swipe curled ' + (curl < 0 ? 'left' : 'right') + ' at the end.', fix: 'Keep the end of your swipe straight.' });
+    if (!checks.strike) issues.push({ s: Math.abs(strikeOff) * 20, what: 'You came back up ' + (strikeOff < 0 ? 'left' : 'right') + ' of the dotted line' + (Math.abs(by) > 0.3 ? ', partly from your balance' : '') + '.', fix: 'Come back up through the middle of the dotted line.' });
+    issues.sort(function (a, b) { return b.s - a.s; });
+    shot = {
+      clubMph: (55 + 45 * Math.min(bLen, 1)) * speedMul,
+      path: path, face: face, strike: strike, contact: contact,
+      speedTier: speedN > 4 ? 'hard' : (speedN < 1.5 ? 'slow' : 'normal'),
+      bal: Math.min(1, 0.6 * over + (contact === 'top' ? 0.5 : contact === 'thin' ? 0.3 : 0) + (balOK ? 0 : bDist)),
+      checks: checks, perfect: perfect, purity: purity, balDir: { bx: bx, by: by }, letDown: issues
+    };
+    mods.pathDeg = path; mods.faceDeg = face;
+    mods.dy = { fat: -0.035, thin: 0.02, top: 0.04, clean: 0 }[contact] + (strike === 'air' ? 0.08 : 0);
+    mods.dToe = strike === 'heel' ? -0.03 : strike === 'toe' ? 0.03 : strike === 'air' ? (offN < 0 ? -0.12 : 0.12) : 0;
+    mods.bal = shot.bal;
+    // fall the way the weight was: towards the ball or back to the heels, towards the target or back
+    var fx = by * 0.8 - 0.4, fz = bx * 0.8;
+    var fl = Math.hypot(fx, fz) || 1;
+    mods.fall = { x: fx / fl, z: fz / fl };
+    if (perfect) { slowMo = true; }
+    state = 'through'; launched = false; shotsTaken++;
+  }
+
+  var TOP_T = 0.76;
 
   function updateTrail(p, active) {
     if (active) { trailPts.push(p.head.clone()); if (trailPts.length > TRAIL_N) trailPts.shift(); }
@@ -498,6 +862,51 @@
     trailGeo.setDrawRange(0, trailPts.length);
   }
 
+  function drawOverlay() {
+    var r = canvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (overlay.width !== Math.round(r.width * dpr) || overlay.height !== Math.round(r.height * dpr)) {
+      overlay.width = Math.round(r.width * dpr); overlay.height = Math.round(r.height * dpr);
+    }
+    octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    octx.clearRect(0, 0, r.width, r.height);
+    // balance board, top right
+    var R = Math.max(30, Math.min(46, r.width * 0.05)), cx = r.width - R - 16, cy = R + 16;
+    octx.fillStyle = 'rgba(22,21,20,0.35)'; octx.beginPath(); octx.arc(cx, cy, R, 0, Math.PI * 2); octx.fill();
+    octx.strokeStyle = 'rgba(243,239,230,0.55)'; octx.lineWidth = 1;
+    [1, 0.66, 0.33].forEach(function (k) { octx.beginPath(); octx.arc(cx, cy, R * k, 0, Math.PI * 2); octx.stroke(); });
+    octx.beginPath(); octx.moveTo(cx - R, cy); octx.lineTo(cx + R, cy); octx.moveTo(cx, cy - R); octx.lineTo(cx, cy + R); octx.stroke();
+    octx.fillStyle = '#E6B428'; octx.beginPath(); octx.arc(cx, cy, R * BULL, 0, Math.PI * 2); octx.fill();
+    var m = locked || balM, mx0 = cx + m.x * R, my0 = cy - m.y * R;
+    octx.fillStyle = locked ? (Math.hypot(locked.x, locked.y) < BULL ? '#E6B428' : '#D63027') : '#3D7FE0';
+    octx.strokeStyle = '#F3EFE6'; octx.lineWidth = 1.5;
+    octx.beginPath(); octx.arc(mx0, my0, 5, 0, Math.PI * 2); octx.fill(); octx.stroke();
+    octx.fillStyle = 'rgba(243,239,230,0.85)'; octx.font = '600 11px system-ui, sans-serif'; octx.textAlign = 'center';
+    octx.fillText('Balance', cx, cy + R + 14);
+    octx.textAlign = 'start';
+    if (state === 'back' || state === 'down') {
+      // your swipe
+      octx.lineCap = 'round'; octx.lineJoin = 'round';
+      for (var i = 1; i < trailPts2.length; i++) {
+        octx.strokeStyle = 'rgba(243,239,230,' + (0.15 + 0.6 * i / trailPts2.length) + ')';
+        octx.lineWidth = 3;
+        octx.beginPath(); octx.moveTo(trailPts2[i - 1].x, trailPts2[i - 1].y); octx.lineTo(trailPts2[i].x, trailPts2[i].y); octx.stroke();
+      }
+      // where you started: swipe back up through here
+      octx.strokeStyle = 'rgba(243,239,230,0.5)'; octx.setLineDash([4, 6]); octx.lineWidth = 1.5;
+      octx.beginPath(); octx.moveTo(g0.x - 40, g0.y); octx.lineTo(g0.x + 40, g0.y); octx.stroke(); octx.setLineDash([]);
+      // backswing meter: gold is the target band, red is overswinging
+      var mh = r.height * 0.4, mx = r.width - 22, my = r.height * 0.3, top = 1.25;
+      function yAt(v) { return my + mh * (1 - v / top); }
+      octx.fillStyle = 'rgba(22,21,20,0.35)'; octx.fillRect(mx, my, 8, mh);
+      octx.fillStyle = 'rgba(214,48,39,0.35)'; octx.fillRect(mx, my, 8, yAt(1.07) - my);             // red zone
+      octx.fillStyle = 'rgba(230,180,40,0.45)'; octx.fillRect(mx, yAt(1.07), 8, yAt(0.93) - yAt(1.07)); // gold zone
+      var fillV = Math.min(top, bLen);
+      octx.fillStyle = bLen > 1.07 ? '#D63027' : (bLen >= 0.93 ? '#E6B428' : '#F3EFE6');
+      octx.fillRect(mx, yAt(fillV), 8, my + mh - yAt(fillV));
+      octx.fillStyle = '#E6B428'; octx.fillRect(mx - 4, yAt(1.07), 16, 2); octx.fillRect(mx - 4, yAt(0.93) - 2, 16, 2);
+    }
+  }
+
   var last = performance.now();
   var visible = true;
   if ('IntersectionObserver' in window) {
@@ -507,17 +916,53 @@
     requestAnimationFrame(loop);
     var dt = Math.min(0.05, (now - last) / 1000); last = now;
     if (!visible || document.hidden) return;
-    var prev = t;
-    if (playing) {
-      t += dt * speed;
-      if (prev < IMPACT_T && t >= IMPACT_T) launch();
-      if (t >= END_T) { t = END_T; playing = false; }
-      scrub.value = Math.round(t * 1000);
+    var p;
+    stepBalance(dt);
+    var swayNow = swayOf(locked || balM);
+    if (state === 'back' || state === 'idle') {
+      // the club follows your finger with a little weight and lag
+      var target = state === 'back' ? TOP_T * Math.min(1, bLen) : 0;
+      if (state === 'idle' && tSwing >= END_T) target = null;
+      if (target !== null) {
+        tVel += (90 * (target - tDisp) - 14 * tVel) * dt;
+        tDisp += tVel * dt;
+        tDisp = Math.max(0, Math.min(TOP_T, tDisp));
+        p = pose(tDisp, { over: state === 'back' ? Math.max(0, (bLen - 1) / 0.2) : 0, sway: swayNow });
+      } else {
+        p = pose(END_T, mods);
+        if (flight && flight.stopped) locked = null;   // balance marker comes back to life for the next shot
+      }
+      updateTrail(p, false);
+    } else if (state === 'down') {
+      // your finger drives the club down towards the ball
+      var last2 = samples[samples.length - 1], rev = samples[0];
+      var prog = Math.max(0, Math.min(1, (rev.y - last2.y) / Math.max(1, rev.y - g0.y)));
+      var tgt = TOP_T + (IMPACT_T - 0.02 - TOP_T) * prog;
+      tSwing += (tgt - tSwing) * Math.min(1, dt * 25);
+      mods.fromW = smoothstep((tSwing - TOP_T) / 0.12);
+      mods.sway = swayNow;
+      p = pose(tSwing, mods);
+      updateTrail(p, true);
+    } else if (state === 'through' || state === 'demo') {
+      var prevT = tSwing;
+      // a perfect strike slows time right down around impact
+      var sm = slowMo ? 1 - 0.85 * bell(tSwing, IMPACT_T + 0.02, 0.06) : 1;
+      if (slowMo && tSwing > 0.93 && tSwing < 1.1) perfectEl.hidden = false;
+      tSwing = Math.min(END_T, tSwing + dt * speed * sm);
+      if (mods.from != null) mods.fromW = smoothstep((tSwing - TOP_T) / 0.12);
+      if (!launched && prevT < IMPACT_T && tSwing >= IMPACT_T) { launched = true; launch(shot); }
+      p = pose(tSwing, mods);
+      updateTrail(p, tSwing < END_T);
+      scrub.value = Math.round(tSwing * 1000);
+      if (tSwing >= END_T) { state = 'idle'; }
+    } else {
+      p = pose(tSwing, {});
+      updateTrail(p, false);
     }
-    var p = pose(t);
     drawPose(p);
-    updateTrail(p, playing);
-    stepFlight(dt * speed);
+    var flightScale = slowMo && state === 'through' ? 1 - 0.85 * bell(tSwing, IMPACT_T + 0.02, 0.06) : 1;
+    stepFlight(dt * speed * flightScale);
+    drawOverlay();
     renderer.render(scene, camera);
   }
   resize();

@@ -1347,3 +1347,51 @@ Tell me in plain English what changed.
 ```
 Changed: Framed the camera to the whole swing, put the prototype mat under the golfer, and made the skeleton blue and green.
 Files: src/games/golf/camera-fit.ts, src/games/golf/camera-fit.test.ts, src/games/golf/theme.ts, src/games/golf/range-play.ts, components/golf3d-range.tsx, log/prompts.md
+
+### 2026-09-25 16:53
+Prompt:
+```
+Put the driving range game on the Golf Agent page, replacing the old hidden range. Stop and tell me if anything fails.
+
+1. The reference is reference/golf-procedural.html (v12, signed off). Port its gameplay into src/games/golf/ as plain TypeScript modules, keeping every number exactly:
+   - the balance pendulum and the lock on press
+   - reading the swipe (backswing length, speed, tempo, path, curl, where it crosses back)
+   - the shot rules (balance effects, contact, strike, the six perfect checks, the purity score for perfect strikes, what let it down)
+   - the springy backswing and the finger-driven downswing
+   The golfer, the driver and the scene stay as they are on /lab/golf3d.
+
+2. Ball flight: use the site's calibrated flight engine, fed with the club speed, path, face, strike and contact the prototype works out. Check that a smooth full swing still carries about 200 to 220 yards, that perfect strikes finish between about 344 and 361 yards in total depending on purity, and that each of the 15 outcomes is still reachable.
+
+3. Prove it: write a test that feeds the same set of recorded swipes into the prototype's shot rules and the port's, and checks they produce the same outcome, the same perfect checks, the same purity and the same "what let it down" for each. Include at least one swipe for every outcome, plus a perfect one.
+
+4. The on-screen pieces, as in the prototype: the balance board with the gold bullseye and the locked marker turning gold or red, the meter with the gold band and red zone, the swipe trail, the dotted start line, the hint, live distance, the session longest drive (total yards), the Perfect flash with slow motion, and the result panel that appears at impact and fills in carry and total.
+
+5. Words: move every piece of game text (shot names, causes, what let it down, fixes, air-shot and good-shot messages, the hint) into content/golf-range.md, keeping the existing tips, and mark it draft: true so I can read it through.
+
+6. On /golf-agent, show the game under the summary and above "How I tested it". Load it only when it's scrolled near, never on page load. On touch screens, cover it with a "Tap to play" button, so the page scrolls normally until someone chooses to play, with a small "Done" button to hand scrolling back. On desktop, no cover is needed.
+
+7. Reduced motion: no slow motion, the tracer draws instantly, and there's no camera movement. Keep the Swing demo button as the keyboard-friendly way to see a shot.
+
+8. Clean up: delete the old swipe and stick-figure range code and its hidden setting. Keep /lab/golf3d as a hidden sandbox.
+
+9. Don't use the built-in browser. Run the tests (the pose match and the new shot-rules match), a clean production build, the code check and gitleaks git -v, commit with "Golf Agent: driving range game" and push to main.
+
+Tell me in plain English what changed, whether both match tests pass, and what to check on my phone.
+```
+Changed: Stopped before putting the game on the page. A smooth full swing carries about 286 yards with the site's flight, not 200 to 220, and a perfect strike finishes about 309 yards, not 344 to 361.
+Files: src/games/golf/shot-rules.ts, src/games/golf/shot-flight.ts, src/games/golf/shot-rules.test.ts, log/prompts.md
+
+### 2026-09-25 17:00
+Prompt:
+```
+Keep the site's flight engine exactly as it is. Instead, retune only the game's club-speed mapping (the numbers that turn backswing length, swipe speed and purity into club speed), so that with the site's flight:
+- a smooth, full, non-perfect swing carries about 210 to 225 yards
+- a perfect strike finishes about 300 yards total at the lowest purity and about 330 at the highest
+- shorter, weaker and off-balance swings scale down from there, as they do now
+
+Update the shot-rules match test so it compares outcomes, the six checks, purity and "what let it down" against the prototype, but not club speed or distance, since those now come from the site's flight. Add a separate test for the yardage targets above, and one that finds a recorded swipe for each of the 15 outcomes.
+
+Then carry on with the original instructions from step 4 onwards.
+```
+Changed: Retuned how a swipe becomes club speed, and put the driving range game on the Golf Agent page.
+Files: src/games/golf/shot-rules.ts, src/games/golf/shot-rules.test.ts, src/games/golf/swing-play.ts, src/games/golf/theme.ts, content/golf-range.md, lib/golf-range.ts, components/golf3d-range.tsx, components/golf-agent-game.tsx, components/golf-agent-slot.tsx, components/build-article.tsx, components/golf-range.tsx, lib/golf-physics.ts, log/prompts.md

@@ -2,15 +2,12 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import { JobFunnel } from "@/components/job-funnel";
 import type { Build, SiteContent } from "@/lib/content";
+import { GolfAgentSlot } from "@/components/golf-agent-slot";
 import { readGolfRange } from "@/lib/golf-range";
 
 const WorldcupGlobe = dynamic(() =>
   import("@/components/worldcup-globe").then((mod) => mod.WorldcupGlobe),
 );
-const GolfRange = dynamic(() =>
-  import("@/components/golf-range").then((mod) => mod.GolfRange),
-);
-const showDrivingRange = false;
 
 function CallPlanPanel({ build }: { build: Build }) {
   if (!build.callPlan) {
@@ -178,7 +175,7 @@ export function BuildArticle({
           className="mt-8 h-auto w-full rounded-2xl"
         />
       ) : null}
-      {showDrivingRange && build.slug === "golf-agent" ? <GolfRange copy={readGolfRange()} /> : null}
+      {build.slug === "golf-agent" ? <GolfAgentSlot copy={readGolfRange()} /> : null}
       <div className="mt-10">
         {build.blocks.map((block, index) => {
           if (block.type === "heading") {

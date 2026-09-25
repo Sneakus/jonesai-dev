@@ -11,6 +11,8 @@ import { fly, type FlightResult } from "@/src/games/golf/flight";
 import { curveYards, shotKey } from "@/src/games/golf/outcomes";
 import { stepCamera, stepShot } from "@/src/games/golf/range-play";
 import { rangeSettings as range } from "@/src/games/golf/settings";
+import { shotToFlight } from "@/src/games/golf/shot-flight";
+import type { ShotReading } from "@/src/games/golf/shot-rules";
 import { gentleStrike } from "@/src/games/golf/strike";
 import { drawDriver, setBone, setJoint, showTrail } from "@/src/games/golf/swing-draw";
 import { IMPACT_TIME, LEAD_TOE, swingPose, SWING_END, TRAIL_TOE } from "@/src/games/golf/swing-pose";
@@ -18,6 +20,14 @@ import { Vec } from "@/src/games/golf/swing-vec";
 import { golfTheme as theme, type ShotCopy } from "@/src/games/golf/theme";
 
 export type { ShotCopy };
+
+export type PlayClock = {
+  time: number;
+  trail: boolean;
+  token: number;
+  shot: ShotReading | null;
+  reduce: boolean;
+};
 
 type Panel = {
   name: string;
@@ -50,6 +60,7 @@ function Golfer({
   scrub,
   slow,
   reduce,
+  play,
   onImpact,
   onReady,
 }: {
@@ -57,6 +68,7 @@ function Golfer({
   scrub: number | null;
   slow: boolean;
   reduce: boolean;
+  play: MutableRefObject<PlayClock> | null;
   onImpact: (clock: number) => void;
   onReady: () => void;
 }) {
@@ -97,6 +109,48 @@ function Golfer({
   }, [swingId]);
 
   useFrame((state, delta) => {
+    if (play) {
+      const clock = play.current;
+      const pose = swingPose(clock.time);
+      const parts: [Mesh | null, Vec, Vec][] = [
+        [bones.current.spine ?? null, pose.P, pose.S],
+        [bones.current.neck ?? null, pose.S, pose.neck],
+        [bones.current.shoulders ?? null, pose.leadSh, pose.trailSh],
+        [bones.current.hips ?? null, pose.leadHip, pose.trailHip],
+        [bones.current.lUp ?? null, pose.leadSh, pose.leadElbow],
+        [bones.current.lLo ?? null, pose.leadElbow, pose.leadWrist],
+        [bones.current.tUp ?? null, pose.trailSh, pose.trailElbow],
+        [bones.current.tLo ?? null, pose.trailElbow, pose.trailWrist],
+        [bones.current.lTh ?? null, pose.leadHip, pose.leadKnee],
+        [bones.current.lSh ?? null, pose.leadKnee, pose.leadAnkle],
+        [bones.current.tTh ?? null, pose.trailHip, pose.trailKnee],
+        [bones.current.tSh ?? null, pose.trailKnee, pose.trailAnkle],
+        [bones.current.lFoot ?? null, pose.leadAnkle, LEAD_TOE],
+        [bones.current.tFoot ?? null, pose.trailAnkle, TRAIL_TOE],
+      ];
+      for (const [mesh, from, to] of parts) if (mesh) setBone(mesh, from, to);
+      for (const name of jointNames) {
+        const mesh = joints.current[name];
+        if (mesh) setJoint(mesh, pose[name]);
+      }
+      if (headRing.current) {
+        headRing.current.position.set(pose.headPos.x, pose.headPos.y, pose.headPos.z);
+        headRing.current.lookAt(state.camera.position);
+      }
+      if (grip.current && shaft.current && clubHead.current && clubFace.current) {
+        drawDriver(grip.current, shaft.current, clubHead.current, clubFace.current, pose);
+      }
+      if (clock.trail) {
+        trail.current.push(pose.head.clone());
+        if (trail.current.length > 16) trail.current.shift();
+      } else if (trail.current.length) trail.current.shift();
+      showTrail(trailLine, trailPositions, trail.current, pose.head);
+      if (sent.current !== clock.token && clock.time >= IMPACT_TIME) {
+        sent.current = clock.token;
+        impact.current(state.clock.elapsedTime);
+      }
+      return;
+    }
     const scrubbing = scrub !== null;
     if (!scrubbing && !reduce && swingId > 0 && swingTime.current < SWING_END) {
       swingTime.current = Math.min(SWING_END, swingTime.current + delta * (slow ? 0.25 : 1));
@@ -374,8 +428,10 @@ function World({
   slow,
   debug,
   reduce,
+  play,
   outcomes,
   onPanel,
+  onFlight,
   onReady,
 }: {
   swingId: number;
@@ -383,8 +439,10 @@ function World({
   slow: boolean;
   debug: boolean;
   reduce: boolean;
+  play: MutableRefObject<PlayClock> | null;
   outcomes: { [key: string]: ShotCopy };
   onPanel: (panel: Panel) => void;
+  onFlight: ((shot: FlightResult) => void) | null;
   onReady: () => void;
 }) {
   const hold = useRef<FlightHold | null>(null);
@@ -403,7 +461,7 @@ function World({
   }, [scrub]);
 
   const launch = (clock: number) => {
-    const input = gentleStrike();
+    const input = play?.current.shot ? shotToFlight(play.current.shot) : gentleStrike();
     const shot = fly(input);
     hold.current = { shot, input, born: clock, reported: false };
     if (tee.current) tee.current.visible = false;
@@ -418,6 +476,10 @@ function World({
     });
     const copy = outcomes[key];
     const lines = copy?.lines ?? [];
+    if (onFlight) {
+      onFlight(current.shot);
+      return;
+    }
     onPanel({
       name: copy?.name ?? key,
       line: lines[Math.floor(Math.random() * lines.length)] ?? "",
@@ -462,7 +524,7 @@ function World({
         </mesh>
       </group>
       <Suspense fallback={null}>
-        <Golfer swingId={swingId} scrub={scrub} slow={slow} reduce={reduce} onImpact={launch} onReady={onReady} />
+        <Golfer swingId={swingId} scrub={scrub} slow={slow} reduce={reduce} play={play} onImpact={launch} onReady={onReady} />
         <Markers />
       </Suspense>
       <Shot hold={hold} reduce={reduce} onLanded={landed} />
@@ -483,7 +545,21 @@ function World({
   );
 }
 
-export function Golf3dRange({ outcomes }: { outcomes: { [key: string]: ShotCopy } }) {
+export function Golf3dRange({
+  outcomes,
+  play = null,
+  embedded = false,
+  resets = 0,
+  onFlight,
+  onBox,
+}: {
+  outcomes: { [key: string]: ShotCopy };
+  play?: MutableRefObject<PlayClock> | null;
+  embedded?: boolean;
+  resets?: number;
+  onFlight?: (shot: FlightResult) => void;
+  onBox?: (node: HTMLDivElement | null) => void;
+}) {
   const [webgl] = useState(supportsWebGL);
   const [swingId, setSwingId] = useState(0);
   const [scrub, setScrub] = useState<number | null>(null);
@@ -528,10 +604,8 @@ export function Golf3dRange({ outcomes }: { outcomes: { [key: string]: ShotCopy 
 
   const side = panel && panel.offline < -0.5 ? theme.copy.left : panel && panel.offline > 0.5 ? theme.copy.right : "";
 
-  return (
-    <main className="mx-auto max-w-5xl px-4 py-6">
-      <h1 className="text-2xl font-semibold">{theme.copy.title}</h1>
-      <div ref={box} className="relative mt-4 h-[70vh] min-h-80 overflow-hidden rounded-md border border-line bg-paper">
+  const picture = (
+      <div ref={(node) => { box.current = node; onBox?.(node); }} className={`relative overflow-hidden rounded-md border border-line bg-paper ${embedded ? "h-[70vh] min-h-80" : "mt-4 h-[70vh] min-h-80"}`}>
         <Canvas
           shadows
           dpr={[1, 1.5]}
@@ -542,20 +616,22 @@ export function Golf3dRange({ outcomes }: { outcomes: { [key: string]: ShotCopy 
           }}
         >
           <World
-            swingId={swingId}
-            scrub={scrub}
+            swingId={play ? resets : swingId}
+            scrub={play ? null : scrub}
             slow={slow}
             debug={debug}
-            reduce={reduce}
+            reduce={play ? play.current.reduce : reduce}
+            play={play}
             outcomes={outcomes}
             onPanel={setPanel}
+            onFlight={onFlight ?? null}
             onReady={() => setReady(true)}
           />
         </Canvas>
         {!ready ? (
           <p className="absolute inset-0 flex items-center justify-center text-sm text-muted">{theme.copy.loading}</p>
         ) : null}
-        {panel ? (
+        {panel && !embedded ? (
           <button
             type="button"
             className="absolute inset-0 flex items-end bg-transparent p-4 text-left"
@@ -574,6 +650,14 @@ export function Golf3dRange({ outcomes }: { outcomes: { [key: string]: ShotCopy 
           </button>
         ) : null}
       </div>
+  );
+
+  if (embedded) return picture;
+
+  return (
+    <main className="mx-auto max-w-5xl px-4 py-6">
+      <h1 className="text-2xl font-semibold">{theme.copy.title}</h1>
+      {picture}
       <button
         type="button"
         className="mt-4 rounded-full border border-line bg-card px-4 py-2 text-sm"

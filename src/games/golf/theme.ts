@@ -23,6 +23,10 @@ export const golfTheme = {
   /** Skeleton. Blue bones, green joints and a green head ring. */
   bone: "#2f6fed",
   joint: "#1f8a4c",
+  /** Balance bullseye and the meter's good band. */
+  gold: "#e6b428",
+  /** Locked marker off the bullseye, and the meter's too-far zone. */
+  miss: "#d63027",
   font: "Instrument Sans",
   fontUrl: "/games/golf/InstrumentSans-Medium.ttf",
   copy: {
