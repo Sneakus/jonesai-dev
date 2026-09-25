@@ -45,13 +45,14 @@ export function GolfAgentSlot({ copy }: { copy: GolfRangeCopy }) {
 
   return (
     <div ref={spot}>
+      <p className="mt-8 max-w-[640px]">{copy.words.intro}</p>
       {Game ? (
         <div className="relative">
           <Game copy={copy} touch={touch} armed={armed} onDone={() => setArmed(false)} />
           {touch && !armed ? (
             <button
               type="button"
-              className="absolute inset-0 mt-8 flex items-center justify-center bg-paper/80 text-base"
+              className="absolute inset-x-0 top-4 flex aspect-square items-center justify-center bg-paper/80 text-base min-[600px]:aspect-[16/10] w-[min(1040px,calc(100vw-2.5rem))] min-[900px]:w-[min(1040px,calc(100vw-4rem))]"
               onClick={() => setArmed(true)}
             >
               {copy.words.play}
@@ -59,7 +60,7 @@ export function GolfAgentSlot({ copy }: { copy: GolfRangeCopy }) {
           ) : null}
         </div>
       ) : (
-        <div className="mt-8 h-[70vh] min-h-80 rounded-md border border-line bg-paper" />
+        <div className="mt-4 aspect-square w-[min(1040px,calc(100vw-2.5rem))] rounded-md border border-line bg-paper min-[600px]:aspect-[16/10] min-[900px]:w-[min(1040px,calc(100vw-4rem))]" />
       )}
     </div>
   );

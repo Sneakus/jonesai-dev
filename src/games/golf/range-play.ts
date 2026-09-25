@@ -6,6 +6,10 @@ export type FlightHold = {
   shot: FlightResult;
   born: number;
   reported: boolean;
+  /** World positions are written into the tracer once. Later frames only reveal more of that line. */
+  tracerReady: boolean;
+  shown: number;
+  landAt: number;
 };
 
 const yard = range.yardToMetre;
@@ -21,8 +25,16 @@ export function landingTime(points: FlightPoint[]): number {
   return points[points.length - 1]?.t ?? 0;
 }
 
+const scratch: FlightPoint = { t: 0, x: 0, y: 0, z: 0 };
+
 function pointAt(points: FlightPoint[], time: number): FlightPoint {
-  if (points.length === 0) return { t: 0, x: 0, y: 0, z: 0 };
+  if (points.length === 0) {
+    scratch.t = 0;
+    scratch.x = 0;
+    scratch.y = 0;
+    scratch.z = 0;
+    return scratch;
+  }
   if (time <= points[0].t) return points[0];
   const last = points[points.length - 1];
   if (time >= last.t) return last;
@@ -32,12 +44,11 @@ function pointAt(points: FlightPoint[], time: number): FlightPoint {
     if (time <= next.t) {
       const span = next.t - prev.t || 1;
       const mix = (time - prev.t) / span;
-      return {
-        t: time,
-        x: prev.x + (next.x - prev.x) * mix,
-        y: prev.y + (next.y - prev.y) * mix,
-        z: prev.z + (next.z - prev.z) * mix,
-      };
+      scratch.t = time;
+      scratch.x = prev.x + (next.x - prev.x) * mix;
+      scratch.y = prev.y + (next.y - prev.y) * mix;
+      scratch.z = prev.z + (next.z - prev.z) * mix;
+      return scratch;
     }
   }
   return last;
@@ -58,27 +69,33 @@ export function stepShot(
   if (!hold || !ball) return null;
   const points = hold.shot.trajectory;
   const spot = pointAt(points, reduce ? points[points.length - 1].t : age);
-  const [x, y, z] = toWorld(spot);
-  ball.position.set(x, y, z);
+  ball.position.set(ballSpot.x + spot.y * yard, ballSpot.y + spot.z * yard, ballSpot.z - spot.x * yard);
   ball.visible = true;
 
-  const land = landingTime(points);
-  const drawn = reduce ? points.length : points.filter((point) => point.t <= age).length;
-  const count = Math.max(2, Math.min(drawn, 600));
-  for (let i = 0; i < count; i += 1) {
-    const sample = points[Math.min(i, points.length - 1)];
-    const place = toWorld(sample);
-    positions[i * 3] = place[0];
-    positions[i * 3 + 1] = place[1];
-    positions[i * 3 + 2] = place[2];
+  const limit = Math.min(points.length, 600);
+  if (!hold.tracerReady) {
+    for (let i = 0; i < limit; i += 1) {
+      const place = toWorld(points[i]);
+      positions[i * 3] = place[0];
+      positions[i * 3 + 1] = place[1];
+      positions[i * 3 + 2] = place[2];
+    }
+    hold.tracerReady = true;
+    hold.shown = 0;
+    hold.landAt = landingTime(points);
+    tracer.geometry.getAttribute("position").needsUpdate = true;
   }
-  const attribute = tracer.geometry.getAttribute("position");
-  attribute.needsUpdate = true;
-  tracer.geometry.setDrawRange(0, count);
+  let count = limit;
+  if (!reduce) {
+    count = hold.shown;
+    while (count < limit && points[count].t <= age) count += 1;
+    hold.shown = count;
+  }
+  tracer.geometry.setDrawRange(0, Math.max(count, 0));
   const material = tracer.material as { opacity: number };
-  const fade = Math.max(0, age - (reduce ? 0.6 : land)) / range.fadeSeconds;
+  const fade = Math.max(0, age - (reduce ? 0.6 : hold.landAt)) / range.fadeSeconds;
   material.opacity = Math.max(0, 1 - fade);
-  if (!hold.reported && (reduce || age >= land)) {
+  if (!hold.reported && (reduce || age >= hold.landAt)) {
     hold.reported = true;
     return hold;
   }

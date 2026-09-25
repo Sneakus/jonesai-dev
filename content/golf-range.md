@@ -9,8 +9,8 @@ good:
     name: Straight
     cause: "Smooth tempo, and your swipe came straight back up through where you started."
     messages:
-      - "Pure. Frame that one."
       - "Right down the middle."
+      - "Solid strike. That'll do nicely."
   - key: draw
     name: Draw
     cause: "A slight curl left at the end of your swipe closed the face a touch."
@@ -106,6 +106,8 @@ noContact: "No contact"
 onLine: "on line"
 also: "Also"
 letDown: "What let it down"
+whyNot: "Why it wasn't perfect"
+intro: "Try hitting a bad shot in the demo below."
 onRange: "On a real range"
 purity: "Everything lined up: balance, length, tempo, path, face and strike. This one was"
 pureTail: "% pure."

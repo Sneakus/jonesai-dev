@@ -170,3 +170,54 @@ export function fitSwingCamera(aspect: number): SwingFrame {
     look: [0, lookY, lookZ],
   };
 }
+
+/** Same lens as the prototype driving range. */
+export const GAME_FOV = 50;
+
+const gameLook = { x: -0.35, y: 0.2, z: -10 };
+const gameHome = { x: -0.35, y: 1.55, z: 3.6 };
+
+function fitsGame(points: Point[], camera: Point, look: Point, aspect: number) {
+  for (const point of points) {
+    const placed = projectSwing(point, camera, look, aspect, GAME_FOV);
+    if (placed.depth < 0.3 || Math.abs(placed.x) > 1 || Math.abs(placed.y) > 1) return false;
+  }
+  return true;
+}
+
+/** Prototype camera. On a narrow picture, pull straight back until the golfer and club fit. */
+export function placeGameCamera(aspect: number): SwingFrame {
+  const look = gameLook;
+  const home = gameHome;
+  if (aspect >= 1 || fitsGame(swingFramePoints(), home, look, aspect)) {
+    return {
+      position: [home.x, home.y, home.z],
+      look: [look.x, look.y, look.z],
+    };
+  }
+  const backX = home.x - look.x;
+  const backY = home.y - look.y;
+  const backZ = home.z - look.z;
+  const base = Math.hypot(backX, backY, backZ);
+  const points = swingFramePoints();
+  let low = base;
+  let high = base * 2.4;
+  for (let step = 0; step < 16; step += 1) {
+    const dist = (low + high) / 2;
+    const camera = {
+      x: look.x + (backX / base) * dist,
+      y: look.y + (backY / base) * dist,
+      z: look.z + (backZ / base) * dist,
+    };
+    if (fitsGame(points, camera, look, aspect)) high = dist;
+    else low = dist;
+  }
+  return {
+    position: [
+      look.x + (backX / base) * high,
+      look.y + (backY / base) * high,
+      look.z + (backZ / base) * high,
+    ],
+    look: [look.x, look.y, look.z],
+  };
+}

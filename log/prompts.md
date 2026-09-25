@@ -1395,3 +1395,35 @@ Then carry on with the original instructions from step 4 onwards.
 ```
 Changed: Retuned how a swipe becomes club speed, and put the driving range game on the Golf Agent page.
 Files: src/games/golf/shot-rules.ts, src/games/golf/shot-rules.test.ts, src/games/golf/swing-play.ts, src/games/golf/theme.ts, content/golf-range.md, lib/golf-range.ts, components/golf3d-range.tsx, components/golf-agent-game.tsx, components/golf-agent-slot.tsx, components/build-article.tsx, components/golf-range.tsx, lib/golf-physics.ts, log/prompts.md
+
+### 2026-09-25 17:15
+Prompt:
+```
+Four fixes to the driving range game on /golf-agent. Keep the gameplay and rules exactly as they are. Stop and tell me if anything fails.
+
+1. Lag once the ball is hit:
+   - Remove the camera following the ball. The camera stays still, as in reference/golf-procedural.html.
+   - Work out the ball's whole flight once at impact, then just move the ball along it.
+   - Draw the tracer by adding points to one buffer that's created once, never rebuilt.
+   - Fit the camera only when the canvas changes size, never every frame.
+   - Check for anything else that allocates memory or recalculates every frame during flight, and fix it.
+   Tell me what was causing the lag.
+
+2. Size: let the game break out of the text column, as wide as the prototype (up to about 1040px, aligned with the page's left edge, never wider than the screen). 16:10 on desktop, about as tall as it is wide on phones.
+
+3. Match the prototype's look and layout exactly:
+   - Use the prototype's camera position and angle. Only pull back further if the golfer or club would otherwise be cut off on a narrow screen.
+   - Same positions as the prototype: longest drive top left, the hint under it, the balance board top right, the meter on the right edge, live distance top centre, "Perfect" in the middle, and the result panel in the bottom left, compact, at most about 360px wide.
+   - Same fonts, sizes and colours as the prototype's on-screen text.
+
+4. Words, in content/golf-range.md, still marked draft:
+   - Above the game, under the summary, add: Try hitting a bad shot in the demo below.
+   - When the shot is straight, a draw or a fade but not perfect, label the reason "Why it wasn't perfect:" instead of "What let it down:".
+   - Change the straight-shot messages to: "Right down the middle." and "Solid strike. That'll do nicely." Keep "Pure" only for perfect strikes.
+
+5. Don't use the built-in browser. Run all the tests, a clean production build, the code check and gitleaks git -v, commit with "Golf Agent: bigger game, prototype layout, no lag after impact" and push to main.
+
+Tell me in plain English what changed and what was causing the lag.
+```
+Changed: Made the Golf Agent driving range wider, matched the prototype layout, and stopped the camera and tracer from doing extra work after the ball is hit.
+Files: src/games/golf/range-play.ts, src/games/golf/camera-fit.ts, components/golf3d-range.tsx, components/golf-agent-game.tsx, components/golf-agent-slot.tsx, content/golf-range.md, lib/golf-range.ts, log/prompts.md

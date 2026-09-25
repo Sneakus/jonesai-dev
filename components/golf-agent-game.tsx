@@ -3,9 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Golf3dRange, type PlayClock } from "@/components/golf3d-range";
 import type { FlightResult } from "@/src/games/golf/flight";
-import { fly } from "@/src/games/golf/flight";
 import type { GolfRangeCopy } from "@/lib/golf-range";
-import { shotToFlight } from "@/src/games/golf/shot-flight";
 import { clubSpeedMph, swingSpeedMul, type ShotReading } from "@/src/games/golf/shot-rules";
 import { beginSwing, BULL, demoSwing, finishSwing, makeGesture, moveSwing, stepGesture, type Gesture } from "@/src/games/golf/swing-play";
 import { golfTheme as theme } from "@/src/games/golf/theme";
@@ -119,7 +117,10 @@ export function GolfAgentGame({
   const overlay = useRef<HTMLCanvasElement | null>(null);
   const [resets, setResets] = useState(0);
   const [hint, setHint] = useState(true);
-  const [live, setLive] = useState("");
+  const liveText = useRef<HTMLParagraphElement>(null);
+  const liveAt = useRef(0);
+  const sawLand = useRef(false);
+  const boardPhase = useRef("");
   const [longest, setLongest] = useState(0);
   const [perfect, setPerfect] = useState(false);
   const [panel, setPanel] = useState<ShotReading | null>(null);
@@ -148,12 +149,16 @@ export function GolfAgentGame({
       setPerfect((value) => (value === play.current.perfectOn ? value : play.current.perfectOn));
       const canvas = overlay.current;
       const stage = box.current;
-      if (canvas && stage) {
+      const phase = play.current.phase;
+      const redraw = (phase !== "through" && phase !== "demo") || phase !== boardPhase.current;
+      if (canvas && stage && redraw) {
         const rect = stage.getBoundingClientRect();
         const ratio = Math.min(window.devicePixelRatio || 1, 2);
-        if (canvas.width !== Math.round(rect.width * ratio)) {
-          canvas.width = Math.round(rect.width * ratio);
-          canvas.height = Math.round(rect.height * ratio);
+        const nextWidth = Math.round(rect.width * ratio);
+        const nextHeight = Math.round(rect.height * ratio);
+        if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+          canvas.width = nextWidth;
+          canvas.height = nextHeight;
         }
         const ctx = canvas.getContext("2d");
         if (ctx) {
@@ -161,26 +166,24 @@ export function GolfAgentGame({
           drawBoard(ctx, play.current, rect.width, rect.height, copy.words.balance);
         }
       }
+      boardPhase.current = phase;
       if (step.launch && play.current.shot) {
-        const shot = play.current.shot;
-        flight.current = shot.strike === "air" ? null : fly(shotToFlight(shot));
-        born.current = now;
-        setPanel(shot);
-        setYards(flight.current);
-        setLanded(reduce.current || !flight.current);
-        if (reduce.current && flight.current) {
-          setLive("");
-          setLongest((value) => Math.max(value, Math.round(flight.current?.total ?? 0)));
+        setPanel(play.current.shot);
+        if (play.current.shot.strike === "air") {
+          flight.current = null;
+          setYards(null);
+          setLanded(true);
         }
       }
       const current = flight.current;
-      if (current && !reduce.current) {
+      if (current && liveText.current && !reduce.current) {
         const age = (now - born.current) / 1000;
-        const point = current.trajectory.find((item) => item.t >= age) ?? current.trajectory[current.trajectory.length - 1];
-        const done = age >= current.trajectory[current.trajectory.length - 1].t;
-        const nextLive = done ? "" : `${Math.round(point.x)} ${theme.copy.yards}`;
-        setLive((value) => (value === nextLive ? value : nextLive));
-        if (done) {
+        const points = current.trajectory;
+        while (liveAt.current < points.length - 1 && points[liveAt.current].t < age) liveAt.current += 1;
+        const done = age >= points[points.length - 1].t;
+        liveText.current.textContent = done ? "" : `${Math.round(points[liveAt.current].x)} ${theme.copy.yards}`;
+        if (done && !sawLand.current) {
+          sawLand.current = true;
           setLanded(true);
           setLongest((value) => Math.max(value, Math.round(current.total)));
         }
@@ -198,15 +201,18 @@ export function GolfAgentGame({
   }
 
   const words = copy.words;
+  const onPicture = { color: "#F3EFE6", textShadow: "0 1px 2px rgba(22,21,20,0.6)" };
   const info = panel ? findCopy(copy, panel.key) : null;
+  const shaped = Boolean(panel && !panel.perfect && (panel.key === "straight" || panel.key === "draw" || panel.key === "fade"));
+  const reasonLabel = shaped ? words.whyNot : words.letDown;
   const airLines = panel?.key === "air-shot" ? copy.air[panel.speedTier] : [];
   const goodLines = info && "messages" in info ? info.messages : [];
   const tip = info && "tip" in info ? info.tip : "";
 
   return (
-    <div className="mt-8" aria-label="Golf driving range game. Optional, just for fun.">
+    <div aria-label="Golf driving range game. Optional, just for fun.">
       <div
-        className="relative"
+        className="relative mt-4 aspect-square w-[min(1040px,calc(100vw-2.5rem))] min-[600px]:aspect-[16/10] min-[900px]:w-[min(1040px,calc(100vw-4rem))]"
         style={{ touchAction: touch && armed ? "none" : "auto" }}
         onPointerDown={(event) => {
           if (touch && !armed) return;
@@ -218,8 +224,10 @@ export function GolfAgentGame({
           setPanel(null);
           setYards(null);
           setLanded(false);
-          setLive("");
+          if (liveText.current) liveText.current.textContent = "";
           flight.current = null;
+          liveAt.current = 0;
+          sawLand.current = false;
           clock.current.token += 1;
           setResets((value) => value + 1);
           beginSwing(play.current, point);
@@ -234,18 +242,56 @@ export function GolfAgentGame({
           else if (play.current.phase === "back") finishSwing(play.current, point ?? play.current.start!, true);
         }}
       >
-        <Golf3dRange outcomes={{}} play={clock} embedded resets={resets} onBox={(node) => { box.current = node; }} />
+        <Golf3dRange
+          outcomes={{}}
+          play={clock}
+          embedded
+          resets={resets}
+          onBox={(node) => {
+            box.current = node;
+          }}
+          onLaunch={(shot) => {
+            if (play.current.shot?.strike === "air") return;
+            flight.current = shot;
+            born.current = performance.now();
+            liveAt.current = 0;
+            sawLand.current = false;
+            setYards(shot);
+            setLanded(reduce.current);
+            if (reduce.current) setLongest((value) => Math.max(value, Math.round(shot.total)));
+          }}
+        />
         <canvas ref={overlay} className="pointer-events-none absolute inset-0 h-full w-full" />
-        {hint ? <p className="pointer-events-none absolute left-3 right-16 top-3 text-sm text-ink">{words.hint}</p> : null}
-        <p className="pointer-events-none absolute bottom-3 left-3 text-sm">{live}</p>
-        <p className="pointer-events-none absolute bottom-3 right-3 text-sm">
+        <p className="pointer-events-none absolute left-3.5 top-3 text-[0.85rem] font-semibold" style={onPicture}>
           {longest > 0 ? `${words.longest}: ${longest} ${theme.copy.yards}` : ""}
         </p>
-        {perfect ? <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center text-3xl font-semibold text-ink">{words.perfect}</p> : null}
+        {hint ? (
+          <p className="pointer-events-none absolute left-3.5 top-[34px] max-w-[60%] text-[0.85rem]" style={onPicture}>
+            {words.hint}
+          </p>
+        ) : null}
+        <p
+          ref={liveText}
+          className="pointer-events-none absolute left-1/2 top-[18%] -translate-x-1/2 text-[1.6rem] font-semibold"
+          style={{ ...onPicture, textShadow: "0 2px 6px rgba(22,21,20,0.5)" }}
+        />
+        {perfect ? (
+          <p
+            className="pointer-events-none absolute left-1/2 top-[40%] -translate-x-1/2 -translate-y-1/2 text-[2.4rem] font-bold tracking-[0.02em]"
+            style={{ color: theme.clay, textShadow: "0 2px 10px rgba(243,239,230,0.8)" }}
+          >
+            {words.perfect}
+          </p>
+        ) : null}
         {panel ? (
-          <button type="button" className="absolute inset-x-3 bottom-10 rounded-md border border-line bg-card p-4 text-left" onClick={() => setPanel(null)}>
-            <span className="block text-xl font-semibold">{panel.perfect ? words.perfectName : panel.key === "air-shot" ? copy.air.name : info?.name}</span>
-            <span className="mt-1 block text-sm">
+          <button
+            type="button"
+            className="absolute bottom-3 left-3 max-w-[min(360px,calc(100%-24px))] rounded-xl px-3.5 py-3 text-left text-[0.9rem] leading-[1.4]"
+            style={{ background: "rgba(243,239,230,0.94)", color: theme.ink, boxShadow: "0 2px 12px rgba(22,21,20,0.2)" }}
+            onClick={() => setPanel(null)}
+          >
+            <span className="block text-[1.05rem] font-semibold">{panel.perfect ? words.perfectName : panel.key === "air-shot" ? copy.air.name : info?.name}</span>
+            <span className="mt-1 block" style={{ color: "#6B665E" }}>
               {panel.strike === "air" || !yards
                 ? words.noContact
                 : landed
@@ -261,8 +307,8 @@ export function GolfAgentGame({
               <span className="mt-2 block text-sm text-muted">{info && "cause" in info ? info.cause : ""}</span>
             )}
             {!panel.perfect && panel.letDown[0] ? (
-              <span className="mt-2 block text-sm">
-                <span className="font-semibold">{words.letDown}:</span> {panel.letDown[0].what} {panel.letDown[0].fix}
+              <span className="mt-2 block">
+                <span className="font-semibold">{reasonLabel}:</span> {panel.letDown[0].what} {panel.letDown[0].fix}
               </span>
             ) : null}
             {!panel.perfect && panel.letDown[1] ? (
@@ -277,7 +323,7 @@ export function GolfAgentGame({
                 <span className="font-semibold">{words.onRange}:</span> {tip}
               </span>
             ) : null}
-            <span className="mt-3 block text-xs text-muted">{words.close}</span>
+            <span className="mt-3 block text-[0.75rem]" style={{ color: "#6B665E" }}>{words.close}</span>
           </button>
         ) : null}
       </div>

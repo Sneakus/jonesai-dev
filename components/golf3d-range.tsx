@@ -6,7 +6,7 @@ import { Text } from "@react-three/drei";
 import Link from "next/link";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { BackSide, BufferAttribute, BufferGeometry, Color, DoubleSide, LineBasicMaterial, Mesh, MeshBasicMaterial, Line as ThreeLine, PerspectiveCamera, type Group } from "three";
-import { fitSwingCamera, SWING_FOV } from "@/src/games/golf/camera-fit";
+import { fitSwingCamera, GAME_FOV, placeGameCamera, SWING_FOV } from "@/src/games/golf/camera-fit";
 import { fly, type FlightResult } from "@/src/games/golf/flight";
 import { curveYards, shotKey } from "@/src/games/golf/outcomes";
 import { stepCamera, stepShot } from "@/src/games/golf/range-play";
@@ -41,6 +41,9 @@ type FlightHold = {
   input: ReturnType<typeof gentleStrike>;
   born: number;
   reported: boolean;
+  tracerReady: boolean;
+  shown: number;
+  landAt: number;
 };
 
 function supportsWebGL(): boolean {
@@ -74,6 +77,8 @@ function Golfer({
 }) {
   const impact = useRef(onImpact);
   const sent = useRef(0);
+  const drawnTime = useRef(-1);
+  const drawnToken = useRef(-1);
   const swingTime = useRef(0);
   const trail = useRef<Vec[]>([]);
   const bones = useRef<Partial<Record<(typeof boneNames)[number], Mesh>>>({});
@@ -105,12 +110,17 @@ function Golfer({
   useEffect(() => {
     swingTime.current = 0;
     sent.current = 0;
+    drawnTime.current = -1;
+    drawnToken.current = -1;
     trail.current = [];
   }, [swingId]);
 
   useFrame((state, delta) => {
     if (play) {
       const clock = play.current;
+      if (clock.time === drawnTime.current && clock.token === drawnToken.current) return;
+      drawnTime.current = clock.time;
+      drawnToken.current = clock.token;
       const pose = swingPose(clock.time);
       const parts: [Mesh | null, Vec, Vec][] = [
         [bones.current.spine ?? null, pose.P, pose.S],
@@ -398,23 +408,24 @@ function Shot({
 function FollowCamera({
   hold,
   reduce,
+  still,
 }: {
   hold: MutableRefObject<FlightHold | null>;
   reduce: boolean;
+  still: boolean;
 }) {
   const size = useThree((state) => state.size);
   const camera = useThree((state) => state.camera);
   const aspect = size.width / Math.max(size.height, 1);
-  const home = useMemo(() => fitSwingCamera(aspect), [aspect]);
+  const home = useMemo(() => (still ? placeGameCamera(aspect) : fitSwingCamera(aspect)), [aspect, still]);
   const look = useRef({ x: home.look[0], y: home.look[1], z: home.look[2] });
   useLayoutEffect(() => {
     look.current = { x: home.look[0], y: home.look[1], z: home.look[2] };
-    if (!hold.current) {
-      camera.position.set(home.position[0], home.position[1], home.position[2]);
-      camera.lookAt(home.look[0], home.look[1], home.look[2]);
-    }
-  }, [camera, hold, home]);
+    camera.position.set(home.position[0], home.position[1], home.position[2]);
+    camera.lookAt(home.look[0], home.look[1], home.look[2]);
+  }, [camera, home]);
   useFrame((state, delta) => {
+    if (still) return;
     const current = hold.current;
     const age = current ? state.clock.elapsedTime - current.born : 0;
     stepCamera(state.camera as PerspectiveCamera, look.current, current, age, delta, reduce, home);
@@ -432,6 +443,7 @@ function World({
   outcomes,
   onPanel,
   onFlight,
+  onLaunch,
   onReady,
 }: {
   swingId: number;
@@ -443,6 +455,7 @@ function World({
   outcomes: { [key: string]: ShotCopy };
   onPanel: (panel: Panel) => void;
   onFlight: ((shot: FlightResult) => void) | null;
+  onLaunch: ((shot: FlightResult) => void) | null;
   onReady: () => void;
 }) {
   const hold = useRef<FlightHold | null>(null);
@@ -463,8 +476,9 @@ function World({
   const launch = (clock: number) => {
     const input = play?.current.shot ? shotToFlight(play.current.shot) : gentleStrike();
     const shot = fly(input);
-    hold.current = { shot, input, born: clock, reported: false };
+    hold.current = { shot, input, born: clock, reported: false, tracerReady: false, shown: 0, landAt: 0 };
     if (tee.current) tee.current.visible = false;
+    onLaunch?.(shot);
   };
 
   const landed = (current: FlightHold) => {
@@ -540,7 +554,7 @@ function World({
           </mesh>
         </>
       ) : null}
-      <FollowCamera hold={hold} reduce={reduce} />
+      <FollowCamera hold={hold} reduce={reduce} still={play !== null} />
     </>
   );
 }
@@ -551,6 +565,7 @@ export function Golf3dRange({
   embedded = false,
   resets = 0,
   onFlight,
+  onLaunch,
   onBox,
 }: {
   outcomes: { [key: string]: ShotCopy };
@@ -558,6 +573,7 @@ export function Golf3dRange({
   embedded?: boolean;
   resets?: number;
   onFlight?: (shot: FlightResult) => void;
+  onLaunch?: (shot: FlightResult) => void;
   onBox?: (node: HTMLDivElement | null) => void;
 }) {
   const [webgl] = useState(supportsWebGL);
@@ -605,12 +621,12 @@ export function Golf3dRange({
   const side = panel && panel.offline < -0.5 ? theme.copy.left : panel && panel.offline > 0.5 ? theme.copy.right : "";
 
   const picture = (
-      <div ref={(node) => { box.current = node; onBox?.(node); }} className={`relative overflow-hidden rounded-md border border-line bg-paper ${embedded ? "h-[70vh] min-h-80" : "mt-4 h-[70vh] min-h-80"}`}>
+      <div ref={(node) => { box.current = node; onBox?.(node); }} className={`relative overflow-hidden rounded-md border border-line bg-paper ${embedded ? "h-full" : "mt-4 h-[70vh] min-h-80"}`}>
         <Canvas
           shadows
           dpr={[1, 1.5]}
           frameloop={frameloop}
-          camera={{ position: fitSwingCamera(1.2).position, fov: SWING_FOV, near: 0.1, far: 400 }}
+          camera={{ position: embedded ? [-0.35, 1.55, 3.6] : fitSwingCamera(1.2).position, fov: embedded ? GAME_FOV : SWING_FOV, near: 0.1, far: 400 }}
           onCreated={({ gl }) => {
             gl.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
           }}
@@ -625,6 +641,7 @@ export function Golf3dRange({
             outcomes={outcomes}
             onPanel={setPanel}
             onFlight={onFlight ?? null}
+            onLaunch={onLaunch ?? null}
             onReady={() => setReady(true)}
           />
         </Canvas>

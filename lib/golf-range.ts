@@ -39,6 +39,8 @@ export type RangeWords = {
   onLine: string;
   also: string;
   letDown: string;
+  whyNot: string;
+  intro: string;
   onRange: string;
   purity: string;
   pureTail: string;
@@ -130,6 +132,8 @@ export function readGolfRange(): GolfRangeCopy {
     onLine: asString(data.onLine),
     also: asString(data.also),
     letDown: asString(data.letDown),
+    whyNot: asString(data.whyNot),
+    intro: asString(data.intro),
     onRange: asString(data.onRange),
     purity: asString(data.purity),
     pureTail: asString(data.pureTail),
