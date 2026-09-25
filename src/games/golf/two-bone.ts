@@ -55,7 +55,15 @@ export function solveTwoBone(root: Object3D, mid: Object3D, end: Object3D, targe
   dir.subVectors(target, rootPos);
   const reach = dir.length();
   if (reach < 1e-6) return;
-  const limited = Math.min(upper + lower - 1e-4, Math.max(Math.abs(upper - lower) + 1e-4, reach));
+  const span = upper + lower;
+  const cap = span * 0.98;
+  const soft = span * 0.93;
+  let limited = Math.min(Math.max(Math.abs(upper - lower) + 1e-4, reach), cap);
+  if (limited > soft) {
+    const t = (limited - soft) / Math.max(1e-4, cap - soft);
+    const eased = t * t * (3 - 2 * t);
+    limited = soft + (cap - soft) * eased * 0.8;
+  }
   dir.multiplyScalar(1 / reach);
 
   const along = (upper * upper - lower * lower + limited * limited) / (2 * limited);

@@ -1,388 +1,308 @@
-import type { AnimationAction, Object3D } from "three";
-import { Euler, Quaternion, Vector3 } from "three";
+import { AnimationAction, Object3D, Quaternion, Vector3 } from "three";
+import { ballSpot, findBone, holdFrame, soleHeight } from "./range-play";
 import { rangeSettings as range } from "./settings";
-import { findBone, holdFrame, soleHeight } from "./range-play";
-import { setWorldQuaternion, solveTwoBone } from "./two-bone";
+import { solveTwoBone } from "./two-bone";
 
-const ball = new Vector3(range.ball[0], range.ball[1], range.ball[2]);
-const shaftUp = new Vector3(0, 1, 0);
-const headLocal = new Vector3();
-const handPos = new Vector3();
-const headPos = new Vector3();
-const gripPos = new Vector3();
+const leadPos = new Vector3();
+const trailPos = new Vector3();
+const mid = new Vector3();
+const across = new Vector3();
+const side = new Vector3();
+const upAxis = new Vector3(0, 1, 0);
+const shaft = new Vector3();
+const rawUp = new Vector3();
+const clubUp = new Vector3();
+const grip = new Vector3();
+const head = new Vector3();
+const target = new Vector3();
+const animated = new Vector3();
+const correction = new Vector3();
+const prevLead = new Vector3();
+const prevTrail = new Vector3();
 const pole = new Vector3();
-const fromDir = new Vector3();
-const toDir = new Vector3();
-const turn = new Quaternion();
-const worldQ = new Quaternion();
-const limited = new Quaternion();
+const hipPos = new Vector3();
+const tmp = new Vector3();
+const held = new Vector3();
 
-export type SwingFix = {
+type Fix = {
   impactTime: number;
-  times: number[];
-  impactIndex: number;
+  addressGap: number;
+  ballMoved: number;
+  length: number;
+  shaftX: number;
+  shaftY: number;
+  shaftZ: number;
+  trailAlong: number;
   leftFoot: Vector3;
   rightFoot: Vector3;
-  leftFootQ: Quaternion;
-  rightFootQ: Quaternion;
-  toeLocal: { bone: Object3D; q: Quaternion }[];
-  palmRel: Quaternion;
-  /** World-space nudge that puts the clubhead on the ball at impact, before the cap. */
-  impactGap: Vector3;
+  rightToe: Vector3;
+  rigHome: Vector3;
+  topTime: number;
+  endTime: number;
+  rest: Map<string, number>;
 };
 
-let fix: SwingFix | null = null;
+let fix: Fix | null = null;
+let rollReady = false;
 
-export function clubLength() {
-  return range.clubLength;
+function bone(root: Object3D, name: string) {
+  const found = findBone(root, name);
+  if (!found) throw new Error(`Missing bone ${name}`);
+  return found;
 }
 
-export function clubheadPosition(club: Object3D, target: Vector3) {
-  target.set(0, clubLength(), 0);
-  club.localToWorld(target);
-  return target;
+function hands(model: Object3D) {
+  bone(model, "LeftHand").getWorldPosition(leadPos);
+  bone(model, "RightHand").getWorldPosition(trailPos);
+  mid.addVectors(leadPos, trailPos).multiplyScalar(0.5);
+  across.subVectors(trailPos, leadPos);
+  if (across.lengthSq() < 1e-8) across.set(1, 0, 0);
+  across.normalize();
+  side.crossVectors(across, upAxis);
+  if (side.lengthSq() < 1e-8) side.set(0, 0, 1);
+  side.normalize();
+  rawUp.crossVectors(side, across).normalize();
 }
 
-export function gripPoint(club: Object3D, target: Vector3) {
-  target.set(0, range.trailGrip, 0);
-  club.localToWorld(target);
-  return target;
-}
-
-/** A point on the grip the trail arm can actually reach, preferring 8 to 10 cm down the shaft. */
-function closestOnShaft(club: Object3D, shoulder: Object3D, elbow: Object3D, hand: Object3D) {
-  const origin = new Vector3();
-  const tip = new Vector3(0, 1, 0);
-  club.getWorldPosition(origin);
-  club.localToWorld(tip);
-  tip.sub(origin).normalize();
-  const shoulderPos = new Vector3();
-  const elbowPos = new Vector3();
-  const handPosNow = new Vector3();
-  shoulder.getWorldPosition(shoulderPos);
-  elbow.getWorldPosition(elbowPos);
-  hand.getWorldPosition(handPosNow);
-  const limit = shoulderPos.distanceTo(elbowPos) + elbowPos.distanceTo(handPosNow) - 0.01;
-  let best = origin.clone();
-  let bestScore = Infinity;
-  for (let step = 0; step <= 16; step += 1) {
-    const along = 0.04 + (step / 16) * 0.16;
-    const point = origin.clone().addScaledVector(tip, along);
-    const short = Math.max(0, shoulderPos.distanceTo(point) - limit);
-    const prefer = Math.abs(along - range.trailGrip);
-    const score = short * 10 + prefer;
-    if (score < bestScore) {
-      bestScore = score;
-      best = point;
-    }
+function clubFromHands() {
+  if (!fix) return;
+  shaft.set(0, 0, 0);
+  shaft.addScaledVector(across, fix.shaftX);
+  shaft.addScaledVector(rawUp, fix.shaftY);
+  shaft.addScaledVector(side, fix.shaftZ);
+  if (shaft.lengthSq() < 1e-8) shaft.copy(rawUp);
+  shaft.normalize();
+  if (!rollReady) {
+    clubUp.copy(rawUp);
+    rollReady = true;
   }
-  return best;
-}
-
-export function mountClub(club: Object3D, hand: Object3D, euler = range.gripEuler, shaft = shaftUp) {
-  const aim = new Quaternion().setFromUnitVectors(shaftUp, shaft.clone().normalize());
-  const extra = new Quaternion().setFromEuler(new Euler(euler[0], euler[1], euler[2]));
-  club.quaternion.copy(aim).multiply(extra);
-  club.position.set(0, 0, 0);
-  club.scale.set(1, 1, 1);
-  if (club.parent !== hand) hand.add(club);
-  club.updateMatrixWorld(true);
-}
-
-/** Direction, in the lead hand, that stays closest to the trail hand across the swing. */
-function shaftThroughTrailHand(model: Object3D, action: AnimationAction, times: number[]) {
-  const left = findBone(model, "LeftHand");
-  const right = findBone(model, "RightHand");
-  const samples: Vector3[] = [];
-  const point = new Vector3();
-  if (left && right) {
-    for (const time of times) {
-      holdFrame(action, time);
-      model.updateMatrixWorld(true);
-      right.getWorldPosition(point);
-      left.worldToLocal(point);
-      samples.push(point.clone());
-    }
+  clubUp.addScaledVector(shaft, -clubUp.dot(shaft));
+  if (clubUp.lengthSq() < 1e-8) clubUp.copy(rawUp);
+  clubUp.normalize();
+  rawUp.addScaledVector(shaft, -rawUp.dot(shaft));
+  if (rawUp.lengthSq() > 1e-8) {
+    rawUp.normalize();
+    clubUp.lerp(rawUp, 0.25).normalize();
   }
-  let bestDir = new Vector3(0, 1, 0);
-  let best = Infinity;
-  for (let tilt = 0; tilt < 12; tilt += 1) {
-    for (let turn = 0; turn < 16; turn += 1) {
-      const rise = (Math.PI * tilt) / 11 - Math.PI / 2;
-      const spin = (Math.PI * 2 * turn) / 16;
-      const dir = new Vector3(Math.sin(spin) * Math.cos(rise), Math.sin(rise), Math.cos(spin) * Math.cos(rise));
-      if (dir.y < 0) dir.negate();
-      let worst = 0;
-      for (const sample of samples) {
-        const along = sample.dot(dir);
-        const off = Math.sqrt(Math.max(0, sample.lengthSq() - along * along));
-        worst = Math.max(worst, off);
-      }
-      if (worst < best) {
-        best = worst;
-        bestDir = dir;
-      }
-    }
+  grip.copy(mid);
+  head.copy(grip).addScaledVector(shaft, fix.length);
+}
+
+function armWeight(time: number) {
+  if (!fix) return 0;
+  const before = fix.impactTime - 2 / 60;
+  if (time <= fix.topTime || time >= fix.endTime) return 0;
+  if (time < before) return (time - fix.topTime) / Math.max(1e-4, before - fix.topTime);
+  return 1 - (time - before) / Math.max(1e-4, fix.endTime - before);
+}
+
+function pullHand(model: Object3D, handName: string, aim: Vector3, weight: number, previous: Vector3) {
+  const hand = bone(model, handName);
+  hand.getWorldPosition(animated);
+  target.copy(animated).lerp(aim, weight);
+  correction.subVectors(target, animated);
+  tmp.subVectors(correction, previous);
+  if (tmp.length() > 0.02) {
+    tmp.setLength(0.02);
+    correction.copy(previous).add(tmp);
   }
-  return bestDir;
+  previous.copy(correction);
+  target.copy(animated).add(correction);
+  const shoulder = bone(model, handName.startsWith("Left") ? "LeftArm" : "RightArm");
+  const elbow = bone(model, handName.startsWith("Left") ? "LeftForeArm" : "RightForeArm");
+  bone(model, "Hips").getWorldPosition(hipPos);
+  solveTwoBone(shoulder, elbow, hand, target, hipPos);
 }
 
-function frameTimes(action: AnimationAction) {
-  const clip = action.getClip();
-  const track = clip?.tracks.find((item) => item.name.includes("Hips") && item.name.endsWith("position"));
-  return track ? Array.from(track.times) : [0];
+function seatHips(model: Object3D, aim: Vector3, rootName: string, midName: string, endName: string) {
+  const hips = bone(model, "Hips");
+  const parent = hips.parent;
+  if (!parent) return;
+  const root = bone(model, rootName);
+  const midBone = bone(model, midName);
+  const end = bone(model, endName);
+  root.getWorldPosition(tmp);
+  midBone.getWorldPosition(target);
+  const upper = tmp.distanceTo(target);
+  end.getWorldPosition(target);
+  const lower = midBone.getWorldPosition(animated).distanceTo(target);
+  const span = (upper + lower) * 0.82;
+  const dist = tmp.distanceTo(aim);
+  if (dist <= span) return;
+  const shift = aim.clone().sub(tmp).setLength(dist - span);
+  hips.getWorldPosition(target);
+  parent.worldToLocal(target.add(shift));
+  hips.position.copy(target);
+  model.updateMatrixWorld(true);
 }
 
-function bones(model: Object3D) {
-  return {
-    leftUp: findBone(model, "LeftUpLeg"),
-    leftLeg: findBone(model, "LeftLeg"),
-    leftFoot: findBone(model, "LeftFoot"),
-    rightUp: findBone(model, "RightUpLeg"),
-    rightLeg: findBone(model, "RightLeg"),
-    rightFoot: findBone(model, "RightFoot"),
-    leftHand: findBone(model, "LeftHand"),
-    rightArm: findBone(model, "RightArm"),
-    rightFore: findBone(model, "RightForeArm"),
-    rightHand: findBone(model, "RightHand"),
-  };
+function pinFoot(model: Object3D, sideName: "Left" | "Right", aim: Vector3) {
+  const hip = bone(model, `${sideName}UpLeg`);
+  const knee = bone(model, `${sideName}Leg`);
+  const foot = bone(model, `${sideName}Foot`);
+  hip.getWorldPosition(pole);
+  tmp.subVectors(aim, pole);
+  target.set(0, 0, 1).cross(tmp);
+  if (target.x < 0) target.negate();
+  target.z += sideName === "Left" ? -0.35 : 0.35;
+  if (tmp.lengthSq() > 1e-8) target.addScaledVector(tmp, -target.dot(tmp) / tmp.lengthSq());
+  if (target.x < 0) target.negate();
+  if (target.lengthSq() < 1e-8) target.set(0, 1, 0);
+  pole.add(target.normalize());
+  solveTwoBone(hip, knee, foot, aim, pole);
 }
 
-function reach(up: Object3D, mid: Object3D, end: Object3D) {
-  const a = new Vector3();
-  const b = new Vector3();
-  const c = new Vector3();
-  up.getWorldPosition(a);
-  mid.getWorldPosition(b);
-  end.getWorldPosition(c);
-  return a.distanceTo(b) + b.distanceTo(c) - 0.02;
+function pinToe(model: Object3D, aim: Vector3) {
+  const knee = bone(model, "RightLeg");
+  const foot = bone(model, "RightFoot");
+  const toe = bone(model, "RightToe_End");
+  foot.getWorldPosition(pole);
+  pole.x += 1;
+  pole.y += 0.2;
+  pole.z += 0.35;
+  solveTwoBone(knee, foot, toe, aim, pole);
 }
 
-function moveToWorld(bone: Object3D, world: Vector3) {
-  const parent = bone.parent;
-  if (!parent) {
-    bone.position.copy(world);
-    return;
-  }
-  parent.updateWorldMatrix(true, false);
-  const local = world.clone();
-  parent.worldToLocal(local);
-  bone.position.copy(local);
-  bone.updateMatrixWorld(true);
+function restLengths(model: Object3D) {
+  const rest = new Map<string, number>();
+  model.traverse((node) => {
+    if (!node.parent) return;
+    rest.set(node.name, node.position.length());
+  });
+  return rest;
 }
 
-/** Shift the hips the minimum amount so both legs can still reach their planted feet. */
-function seatHips(model: Object3D, leftHome: Vector3, rightHome: Vector3) {
-  const hips = findBone(model, "Hips");
-  const leftUp = findBone(model, "LeftUpLeg");
-  const leftLeg = findBone(model, "LeftLeg");
-  const leftFoot = findBone(model, "LeftFoot");
-  const rightUp = findBone(model, "RightUpLeg");
-  const rightLeg = findBone(model, "RightLeg");
-  const rightFoot = findBone(model, "RightFoot");
-  if (!hips || !leftUp || !leftLeg || !leftFoot || !rightUp || !rightLeg || !rightFoot) return;
-  const leftReach = reach(leftUp, leftLeg, leftFoot);
-  const rightReach = reach(rightUp, rightLeg, rightFoot);
-  const here = new Vector3();
-  hips.getWorldPosition(here);
-  for (const [home, limit] of [
-    [leftHome, leftReach],
-    [rightHome, rightReach],
-  ] as const) {
-    const gap = here.distanceTo(home);
-    if (gap > limit) here.addScaledVector(home.clone().sub(here).normalize(), gap - limit);
-  }
-  moveToWorld(hips, here);
-}
-
-function pinFoot(up: Object3D | undefined, knee: Object3D | undefined, foot: Object3D | undefined, home: Vector3, rotation: Quaternion) {
-  if (!up || !knee || !foot) return;
-  knee.getWorldPosition(pole);
-  solveTwoBone(up, knee, foot, home, pole);
-  setWorldQuaternion(foot, rotation);
-}
-
-/** After the clip has posed this frame: plant the feet, then the hands and the clubhead. */
-export function correctFrame(model: Object3D, club: Object3D, time: number) {
+export function correctFrame(model: Object3D, time: number) {
   if (!fix) return;
   model.updateMatrixWorld(true);
-  const rigBones = bones(model);
-  seatHips(model, fix.leftFoot, fix.rightFoot);
-  pinFoot(rigBones.leftUp, rigBones.leftLeg, rigBones.leftFoot, fix.leftFoot, fix.leftFootQ);
-  pinFoot(rigBones.rightUp, rigBones.rightLeg, rigBones.rightFoot, fix.rightFoot, fix.rightFootQ);
-  for (const toe of fix.toeLocal) toe.bone.quaternion.copy(toe.q);
+  const weight = armWeight(time);
+  seatHips(model, fix.leftFoot, "LeftUpLeg", "LeftLeg", "LeftFoot");
+  if (time <= fix.impactTime) seatHips(model, fix.rightFoot, "RightUpLeg", "RightLeg", "RightFoot");
+  else seatHips(model, fix.rightToe, "RightLeg", "RightFoot", "RightToe_End");
+  if (time <= fix.impactTime) {
+    pinFoot(model, "Left", fix.leftFoot);
+    pinFoot(model, "Right", fix.rightFoot);
+  } else {
+    pinFoot(model, "Left", fix.leftFoot);
+    bone(model, "RightFoot").getWorldPosition(held);
+    pinFoot(model, "Right", held);
+    pinToe(model, fix.rightToe);
+  }
+  hands(model);
+  const trailGrip = mid.clone().addScaledVector(across, fix.trailAlong);
+  pullHand(model, "LeftHand", mid, weight, prevLead);
+  pullHand(model, "RightHand", trailGrip, weight, prevTrail);
   model.updateMatrixWorld(true);
-
-  if (!rigBones.leftHand || !club.parent) return;
-  const index = nearestFrame(fix.times, time);
-  const span = Math.abs(index - fix.impactIndex);
-  const fade = span >= range.impactFrames ? 0 : smooth(1 - span / range.impactFrames);
-  if (fade > 0 && fix.impactGap.lengthSq() > 1e-8) {
-    rigBones.leftHand.getWorldPosition(handPos);
-    clubheadPosition(club, headPos);
-    fromDir.subVectors(headPos, handPos);
-    const room = Math.min(range.impactCap, fix.impactGap.length());
-    toDir.copy(fix.impactGap).setLength(room * fade);
-    toDir.add(fromDir);
-    if (fromDir.lengthSq() > 1e-8 && toDir.lengthSq() > 1e-8) {
-      rigBones.leftHand.getWorldQuaternion(worldQ);
-      turn.setFromUnitVectors(fromDir.normalize(), toDir.normalize());
-      turn.multiply(worldQ);
-      setWorldQuaternion(rigBones.leftHand, turn);
-      club.updateMatrixWorld(true);
-    }
+  hands(model);
+  clubFromHands();
   }
 
-  if (rigBones.rightArm && rigBones.rightFore && rigBones.rightHand) {
-    const onShaft = closestOnShaft(club, rigBones.rightArm, rigBones.rightFore, rigBones.rightHand);
-    gripPos.copy(onShaft);
-    rigBones.rightFore.getWorldPosition(pole);
-    solveTwoBone(rigBones.rightArm, rigBones.rightFore, rigBones.rightHand, gripPos, pole);
-    club.getWorldQuaternion(worldQ);
-    setWorldQuaternion(rigBones.rightHand, worldQ.multiply(fix.palmRel));
-  }
+export function clubheadPosition(_club: Object3D | null, out: Vector3) {
+  return out.copy(head);
 }
 
-function nearestFrame(times: number[], time: number) {
-  let best = 0;
-  let gap = Infinity;
-  for (let i = 0; i < times.length; i += 1) {
-    const next = Math.abs(times[i] - time);
-    if (next < gap) {
-      gap = next;
-      best = i;
-    }
-  }
-  return best;
+export function shaftEnds(gripOut: Vector3, headOut: Vector3) {
+  gripOut.copy(grip);
+  headOut.copy(head);
 }
 
-function smooth(value: number) {
-  const t = Math.min(1, Math.max(0, value));
-  return t * t * (3 - 2 * t);
-}
-
-function faceAndGround(rig: Object3D, model: Object3D, action: AnimationAction) {
-  rig.position.set(0, 0, 0);
-  rig.rotation.set(0, 0, 0);
-  rig.updateMatrixWorld(true);
-  holdFrame(action, 0);
-  model.updateMatrixWorld(true);
-  const leftShoulder = findBone(model, "LeftShoulder") ?? findBone(model, "LeftArm");
-  const rightShoulder = findBone(model, "RightShoulder") ?? findBone(model, "RightArm");
-  const left = new Vector3();
-  const right = new Vector3();
-  leftShoulder?.getWorldPosition(left);
-  rightShoulder?.getWorldPosition(right);
-  left.sub(right);
-  left.y = 0;
-  if (left.lengthSq() < 1e-8) left.set(0, 0, -1);
-  left.normalize();
-  rig.rotation.y = Math.atan2(left.x, -left.z);
-  rig.updateMatrixWorld(true);
-  holdFrame(action, 0);
-  model.updateMatrixWorld(true);
-  rig.position.y += -soleHeight(model);
-  rig.updateMatrixWorld(true);
-}
-
-/** One placement. The lowest clubhead sits just behind the ball, and the feet are remembered there. */
-export function placeRig(rig: Object3D, model: Object3D, action: AnimationAction, club: Object3D) {
-  const hand = findBone(model, "LeftHand");
-  if (!hand) throw new Error("Lead hand missing");
-  faceAndGround(rig, model, action);
-  const timesForShaft = frameTimes(action);
-  const shaft = shaftThroughTrailHand(model, action, timesForShaft);
-  mountClub(club, hand, range.gripEuler, shaft);
-
-  const times = frameTimes(action);
-  const rightHand = findBone(model, "RightHand");
-  const heads: Vector3[] = [];
-  const speeds: number[] = [];
-  const right = new Vector3();
-  let previous: Vector3 | null = null;
-  let previousTime = times[0] ?? 0;
-  for (const time of times) {
-    holdFrame(action, time);
-    model.updateMatrixWorld(true);
-    const point = new Vector3();
-    clubheadPosition(club, point);
-    heads.push(point.clone());
-    rightHand?.getWorldPosition(right);
-    const step = Math.max(1e-4, time - previousTime);
-    speeds.push(previous ? right.distanceTo(previous) / step : 0);
-    previous = right.clone();
-    previousTime = time;
-  }
-  let impactIndex = 0;
-  for (let i = 1; i < speeds.length; i += 1) {
-    if (speeds[i] > speeds[impactIndex]) impactIndex = i;
-  }
-  let low = 0;
-  for (let i = 1; i < heads.length; i += 1) {
-    if (heads[i].y < heads[low].y) low = i;
-  }
-  rig.position.x += ball.x - heads[low].x;
-  rig.position.z += ball.z + range.behindBall - heads[low].z;
-  rig.updateMatrixWorld(true);
-
-  holdFrame(action, 0);
-  model.updateMatrixWorld(true);
-  const rigBones = bones(model);
-  const toeLocal: SwingFix["toeLocal"] = [];
-  for (const name of ["LeftToeBase", "LeftToe_End", "RightToeBase", "RightToe_End"]) {
-    const bone = findBone(model, name);
-    if (bone) toeLocal.push({ bone, q: bone.quaternion.clone() });
-  }
-  const leftFoot = new Vector3();
-  const rightFoot = new Vector3();
-  const leftFootQ = new Quaternion();
-  const rightFootQ = new Quaternion();
-  rigBones.leftFoot?.getWorldPosition(leftFoot);
-  rigBones.rightFoot?.getWorldPosition(rightFoot);
-  rigBones.leftFoot?.getWorldQuaternion(leftFootQ);
-  rigBones.rightFoot?.getWorldQuaternion(rightFootQ);
-  const palmRel = new Quaternion();
-  if (rigBones.rightHand) {
-    club.getWorldQuaternion(worldQ);
-    rigBones.rightHand.getWorldQuaternion(palmRel);
-    palmRel.premultiply(worldQ.invert());
-  }
-
-  holdFrame(action, times[impactIndex] ?? 0);
-  model.updateMatrixWorld(true);
-  clubheadPosition(club, headPos);
-  const impactGap = ball.clone().sub(headPos);
-  if (impactGap.length() > range.impactCap) impactGap.setLength(range.impactCap);
-
-  fix = {
-    impactTime: times[impactIndex] ?? 0,
-    times,
-    impactIndex,
-    leftFoot,
-    rightFoot,
-    leftFootQ,
-    rightFootQ,
-    toeLocal,
-    palmRel,
-    impactGap,
-  };
-  holdFrame(action, 0);
-  correctFrame(model, club, 0);
-  return fix;
+export function gripPoint(_club: Object3D | null, out: Vector3) {
+  return out.copy(trailPos);
 }
 
 export function currentFix() {
   return fix;
 }
 
-export function gripDistance(club: Object3D, hand: Vector3) {
-  const top = new Vector3(0, 0, 0);
-  const end = new Vector3(0, range.gripLength, 0);
-  club.localToWorld(top);
-  club.localToWorld(end);
-  const along = end.sub(top);
-  const lengthSq = along.lengthSq();
-  if (lengthSq < 1e-8) return hand.distanceTo(top);
-  const t = Math.min(1, Math.max(0, hand.clone().sub(top).dot(along) / lengthSq));
-  return hand.distanceTo(top.clone().addScaledVector(along, t));
+export function placeRig(rig: Object3D, model: Object3D, action: AnimationAction) {
+  rig.position.set(0, 0, 0);
+  rig.rotation.set(0, 0, 0);
+  rig.updateMatrixWorld(true);
+  holdFrame(action, 0);
+  model.updateMatrixWorld(true);
+  const left = bone(model, "LeftShoulder").getWorldPosition(new Vector3());
+  const right = bone(model, "RightShoulder").getWorldPosition(new Vector3());
+  const leftDir = left.sub(right);
+  leftDir.y = 0;
+  if (leftDir.lengthSq() < 1e-8) leftDir.set(0, 0, -1);
+  leftDir.normalize();
+  rig.rotation.y = Math.atan2(leftDir.x, -leftDir.z);
+  rig.updateMatrixWorld(true);
+  holdFrame(action, 0);
+  model.updateMatrixWorld(true);
+  rig.position.y += -soleHeight(model);
+  rig.updateMatrixWorld(true);
+  holdFrame(action, 0);
+  model.updateMatrixWorld(true);
+
+  const ball = new Vector3(range.ball[0], range.ball[1], range.ball[2]);
+  hands(model);
+  const addressShaft = ball.clone().sub(mid);
+  const length = Math.max(0.2, addressShaft.length());
+  addressShaft.normalize();
+  const addressGap = mid.clone().addScaledVector(addressShaft, length).distanceTo(ball);
+  const trailAlong = tmp.subVectors(trailPos, mid).dot(across);
+
+  const duration = action.getClip()?.duration ?? 1;
+  const step = 1 / 60;
+  const samples: { time: number; head: Vector3; speed: number; hand: number }[] = [];
+  let previous = new Vector3();
+  let primed = false;
+  rollReady = false;
+  fix = {
+    impactTime: 0,
+    addressGap,
+    ballMoved: 0,
+    length,
+    shaftX: addressShaft.dot(across),
+    shaftY: addressShaft.dot(rawUp),
+    shaftZ: addressShaft.dot(side),
+    trailAlong,
+    leftFoot: bone(model, "LeftFoot").getWorldPosition(new Vector3()),
+    rightFoot: bone(model, "RightFoot").getWorldPosition(new Vector3()),
+    rightToe: bone(model, "RightToe_End").getWorldPosition(new Vector3()),
+    rigHome: rig.position.clone(),
+    topTime: duration,
+    endTime: duration,
+    rest: restLengths(model),
+  };
+
+  let highest = -Infinity;
+  for (let time = 0; time <= duration + 1e-6; time += step) {
+    holdFrame(action, Math.min(time, duration));
+    correctFrame(model, Math.min(time, duration));
+    const speed = primed ? head.distanceTo(previous) / step : 0;
+    previous.copy(head);
+    primed = true;
+    bone(model, "LeftHand").getWorldPosition(tmp);
+    samples.push({ time: Math.min(time, duration), head: head.clone(), speed, hand: tmp.y });
+  }
+
+  let peak = 0;
+  for (const sample of samples) peak = Math.max(peak, sample.speed);
+  let impact: (typeof samples)[number] | null = null;
+  for (const sample of samples) {
+    if (sample.time < 0.2 || sample.speed < peak * 0.85) continue;
+    if (!impact || sample.head.y < impact.head.y) impact = sample;
+  }
+  fix.impactTime = impact?.time ?? 0;
+  for (const sample of samples) {
+    if (sample.time > fix.impactTime) break;
+    if (sample.hand > highest) {
+      highest = sample.hand;
+      fix.topTime = sample.time;
+    }
+  }
+  const moved = impact ? impact.head.clone().sub(ball) : new Vector3();
+  ballSpot.x = range.ball[0] + moved.x;
+  ballSpot.y = range.ball[1] + moved.y;
+  ballSpot.z = range.ball[2] + moved.z;
+  fix.ballMoved = moved.length();
+  prevLead.set(0, 0, 0);
+  prevTrail.set(0, 0, 0);
+  rollReady = false;
+  holdFrame(action, 0);
+  console.log(`address gap ${addressGap.toFixed(4)}`);
+  console.log(`ball moved ${fix.ballMoved.toFixed(4)}`);
+  return fix;
 }

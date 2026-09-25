@@ -20,6 +20,14 @@ export const golfTheme = {
   sun: "#e8a05a",
   grip: "#2c2926",
   shaft: "#c8c2b6",
+  /** Motion-capture skeleton. Off-white bones, clay joints. Debug swaps to blue and green. */
+  skeleton: {
+    bone: "#fbf8f2",
+    joint: "#e8480c",
+    thickness: 2,
+    debugBone: "#2f6fed",
+    debugJoint: "#1f8a4c",
+  },
   font: "Instrument Sans",
   fontUrl: "/games/golf/InstrumentSans-Medium.ttf",
   copy: {

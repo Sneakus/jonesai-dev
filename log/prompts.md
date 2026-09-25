@@ -1351,3 +1351,51 @@ Check /golf-agent loads without errors. Don't use the built-in browser. Run the 
 ```
 Changed: Replaced the Golf Agent example with the real answer from 25 Sep 2026.
 Files: content/builds/golf-agent.md, log/prompts.md
+
+### 2026-09-25 13:14
+Prompt:
+```
+Turn the golfer on /lab/golf3d into a motion-capture style skeleton and fix the club. Start from the golf-correction-layer branch, and merge into main only when every check below passes. Keep the scene exactly as it is. Stop and tell me if anything fails.
+
+1. Assets: re-export from Blender with only the armature and the animation, with no body mesh and no textures. The animation binds to bones by name, so the mesh isn't needed.
+
+2. Drawing the skeleton, in the order mixer update, then IK, then updateMatrixWorld, then read bone positions, then draw, every frame:
+   - Bones and the club: one LineSegments2 (drei <Line segments>) for all of them, in off-white, with a fixed thickness.
+   - Joints: one InstancedMesh of small clay-orange spheres at the main joints, with fingers and tiny bones left out.
+   - Head: a simple ring or small sphere.
+   - Clubhead: a faint fading trail during the swing.
+   - Set frustumCulled = false on all of these. Write positions into one preallocated buffer, with no new objects each frame. Keep depth testing on.
+   - Put colours and thickness in the brand config, with the blue-and-green debug look as an alternative style.
+
+3. Club calibration by geometry, with no search: at the address frame, the grip point is the midpoint between the two hand joints and the clubhead point is the ball. Store the club length and the club's rotation relative to the lead hand from that. Print the address gap, which must be under 1 cm.
+
+4. Club direction from positions, not the hand bone's rotation: build it each frame from the lead hand, the trail hand and a stable "up" hint. Lightly smooth only the club's roll around its own axis.
+
+5. Move the ball to the club: sample the whole swing, find impact (the lowest clubhead point near peak clubhead speed), and move the tee and ball to that spot. The golfer doesn't move. Print how far the ball moved.
+
+6. IK, only for what's left over:
+   - Analytic two-bone IK for arms and legs, with pole directions: knees forward and slightly out, elbows down towards the hips.
+   - Clamp reach to 98% of the limb's length, and soften the last 5% of reach so joints can't pop straight.
+   - Bone lengths must never change.
+   - Ramp the arm IK weight from 0 at the top of the backswing to 1 just before impact, then back to 0 through the follow-through. The correction can change by no more than 2 cm per frame.
+   - Feet: pin both feet through address, backswing and impact. After impact, pin only the trail toe, so the heel can lift naturally.
+
+7. The check script, sampled at a fixed 60 frames per second, with the worst value printed for each:
+   - lead foot under 1 cm for the whole swing
+   - trail foot under 1 cm until impact, then only the toe
+   - trail hand under 2 cm from its grip point
+   - clubhead under 3 cm from the ball at address and at impact
+   - anti-flick: the club's direction within about 8 to 10 degrees of the midpoint of the frames either side
+   - every bone length within 0.5% of its rest length
+   - knees and elbows never bend backwards and never lock fully straight
+   - the golfer's top-level object never moves (the hips are allowed to)
+   Keep fixing until they all pass, then merge into main.
+
+8. Time-box: if it doesn't pass or doesn't look right within one working day, stop and tell me. Don't raise the IK strength further.
+
+9. Don't use the built-in browser. Run the check script, the tests, the code check and gitleaks git -v, commit with "Golf kit: skeleton golfer, club calibrated by geometry", merge into main and push.
+
+Tell me in plain English what changed, how far the ball moved, and paste the printed checks.
+```
+Changed: Stopped before merging. The skeleton and geometric club are in place, but the address and impact clubhead checks do not pass.
+Files: public/games/golf/golfer.glb, src/games/golf/swing-fix.ts, src/games/golf/two-bone.ts, src/games/golf/theme.ts, src/games/golf/place-check.test.ts, components/golf3d-range.tsx, log/prompts.md
