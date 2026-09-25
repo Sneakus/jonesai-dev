@@ -1103,3 +1103,36 @@ Hide the driving range on the Golf Agent page for now. Don't delete its code. Pu
 ```
 Changed: Switched the driving range off so the Golf Agent page reads as it did before.
 Files: components/build-article.tsx, log/prompts.md
+
+### 2026-09-25 01:23
+Prompt:
+```
+Build the ball-flight engine for a 3D driving range game, plus a hidden test page. No 3D yet. Keep the rest of the site as it is. Stop and tell me if anything fails.
+
+1. Structure: this is the first part of a reusable minigame kit. Put the game logic in plain TypeScript modules with no React or three.js inside them, in a folder such as src/games/golf/. Anything brand-specific (colours, copy, messages) must come from config or content files, never be hard-coded.
+
+2. The flight model, in its own module. Inputs: club speed (mph), face angle and swing path (degrees, positive meaning right), strike offset across the face (heel to toe) and strike height (low to high). Outputs: ball speed, launch angle, spin rate, spin axis, start direction, the full trajectory, carry, total distance and how far offline it finished.
+   - Start direction is about 85% from the face and 15% from the path (driver).
+   - Curve comes from the spin axis, tilted by the face compared with the path. A toe strike adds hook tilt and a heel strike adds slice tilt, and both lower the ball speed.
+   - Forces: gravity, air drag and lift from spin, with spin slowly decaying. Use a small fixed time step (RK4 or similar). Include a simple bounce and roll.
+   - Poor strikes: fat loses a lot of speed and goes short and high-spinning, thin launches low with little spin, topped rolls along the ground, and an air shot doesn't move.
+
+3. Calibration, as automated tests (add vitest as a dev dependency for this):
+   - 113 mph with a square face and path and a centred strike: about 167 mph ball speed, about 11 degrees launch, about 2,700 rpm spin and about 275 yards carry, each within 5%.
+   - 94 mph with the same settings: about 218 yards carry, within 5%.
+   Tune the drag and lift numbers until these pass. Don't loosen the tests.
+
+4. Outcome naming, in its own module, using the keys in content/golf-range.md: straight, draw, fade, pull, push, slice, pull-slice, push-slice, hook, heel, toe, fat, thin, topped and air-shot. Strike problems are checked first, then start direction and curve. Every threshold goes in one settings object.
+
+5. A hidden test page at /lab/golf, not linked from anywhere, marked noindex and left out of any sitemap:
+   - Sliders for every input.
+   - A top-down view and a side view of the flight, drawn simply in 2D.
+   - The numbers, and the outcome name with its tip from content/golf-range.md.
+   - A few preset buttons: tour average, slice, hook, topped, fat.
+
+6. Don't use the built-in browser. Run the tests, the code check and gitleaks git -v, commit with "Golf kit: ball-flight engine and test page" and push to main.
+
+Tell me in plain English what changed, whether the calibration tests pass, and what to try on the test page.
+```
+Changed: Added a ball-flight engine, checks that a normal drive lands in range, and a hidden test page.
+Files: src/games/golf/settings.ts, src/games/golf/flight.ts, src/games/golf/outcomes.ts, src/games/golf/lab.ts, src/games/golf/flight.test.ts, src/games/golf/presets.test.ts, components/golf-lab.tsx, app/lab/golf/page.tsx, package.json, package-lock.json, log/prompts.md
