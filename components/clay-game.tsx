@@ -570,14 +570,12 @@ function drawShard(ctx: CanvasRenderingContext2D, shard: Shard, color: string) {
 }
 
 export function ClayGame({
-  hint,
   replayLabel,
   liveLabel,
   hitMark,
   scoreMessages,
   onFail,
 }: {
-  hint: string;
   replayLabel: string;
   liveLabel: string;
   hitMark: string;
@@ -1794,9 +1792,6 @@ export function ClayGame({
         style={{ touchAction: "pan-y" }}
         aria-hidden="true"
       />
-      <p className="pointer-events-none absolute bottom-4 left-4 max-w-[46%] text-[13px] leading-snug text-muted">
-        {hint}
-      </p>
       <div
         ref={handRef}
         className="pointer-events-none absolute bottom-0 left-1/2"

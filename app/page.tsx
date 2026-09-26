@@ -26,7 +26,6 @@ export default function Home() {
           <div className="mx-auto mt-8 w-full max-w-[1100px]">
             <ClayGameHost
               label={home.gameLabel}
-              hint={home.gameHint}
               startLabel={home.startLabel}
               replayLabel={game.replayButton}
               liveLabel={home.gameLiveLabel}

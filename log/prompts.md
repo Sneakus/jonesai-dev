@@ -1552,3 +1552,11 @@ Tell me in plain English what changed.
 ```
 Changed: Renamed the home intro to founding operator, and moved the phone shot result to a space under the game.
 Files: content/home.md, content/golf-range.md, lib/golf-range.ts, components/golf-agent-game.tsx, log/prompts.md
+
+### 2026-09-26 01:44
+Prompt:
+```
+remove the "get smashing" from the homepage beneath the clay shooting game and push
+```
+Changed: Removed the "Get smashing" line from under the clay game on the home page.
+Files: content/home.md, lib/content.ts, app/page.tsx, components/clay-scene.tsx, components/clay-game-host.tsx, components/clay-game.tsx, log/prompts.md

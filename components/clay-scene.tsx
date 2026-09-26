@@ -3,7 +3,6 @@ export const clayBoxClass =
 
 type ClaySceneProps = {
   label: string;
-  hint: string;
 };
 
 function Clay({
@@ -30,7 +29,7 @@ function Clay({
   );
 }
 
-export function ClayScene({ label, hint }: ClaySceneProps) {
+export function ClayScene({ label }: ClaySceneProps) {
   return (
     <div className={clayBoxClass}>
       <svg
@@ -75,9 +74,6 @@ export function ClayScene({ label, hint }: ClaySceneProps) {
           <polygon points="392,286 408,278 412,298" />
         </g>
       </svg>
-      <p className="absolute bottom-4 left-4 max-w-[70%] text-[13px] leading-snug text-muted">
-        {hint}
-      </p>
     </div>
   );
 }

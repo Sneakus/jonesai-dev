@@ -5,7 +5,6 @@ import { ClayScene } from "@/components/clay-scene";
 
 type ClayGameHostProps = {
   label: string;
-  hint: string;
   startLabel: string;
   replayLabel: string;
   liveLabel: string;
@@ -15,7 +14,6 @@ type ClayGameHostProps = {
 
 export function ClayGameHost({
   label,
-  hint,
   startLabel,
   replayLabel,
   liveLabel,
@@ -55,7 +53,6 @@ export function ClayGameHost({
   if (playing && Game && !failed) {
     return (
       <Game
-        hint={hint}
         replayLabel={replayLabel}
         liveLabel={liveLabel}
         hitMark={hitMark}
@@ -70,7 +67,7 @@ export function ClayGameHost({
 
   return (
     <div className="relative">
-      <ClayScene label={label} hint={hint} />
+      <ClayScene label={label} />
       {Game && !failed ? (
         <div className="absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
           <button
