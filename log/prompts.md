@@ -1533,3 +1533,22 @@ Two tidy-ups. Remove draft: true from content/golf-range.md, changing no words. 
 ```
 Changed: Removed the draft flag from the driving-range words, replaced the flat test link with a short message, and stopped the lab pages using the home share image.
 Files: content/golf-range.md, lib/golf-range.ts, src/games/golf/theme.ts, components/golf3d-range.tsx, components/golf-agent-game.tsx, components/golf3d-gate.tsx, app/lab/golf/page.tsx, app/lab/golf3d/page.tsx, log/prompts.md
+
+### 2026-09-26 01:31
+Prompt:
+```
+Two fixes. Stop and tell me if anything fails.
+
+1. Home page intro: change "Startup operator, making a bunch of stuff with AI" to "Founding operator, making a bunch of stuff with AI". Also change the link preview title to "AJ - Founding operator, making a bunch of stuff with AI", and the home page's browser tab title to match. Change no other words.
+
+2. Golf Agent game on phones: the result panel covers the whole game, so you can't see where the shot went.
+   - On narrow screens (under about 700px wide), show the result panel directly below the game window, the full width of the game, instead of on top of it. Keep space for it reserved from the start (with a quiet line like "Your shot result appears here"), so the page doesn't jump when it appears. It stays until the next shot, with no need to tap to close.
+   - On wider screens, keep everything exactly as it is now: the compact card over the bottom-left corner.
+   - Everything else stays on the game as it is: the balance board, meter, live distance and longest drive.
+
+3. Check /golf-agent at 375px and 1280px wide, and the home page. Don't use the built-in browser. Run all the tests, a clean production build, the code check and gitleaks git -v, commit with "Founding operator, and golf result below the game on phones" and push to main.
+
+Tell me in plain English what changed.
+```
+Changed: Renamed the home intro to founding operator, and moved the phone shot result to a space under the game.
+Files: content/home.md, content/golf-range.md, lib/golf-range.ts, components/golf-agent-game.tsx, log/prompts.md

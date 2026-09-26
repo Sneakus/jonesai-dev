@@ -208,6 +208,51 @@ export function GolfAgentGame({
   const airLines = panel?.key === "air-shot" ? copy.air[panel.speedTier] : [];
   const goodLines = info && "messages" in info ? info.messages : [];
   const tip = info && "tip" in info ? info.tip : "";
+  const cardStyle = { background: "rgba(243,239,230,0.94)", color: theme.ink, boxShadow: "0 2px 12px rgba(22,21,20,0.2)" };
+
+  function shotResult(showClose: boolean) {
+    if (!panel) return null;
+    return (
+      <>
+        <span className="block text-[1.05rem] font-semibold">{panel.perfect ? words.perfectName : panel.key === "air-shot" ? copy.air.name : info?.name}</span>
+        <span className="mt-1 block" style={{ color: "#6B665E" }}>
+          {panel.strike === "air" || !yards
+            ? words.noContact
+            : landed
+              ? `${words.carry} ${Math.round(yards.carry)} ${theme.copy.yards}, total ${Math.round(yards.total)} ${theme.copy.yards}`
+              : `${words.carry} ...`}
+        </span>
+        {panel.perfect ? (
+          <span className="mt-2 block text-sm text-muted">
+            {words.purity} {Math.round(panel.purity * 100)}
+            {words.pureTail}
+          </span>
+        ) : (
+          <span className="mt-2 block text-sm text-muted">{info && "cause" in info ? info.cause : ""}</span>
+        )}
+        {!panel.perfect && panel.letDown[0] ? (
+          <span className="mt-2 block">
+            <span className="font-semibold">{reasonLabel}:</span> {panel.letDown[0].what} {panel.letDown[0].fix}
+          </span>
+        ) : null}
+        {!panel.perfect && panel.letDown[1] ? (
+          <span className="mt-1 block text-sm text-muted">
+            {words.also}: {panel.letDown[1].what}
+          </span>
+        ) : null}
+        {panel.key === "air-shot" && airLines[0] ? <span className="mt-2 block text-sm">{airLines[0]}</span> : null}
+        {panel.key !== "air-shot" && !panel.perfect && goodLines[0] ? <span className="mt-2 block text-sm">{goodLines[0]}</span> : null}
+        {!panel.perfect && tip ? (
+          <span className="mt-2 block text-sm">
+            <span className="font-semibold">{words.onRange}:</span> {tip}
+          </span>
+        ) : null}
+        {showClose ? (
+          <span className="mt-3 block text-[0.75rem]" style={{ color: "#6B665E" }}>{words.close}</span>
+        ) : null}
+      </>
+    );
+  }
 
   return (
     <div aria-label="Golf driving range game. Optional, just for fun.">
@@ -287,46 +332,19 @@ export function GolfAgentGame({
         {panel ? (
           <button
             type="button"
-            className="absolute bottom-3 left-3 max-w-[min(360px,calc(100%-24px))] rounded-xl px-3.5 py-3 text-left text-[0.9rem] leading-[1.4]"
-            style={{ background: "rgba(243,239,230,0.94)", color: theme.ink, boxShadow: "0 2px 12px rgba(22,21,20,0.2)" }}
+            className="absolute bottom-3 left-3 max-w-[min(360px,calc(100%-24px))] rounded-xl px-3.5 py-3 text-left text-[0.9rem] leading-[1.4] max-[699px]:hidden"
+            style={cardStyle}
             onClick={() => setPanel(null)}
           >
-            <span className="block text-[1.05rem] font-semibold">{panel.perfect ? words.perfectName : panel.key === "air-shot" ? copy.air.name : info?.name}</span>
-            <span className="mt-1 block" style={{ color: "#6B665E" }}>
-              {panel.strike === "air" || !yards
-                ? words.noContact
-                : landed
-                  ? `${words.carry} ${Math.round(yards.carry)} ${theme.copy.yards}, total ${Math.round(yards.total)} ${theme.copy.yards}`
-                  : `${words.carry} ...`}
-            </span>
-            {panel.perfect ? (
-              <span className="mt-2 block text-sm text-muted">
-                {words.purity} {Math.round(panel.purity * 100)}
-                {words.pureTail}
-              </span>
-            ) : (
-              <span className="mt-2 block text-sm text-muted">{info && "cause" in info ? info.cause : ""}</span>
-            )}
-            {!panel.perfect && panel.letDown[0] ? (
-              <span className="mt-2 block">
-                <span className="font-semibold">{reasonLabel}:</span> {panel.letDown[0].what} {panel.letDown[0].fix}
-              </span>
-            ) : null}
-            {!panel.perfect && panel.letDown[1] ? (
-              <span className="mt-1 block text-sm text-muted">
-                {words.also}: {panel.letDown[1].what}
-              </span>
-            ) : null}
-            {panel.key === "air-shot" && airLines[0] ? <span className="mt-2 block text-sm">{airLines[0]}</span> : null}
-            {panel.key !== "air-shot" && !panel.perfect && goodLines[0] ? <span className="mt-2 block text-sm">{goodLines[0]}</span> : null}
-            {!panel.perfect && tip ? (
-              <span className="mt-2 block text-sm">
-                <span className="font-semibold">{words.onRange}:</span> {tip}
-              </span>
-            ) : null}
-            <span className="mt-3 block text-[0.75rem]" style={{ color: "#6B665E" }}>{words.close}</span>
+            {shotResult(true)}
           </button>
         ) : null}
+      </div>
+      <div
+        className="mt-3 min-h-72 w-[min(1040px,calc(100vw-2.5rem))] rounded-xl px-3.5 py-3 text-[0.9rem] leading-[1.4] min-[700px]:hidden"
+        style={panel ? cardStyle : undefined}
+      >
+        {panel ? shotResult(false) : <p className="text-muted">{words.resultSpot}</p>}
       </div>
       <button
         type="button"
