@@ -22,6 +22,23 @@ export type GameContent = {
   scoreMessages: string[][];
 };
 
+export type PortraitContent = {
+  draft: boolean;
+  needsBefore: string;
+  smashLink: string;
+  needsAfter: string;
+  progress: string;
+  full: string;
+  caption: string;
+  sayAgain: string;
+  soundOn: string;
+  soundOff: string;
+  pull: string;
+  portraitLabel: string;
+  canvasLabel: string;
+  leverLabel: string;
+};
+
 export type ContactContent = {
   draft: boolean;
   heading: string;
@@ -230,6 +247,29 @@ export function readContact(): ContactContent {
     githubUrl: requiredString(data, "githubUrl", file),
     cvLabel: requiredString(data, "cvLabel", file),
     cvUrl: requiredString(data, "cvUrl", file),
+  };
+}
+
+export function readPortrait(): PortraitContent {
+  const file = "content/portrait.md";
+  const filePath = path.join(process.cwd(), "content", "portrait.md");
+  const { data } = readMarkdown(filePath);
+
+  return {
+    draft: data.draft === "true",
+    needsBefore: requiredString(data, "needsBefore", file),
+    smashLink: requiredString(data, "smashLink", file),
+    needsAfter: requiredString(data, "needsAfter", file),
+    progress: requiredString(data, "progress", file),
+    full: requiredString(data, "full", file),
+    caption: requiredString(data, "caption", file),
+    sayAgain: requiredString(data, "sayAgain", file),
+    soundOn: requiredString(data, "soundOn", file),
+    soundOff: requiredString(data, "soundOff", file),
+    pull: requiredString(data, "pull", file),
+    portraitLabel: requiredString(data, "portraitLabel", file),
+    canvasLabel: requiredString(data, "canvasLabel", file),
+    leverLabel: requiredString(data, "leverLabel", file),
   };
 }
 

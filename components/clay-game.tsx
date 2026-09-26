@@ -2,15 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { clayBoxClass } from "@/components/clay-scene";
+import { reportClayBreak } from "@/src/portrait/bridge";
 
 // Feel settings. Change these numbers to tune the game.
 export const settings = {
-  gravity: 1000, // how fast broken pieces fall, and how quickly a rabbit drops back down
+  gravity: 1000, // how quickly a rabbit drops back down
   pauseBetweenClays: 560, // wait after one clay before the next, in milliseconds
   claySize: 51, // base width of a clay, before distance makes it bigger or smaller
   hitAreaSize: 8, // extra pixels around a clay that still count when a pellet is close
-  shardCount: 8, // pieces when a clay breaks
-  shardSpeed: 340, // how fast those pieces fly apart
   reloadTime: 350, // wait after a shot before the next one counts, in milliseconds
   patternSize: 28, // how far pellets scatter around the aim point for a near clay
   pelletCount: 12, // dots in each shot
@@ -135,16 +134,6 @@ type Clay = {
   wind: number;
   hang: number;
   hangLimit: number;
-};
-
-export type Shard = {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  angle: number;
-  spin: number;
-  size: number;
 };
 
 type Pellet = {
@@ -437,35 +426,6 @@ function flightIsFair(
   );
 }
 
-function stepShard(shard: Shard, dt: number) {
-  shard.vy += settings.gravity * dt;
-  shard.x += shard.vx * dt;
-  shard.y += shard.vy * dt;
-  shard.angle += shard.spin * dt;
-}
-
-function createShards(clay: Clay): Shard[] {
-  const shards: Shard[] = [];
-  const count = Math.max(1, Math.round(settings.shardCount));
-  const scale = Math.max(0.45, lookOf(clay).disc / (settings.claySize / 2));
-
-  for (let index = 0; index < count; index += 1) {
-    const angle = (Math.PI * 2 * index) / count + Math.random() * 0.4;
-    const speed = settings.shardSpeed * (0.45 + Math.random() * 0.7);
-    shards.push({
-      x: clay.x,
-      y: clay.y,
-      vx: Math.cos(angle) * speed + clay.vx * 0.15,
-      vy: Math.sin(angle) * speed * 0.75 + clay.vy * 0.15 - 40,
-      angle: Math.random() * Math.PI * 2,
-      spin: (Math.random() - 0.5) * 14,
-      size: (4 + Math.random() * 5) * scale,
-    });
-  }
-
-  return shards;
-}
-
 function patternRadius(distance: number | null) {
   const t = distance == null ? 0.45 : distanceT(distance);
   return settings.patternSize * lerp(1, farPattern, t);
@@ -552,20 +512,6 @@ function drawClay(
   ctx.moveTo(-72 * scale, 0);
   ctx.bezierCurveTo(-42 * scale, -30 * scale, 42 * scale, -30 * scale, 72 * scale, 0);
   ctx.stroke();
-  ctx.restore();
-}
-
-function drawShard(ctx: CanvasRenderingContext2D, shard: Shard, color: string) {
-  ctx.save();
-  ctx.translate(shard.x, shard.y);
-  ctx.rotate(shard.angle);
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.moveTo(shard.size, 0);
-  ctx.lineTo(-shard.size * 0.45, shard.size * 0.55);
-  ctx.lineTo(-shard.size * 0.15, -shard.size * 0.5);
-  ctx.closePath();
-  ctx.fill();
   ctx.restore();
 }
 
@@ -768,7 +714,6 @@ export function ClayGame({
     let pointerDown: { x: number; y: number } | null = null;
     let finePointer = window.matchMedia("(pointer: fine)").matches;
     let pointerInside = false;
-    const shards: Shard[] = [];
     const shots: Shot[] = [];
     const floaters: Floater[] = [];
 
@@ -1143,7 +1088,11 @@ export function ClayGame({
         return;
       }
       floaters.push({ x: clay.x, y: clay.y, born: now });
-      shards.push(...createShards(clay));
+      const rect = canvas.getBoundingClientRect();
+      reportClayBreak(
+        rect.left + window.scrollX + clay.x,
+        rect.top + window.scrollY + clay.y,
+      );
       hits += 1;
       if (settings.shakeStrength > 0) {
         shakeAt = now;
@@ -1224,7 +1173,6 @@ export function ClayGame({
       pendingResult = null;
       readyAt = 0;
       clay = null;
-      shards.length = 0;
       shots.length = 0;
       floaters.length = 0;
       recoilUntil = 0;
@@ -1531,10 +1479,6 @@ export function ClayGame({
       ctx.fillStyle = colors.field;
       ctx.fillRect(0, 0, width, height);
 
-      for (const shard of shards) {
-        drawShard(ctx, shard, colors.clay);
-      }
-
       if (clay) {
         drawClay(ctx, clay, colors);
       }
@@ -1672,14 +1616,6 @@ export function ClayGame({
 
       if (clay && clayGone(clay, width, height)) {
         resolveClay(now);
-      }
-
-      for (let index = shards.length - 1; index >= 0; index -= 1) {
-        const shard = shards[index];
-        stepShard(shard, dt);
-        if (shard.y > height + 80) {
-          shards.splice(index, 1);
-        }
       }
 
       for (let index = shots.length - 1; index >= 0; index -= 1) {

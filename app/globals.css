@@ -103,3 +103,366 @@ a:hover {
     border: 1.5px solid var(--color-clay);
   }
 }
+
+@property --la {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@property --lb {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 180deg;
+}
+
+.workshop {
+  position: relative;
+  margin-top: 56px;
+  border-top: 1px solid var(--color-line);
+  padding-top: 16px;
+  overflow-anchor: none;
+}
+
+.portrait-wrap {
+  position: relative;
+  max-width: 620px;
+  margin: 0 auto;
+  height: 0;
+  overflow: hidden;
+  touch-action: pan-y;
+  outline: none;
+}
+
+.portrait-wrap:focus-visible {
+  outline: 2px solid var(--color-clay);
+  outline-offset: 4px;
+}
+
+.portrait-wrap canvas {
+  display: block;
+  width: 100%;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+}
+
+.workshop .bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  min-height: 2.2em;
+}
+
+.workshop .bar[hidden] {
+  display: none;
+}
+
+.workshop .caption {
+  margin: 0;
+  font-size: 1.02rem;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  flex-basis: 100%;
+  min-height: 1.4em;
+}
+
+.workshop .caption.on {
+  opacity: 1;
+}
+
+.workshop .tray {
+  position: relative;
+  height: 340px;
+}
+
+.workshop .hint {
+  position: relative;
+  z-index: 3;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #6b665e;
+  margin: 10px auto 0;
+  max-width: 34ch;
+  line-height: 1.45;
+}
+
+.workshop .hint a {
+  color: var(--color-ink);
+}
+
+.workshop .hint.warn {
+  animation: portrait-warn 1s ease;
+}
+
+.workshop .hint.warn a {
+  animation: portrait-warn-link 1s ease;
+}
+
+@keyframes portrait-warn {
+  0%,
+  100% {
+    color: #6b665e;
+    text-shadow: none;
+  }
+  15%,
+  60% {
+    color: #d63027;
+    text-shadow: 0 0 10px rgba(214, 48, 39, 0.45);
+  }
+}
+
+@keyframes portrait-warn-link {
+  0%,
+  100% {
+    color: var(--color-ink);
+    text-shadow: none;
+  }
+  15%,
+  60% {
+    color: #d63027;
+    text-shadow: 0 0 10px rgba(214, 48, 39, 0.45);
+  }
+}
+
+.workshop .lever {
+  position: absolute;
+  right: 0;
+  bottom: 12px;
+  z-index: 4;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding-left: 14px;
+}
+
+.workshop .lever::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 20px;
+  bottom: -12px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--color-line);
+}
+
+.workshop .reservoir {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.workshop .tube {
+  position: relative;
+  width: 16px;
+  height: 150px;
+  border-radius: 8px;
+  background: #e4dccd;
+  border: 1px solid var(--color-line);
+  overflow: hidden;
+}
+
+.workshop .tube .fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  background: linear-gradient(#f06a33, #e8480c 40%, #b8390a);
+}
+
+.workshop .count {
+  font-size: 0.72rem;
+  color: #6b665e;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.workshop .leverbox {
+  position: relative;
+  width: 76px;
+  height: 200px;
+  touch-action: none;
+  cursor: grab;
+  outline: none;
+  border-radius: 14px;
+}
+
+.workshop .leverbox:focus-visible {
+  outline: 2px solid var(--color-clay);
+  outline-offset: 4px;
+}
+
+.workshop .leverbox.grabbing {
+  cursor: grabbing;
+}
+
+.workshop .leverbox .track {
+  position: absolute;
+  left: 31px;
+  top: 10px;
+  width: 14px;
+  height: 180px;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #c9c0af, #e4dccd 50%, #c9c0af);
+  box-shadow: inset 0 2px 5px rgba(22, 21, 20, 0.28);
+}
+
+.workshop .leverbox .arm {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 76px;
+  height: 50px;
+  will-change: transform;
+}
+
+.workshop .leverbox .arm .stem {
+  position: absolute;
+  left: 34px;
+  top: 26px;
+  width: 8px;
+  height: 22px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #8e877d, #d9d2c6 45%, #8e877d);
+}
+
+.workshop .leverbox .arm .grip {
+  position: absolute;
+  left: 4px;
+  top: 0;
+  width: 68px;
+  height: 32px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #fff1ec;
+  background: linear-gradient(#f0473a, #c81e14 55%, #9c140c);
+  box-shadow:
+    0 4px 8px rgba(22, 21, 20, 0.35),
+    inset 0 2px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -3px 4px rgba(0, 0, 0, 0.25);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+  transition: transform 0.12s ease;
+  user-select: none;
+}
+
+.workshop .leverbox.grabbing .arm .grip {
+  transform: scale(1.06);
+}
+
+.workshop .leverbox.locked .arm .grip {
+  filter: saturate(0.55) brightness(0.95);
+}
+
+.workshop .leverbox.slam {
+  animation: portrait-slam 0.32s ease;
+}
+
+@keyframes portrait-slam {
+  0% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(4px) scale(1.02, 0.97);
+  }
+  60% {
+    transform: translateY(-2px);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.workshop .leverbox.ready::before,
+.workshop .leverbox.ready::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 18px;
+  padding: 1.5px;
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+.workshop .leverbox.ready::before {
+  background: conic-gradient(from var(--la), transparent 0 75%, #e8480c 90%, transparent 100%);
+  animation: portrait-la 2.8s linear infinite;
+}
+
+.workshop .leverbox.ready::after {
+  background: conic-gradient(
+    from var(--lb),
+    transparent 0 80%,
+    rgba(22, 21, 20, 0.35) 92%,
+    transparent 100%
+  );
+  animation: portrait-lb 4.6s linear infinite;
+}
+
+@keyframes portrait-la {
+  to {
+    --la: 360deg;
+  }
+}
+
+@keyframes portrait-lb {
+  from {
+    --lb: 180deg;
+  }
+  to {
+    --lb: -180deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workshop .leverbox.ready::before,
+  .workshop .leverbox.ready::after {
+    animation: none;
+  }
+
+  .workshop .leverbox.ready::after {
+    display: none;
+  }
+
+  .workshop .caption {
+    transition: none;
+  }
+}
+
+.workshop .chip {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-card);
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.portrait-fx {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+

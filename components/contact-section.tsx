@@ -117,14 +117,14 @@ export function ContactSection({ contact }: { contact: ContactContent }) {
   }[copyState];
 
   return (
-    <section className="border-t border-line pt-8 pb-16">
+    <section className="relative z-30 border-t border-line pt-8 pb-16">
       <h2 className="text-[22px] font-semibold tracking-[-0.035em]">
         {contact.heading}
       </h2>
       <div className="mt-6 flex max-w-full flex-wrap items-center gap-3">
         <a
           ref={emailRef}
-          className="max-w-full break-all text-base underline underline-offset-4"
+          className="look max-w-full break-all text-base underline underline-offset-4"
         />
         <button
           ref={copyRef}
@@ -167,7 +167,7 @@ export function ContactSection({ contact }: { contact: ContactContent }) {
             href={contact.linkedInUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="underline underline-offset-4"
+            className="look underline underline-offset-4"
           >
             {contact.linkedInLabel}
           </a>
@@ -177,13 +177,13 @@ export function ContactSection({ contact }: { contact: ContactContent }) {
             href={contact.githubUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="underline underline-offset-4"
+            className="look underline underline-offset-4"
           >
             {contact.githubLabel}
           </a>
         </li>
         <li>
-          <a href={contact.cvUrl} download className="underline underline-offset-4">
+          <a href={contact.cvUrl} download className="look underline underline-offset-4">
             {contact.cvLabel}
           </a>
         </li>

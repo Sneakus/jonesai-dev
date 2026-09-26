@@ -1560,3 +1560,42 @@ remove the "get smashing" from the homepage beneath the clay shooting game and p
 ```
 Changed: Removed the "Get smashing" line from under the clay game on the home page.
 Files: content/home.md, lib/content.ts, app/page.tsx, components/clay-scene.tsx, components/clay-game-host.tsx, components/clay-game.tsx, log/prompts.md
+
+### 2026-09-27 00:12
+Prompt:
+```
+Bring the clay portrait into the home page. The reference is reference/portrait-prototype.html (signed off on PC and phone). Port it faithfully and keep every number: don't redesign anything. Stop and tell me if anything fails.
+
+1. Assets: extract the portrait data (the frames, eyes, idle frames and piece count) from the reference's DATA into a static JSON file, and the voice into an audio file (MP3), both in public/portrait/. Load them only when the visitor first scrolls near the bottom of the page or smashes their first clay, never on page load.
+
+2. Port the logic into plain TypeScript modules in src/portrait/, keeping every number exactly:
+   - the face grid and the piece queue: every cell that shows in any frame is one piece (5,295 in total), and a clay gives about a 25th of them
+   - falling: gravity, drag and flutter, landing in the heap with the reference's settle rules (small steps, tuck-in, jitter), the deeper tray and the wall
+   - the lever: top-down pull, red PULL grip, heavy then snapping home at 80%, notch clicks, thunk and buzz, springing back, jamming until the reservoir is full, and the instructions (including the link) flashing red when pulled too early
+   - the build: pieces lift off the top of the heap into a hovering cloud, then land from the shoulders up, while the portrait's window rises out of the tray just ahead of them, with the tray held still on screen (no scrolling, no jump)
+   - the face: playing the performance with the voice and caption, idle breathing, blinks, eyes following the pointer and looking at the contact links, the gentle depth shift, touch scatter, Say it again and the sound toggle
+   - the easter eggs, in order: the words, decode, the starling swarm (neighbour flocking, click to send home, each bird lands on its own curve), the balloon pop (head shards fall back into the heap and the lever rebuilds them)
+
+3. The real clay game: when a clay is hit in the hero game, its break IS the portrait's next pieces. Spawn them at the clay's position on the page, with the same shape, size and colour they'll have in the face, and let them fall down the page into the tray. Replace the game's current break effect with this, and delete the unused shard-assembly code this replaces. Remove the prototype's test-only "Smash" button.
+
+4. Layout: the tray, heap, reservoir and lever sit at the bottom of the home page, below "My DMs are open", with the portrait's window above the tray. The contact links are never covered by pieces.
+
+5. Words: move the instruction lines and the caption into content/portrait.md, marked draft: true for me to read through.
+
+6. Reduced motion: pieces go straight to the heap without falling, the build happens instantly, no cursor depth shift, and clicking the face only plays decode.
+
+7. Tests, matching the reference's own run-through:
+   - smash 27 clays: the reservoir reads full, the heap never passes the wall, and pulling the lever builds the face with no missing pieces and no stray ones
+   - the portrait's window ends fully open
+   - with only 4 clays, the lever jams and nothing is built
+   - the balloon pop sends 2,605 head pieces back to the heap, and pulling again rebuilds them with none missing
+   - every easter egg runs to the end without errors
+
+8. Performance: check the frame time with thousands of pieces falling and flying, on a mid-range phone setting in your tests. Tell me the numbers.
+
+9. Don't use the built-in browser. Run all the tests, a clean production build, the code check and gitleaks git -v, commit with "Home: the clay portrait" and push to main.
+
+Tell me in plain English what changed, whether the tests pass, the performance numbers, and what to check.
+```
+Changed: Brought the clay portrait onto the home page, fed by the pieces from smashed clays.
+Files: public/portrait/portrait.json, public/portrait/voice.mp3, content/portrait.md, src/portrait/sim.ts, src/portrait/sim.test.ts, src/portrait/bridge.ts, components/portrait-slot.tsx, components/clay-game.tsx, components/contact-section.tsx, app/page.tsx, app/globals.css, lib/content.ts, log/prompts.md
