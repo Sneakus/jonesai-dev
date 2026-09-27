@@ -45,6 +45,7 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
   const faceRef = useRef<HTMLCanvasElement>(null);
   const fxRef = useRef<HTMLCanvasElement>(null);
   const trayRef = useRef<HTMLDivElement>(null);
+  const crusherRef = useRef<HTMLDivElement>(null);
   const leverRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const armRef = useRef<HTMLDivElement>(null);
@@ -99,7 +100,7 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
       }
       const tank = sim.reservoir();
       const mode = sim.hintMode();
-      const key = `${mode}:${tank.n}:${tank.total}`;
+      const key = `${mode}:${tank.pct}`;
       if (key === lastHint) {
         return;
       }
@@ -118,9 +119,7 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
         return;
       }
       if (mode === "progress") {
-        hint.textContent = words.progress
-          .replace("{have}", fmt(tank.n))
-          .replace("{need}", fmt(tank.total));
+        hint.textContent = words.progress.replace("{pct}", fmt(tank.pct));
         return;
       }
       hint.textContent = words.full;
@@ -138,11 +137,12 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
       const sim = simRef.current;
       const wrap = wrapRef.current;
       const tray = trayRef.current;
+      const crusher = crusherRef.current;
       const lever = leverRef.current;
       const box = boxRef.current;
       const face = faceRef.current;
       const fx = fxRef.current;
-      if (!sim || !wrap || !tray || !lever || !box || !face || !fx) {
+      if (!sim || !wrap || !tray || !crusher || !lever || !box || !face || !fx) {
         lastT = now;
         return;
       }
@@ -152,13 +152,9 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
       if (width > 0 && Math.abs(width - sim.pw) > 0.5) {
         sim.sizePortrait(width);
       }
-      if (sim.cw > 0) {
-        const queued = hitsRef.current.splice(0);
-        for (const hit of queued) {
-          sim.smash(hit.x, hit.y);
-        }
-      }
+      crusher.style.right = `${lever.offsetWidth + 12}px`;
       const trayBox = tray.getBoundingClientRect();
+      const crusherBox = crusher.getBoundingClientRect();
       const leverBox = lever.getBoundingClientRect();
       const faceBox = face.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -203,6 +199,12 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
           height: trayBox.height,
         },
         leverLeft: leverBox.left,
+        crusher: {
+          left: crusherBox.left,
+          top: crusherBox.top,
+          width: crusherBox.width,
+          height: crusherBox.height,
+        },
         portrait: {
           left: faceBox.left,
           top: faceBox.top,
@@ -211,6 +213,12 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
         },
         looks,
       });
+      if (sim.cw > 0) {
+        const queued = hitsRef.current.splice(0);
+        for (const hit of queued) {
+          sim.smash(hit.x, hit.y);
+        }
+      }
       const fxCtx = fx.getContext("2d");
       const faceCtx = face.getContext("2d");
       const audio = audioRef.current;
@@ -235,8 +243,11 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
         fillRef.current.style.height = `${tank.share * 100}%`;
       }
       if (countRef.current) {
-        countRef.current.textContent = `${fmt(tank.n)} / ${fmt(tank.total)}`;
+        countRef.current.textContent = `${tank.pct}%`;
       }
+      crusher.classList.toggle("up", sim.crusherUp);
+      crusher.classList.toggle("sinking", sim.crusherSinking);
+      crusher.classList.toggle("on", sim.crusherOn);
       box.classList.toggle("grabbing", sim.dragging);
       box.classList.toggle("ready", sim.isFull());
       box.classList.toggle("locked", !sim.isFull());
@@ -304,6 +315,57 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
           const ctx = sound();
           if (ctx) {
             playTick(ctx);
+          }
+        };
+        let rumble: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
+        const stopRumble = () => {
+          const ctx = audioCtx;
+          if (!rumble || !ctx) {
+            rumble = null;
+            return;
+          }
+          try {
+            const t = ctx.currentTime;
+            rumble.gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+            rumble.src.stop(t + 0.7);
+          } catch {
+            // The rumble may already have stopped.
+          }
+          rumble = null;
+        };
+        sim.onRumble = (on) => {
+          if (!on) {
+            stopRumble();
+            return;
+          }
+          if (navigator.vibrate) {
+            navigator.vibrate([30, 60, 30, 60, 30, 60, 30, 60, 30, 60, 30]);
+          }
+          const ctx = sound();
+          if (!ctx) {
+            return;
+          }
+          try {
+            const len = ctx.sampleRate;
+            const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+            const data = buf.getChannelData(0);
+            for (let k = 0; k < len; k += 1) {
+              data[k] = (Math.random() * 2 - 1) * (0.6 + 0.4 * Math.sin((k / len) * Math.PI * 40));
+            }
+            const src = ctx.createBufferSource();
+            const filter = ctx.createBiquadFilter();
+            const gain = ctx.createGain();
+            src.buffer = buf;
+            src.loop = true;
+            filter.type = "lowpass";
+            filter.frequency.value = 260;
+            gain.gain.value = 0.0001;
+            gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.3);
+            src.connect(filter).connect(gain).connect(ctx.destination);
+            src.start();
+            rumble = { src, gain };
+          } catch {
+            rumble = null;
           }
         };
         const wrap = wrapRef.current;
@@ -446,6 +508,26 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
         </button>
       </div>
       <div className="tray" ref={trayRef}>
+        <div className="crusher" ref={crusherRef} aria-hidden="true">
+          <div className="body">
+            <div className="nozzle" />
+            <div className="housing">
+              <div className="intake" />
+              <div className="window">
+                <svg viewBox="0 0 60 30" aria-hidden="true">
+                  <g className="gear g1">
+                    <circle cx="0" cy="0" r="10" />
+                    <path d="M0 -13 L3 -9 L-3 -9 Z M0 13 L3 9 L-3 9 Z M-13 0 L-9 3 L-9 -3 Z M13 0 L9 3 L9 -3 Z M9 -9 L9 -5 L5 -9 Z M-9 9 L-9 5 L-5 9 Z M-9 -9 L-5 -9 L-9 -5 Z M9 9 L5 9 L9 5 Z" />
+                  </g>
+                  <g className="gear g2">
+                    <circle cx="0" cy="0" r="10" />
+                    <path d="M0 -13 L3 -9 L-3 -9 Z M0 13 L3 9 L-3 9 Z M-13 0 L-9 3 L-9 -3 Z M13 0 L9 3 L9 -3 Z M9 -9 L9 -5 L5 -9 Z M-9 9 L-9 5 L-5 9 Z M-9 -9 L-5 -9 L-9 -5 Z M9 9 L5 9 L9 5 Z" />
+                  </g>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
         <p className="hint" id="portrait-hint" ref={hintRef}>
           {copy.needsBefore}
           <a href="#top">{copy.smashLink}</a>
@@ -457,7 +539,7 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
               <div className="fill" ref={fillRef} />
             </div>
             <span className="count" ref={countRef}>
-              0 / 0
+              0%
             </span>
           </div>
           <div

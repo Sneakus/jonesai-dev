@@ -1599,3 +1599,40 @@ Tell me in plain English what changed, whether the tests pass, the performance n
 ```
 Changed: Brought the clay portrait onto the home page, fed by the pieces from smashed clays.
 Files: public/portrait/portrait.json, public/portrait/voice.mp3, content/portrait.md, src/portrait/sim.ts, src/portrait/sim.test.ts, src/portrait/bridge.ts, components/portrait-slot.tsx, components/clay-game.tsx, components/contact-section.tsx, app/page.tsx, app/globals.css, lib/content.ts, log/prompts.md
+
+### 2026-09-27 01:18
+Prompt:
+```
+Update the home page's clay portrait to match the new reference, reference/portrait-prototype.html (just replaced, signed off). The live version lags because each clay makes hundreds of pieces; the new one fixes that and changes how the heap and the build work. Port it faithfully and keep every number. Stop and tell me if anything fails.
+
+1. Clay breaks: each hit clay breaks into about 22 chunky clay fragments (not face pieces), exactly as in the reference's smash function. As they fall down the page they drift gently in towards the tray, so every piece lands in it. About 25 clays fills the reservoir.
+
+2. The heap is real physics: port the reference's land and stepHeap exactly (each fragment a small round body with gravity, the floor, the side walls, neighbours pushing apart with friction, and pieces going to sleep once still). Draw the bodies directly; delete the old column-based heap and anything that only it used.
+
+3. The tray goes back to 240px tall. The reservoir shows a percentage instead of a piece count, and the instruction line reads "N% full. Keep smashing clays until it's full." (keep it in content/portrait.md, still draft).
+
+4. The crusher: add the machine exactly as in the reference, hidden in a slot in the tray floor just left of the lever (placed from the lever's width, so it works on phones). While it's hidden, the heap can reach the lever's line.
+
+5. The pull: when the lever latches, the crusher rises out of the floor with a slight overshoot, shoving the heap aside as it comes up (the heap's wall slides from the lever's line to the crusher's side), clicks into place, then starts: rollers spin, it shakes a little, a low rumble plays (respecting the sound toggle), and phones buzz. The whole heap is drawn towards it, and it swallows whatever reaches its intake. The face's pieces leave the nozzle as an even stream, at exactly the rate clay goes in, each on one smooth curve straight into its place, from the shoulders up, while the portrait's window rises with the tray held still. When it's done it winds down and sinks back into the floor. Port all of this exactly from the reference.
+
+6. The balloon pop: a fading spray of the head's pieces, then a head's worth of fragments rains back into the tray, exactly as in the reference's popHead.
+
+7. Reduced motion: no rumble or shake, no rising animation, and the build happens instantly, as before.
+
+8. Tests:
+   - 27 clays fills the reservoir to 100%
+   - clays smashed at the far left and far right of the page all land in the tray
+   - the heap never passes the lever's line (or the crusher's side once it's up), with no deep overlaps
+   - a full build leaves nothing missing and no strays, and the heap is empty afterwards
+   - 4 clays jams the lever
+   - the pop sends 2,605 head pieces away and a second pull rebuilds them
+   - every easter egg runs to the end
+
+9. Performance: measure the whole frame on the home page, including drawing, while smashing clays as fast as possible in the game, and during the crusher build, at 390px wide with phone-like settings and on desktop. Tell me the numbers.
+
+10. Don't use the built-in browser. Run all the tests, a clean production build, the code check and gitleaks git -v, commit with "Home: physics heap and the crusher" and push to main.
+
+Tell me in plain English what changed and the performance numbers.
+```
+Changed: Replaced the portrait heap with real fragment physics and a crusher that builds the face.
+Files: src/portrait/sim.ts, src/portrait/sim.test.ts, components/portrait-slot.tsx, app/globals.css, content/portrait.md, log/prompts.md

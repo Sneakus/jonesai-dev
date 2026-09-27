@@ -177,7 +177,158 @@ a:hover {
 
 .workshop .tray {
   position: relative;
-  height: 340px;
+  height: 240px;
+}
+
+.workshop .crusher {
+  position: absolute;
+  bottom: 8px;
+  right: 212px;
+  width: 86px;
+  height: 92px;
+  z-index: 4;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.workshop .crusher .body {
+  position: absolute;
+  inset: 0;
+  transform: translateY(104%);
+  transition: transform 0.75s cubic-bezier(0.25, 1.35, 0.45, 1);
+}
+
+.workshop .crusher.up .body {
+  transform: none;
+}
+
+.workshop .crusher.sinking .body {
+  transition: transform 0.6s ease-in;
+}
+
+.workshop .crusher .housing {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 86px;
+  height: 64px;
+  border-radius: 10px;
+  background: linear-gradient(#b9b1a4, #9a9286 60%, #857d72);
+  box-shadow:
+    0 3px 6px rgba(22, 21, 20, 0.25),
+    inset 0 2px 0 rgba(255, 255, 255, 0.35);
+}
+
+.workshop .crusher .intake {
+  position: absolute;
+  left: -2px;
+  bottom: 6px;
+  width: 14px;
+  height: 22px;
+  border-radius: 3px 0 0 3px;
+  background: #3a3733;
+  box-shadow: inset 2px 0 4px rgba(0, 0, 0, 0.5);
+}
+
+.workshop .crusher .window {
+  position: absolute;
+  left: 18px;
+  top: 12px;
+  width: 60px;
+  height: 34px;
+  border-radius: 6px;
+  background: #2e2b28;
+  overflow: hidden;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.6);
+}
+
+.workshop .crusher .window svg {
+  width: 100%;
+  height: 100%;
+}
+
+.workshop .crusher .gear {
+  fill: #c4410b;
+}
+
+.workshop .crusher .gear.g1 {
+  transform: translate(18px, 15px);
+}
+
+.workshop .crusher .gear.g2 {
+  transform: translate(42px, 15px);
+}
+
+.workshop .crusher .nozzle {
+  position: absolute;
+  left: 30px;
+  top: 0;
+  width: 26px;
+  height: 32px;
+  border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(90deg, #8e877d, #d9d2c6 45%, #8e877d);
+  clip-path: polygon(0 0, 100% 0, 80% 100%, 20% 100%);
+}
+
+.workshop .crusher.on .gear.g1 {
+  animation: crusher-spin-a 0.5s linear infinite;
+}
+
+.workshop .crusher.on .gear.g2 {
+  animation: crusher-spin-b 0.5s linear infinite;
+}
+
+@keyframes crusher-spin-a {
+  from {
+    transform: translate(18px, 15px) rotate(0deg);
+  }
+  to {
+    transform: translate(18px, 15px) rotate(360deg);
+  }
+}
+
+@keyframes crusher-spin-b {
+  from {
+    transform: translate(42px, 15px) rotate(0deg);
+  }
+  to {
+    transform: translate(42px, 15px) rotate(-360deg);
+  }
+}
+
+.workshop .crusher.on .housing,
+.workshop .crusher.on .nozzle {
+  animation: crusher-rumble 0.12s linear infinite;
+}
+
+@keyframes crusher-rumble {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(0.6px, -0.5px);
+  }
+  50% {
+    transform: translate(-0.5px, 0.4px);
+  }
+  75% {
+    transform: translate(0.4px, 0.6px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workshop .crusher.on .housing,
+  .workshop .crusher.on .nozzle,
+  .workshop .crusher.on .gear {
+    animation: none;
+  }
+
+  .workshop .crusher .body {
+    transition: none;
+  }
 }
 
 .workshop .hint {

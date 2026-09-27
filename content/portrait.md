@@ -3,7 +3,7 @@ draft: true
 needsBefore: "Something can be built down here, but it needs clay. "
 smashLink: Smash some at the top of the page
 needsAfter: ", then come back."
-progress: "{have} of {need} pieces. Keep smashing clays until it's full."
+progress: "{pct}% full. Keep smashing clays until it's full."
 full: Full. Pull the lever.
 caption: It is pretty crazy that I can do all of this stuff now.
 sayAgain: Say it again
