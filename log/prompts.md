@@ -1636,3 +1636,35 @@ Tell me in plain English what changed and the performance numbers.
 ```
 Changed: Replaced the portrait heap with real fragment physics and a crusher that builds the face.
 Files: src/portrait/sim.ts, src/portrait/sim.test.ts, components/portrait-slot.tsx, app/globals.css, content/portrait.md, log/prompts.md
+
+### 2026-09-27 02:28
+Prompt:
+```
+The home page stutters on a desktop PC when the first clays are broken. Research says the likely causes, in order, are: (1) the portrait data being fetched and unpacked on the main thread at the first smash, (2) the full-page overlay canvas being set up on its first draw at full screen resolution, (3) reading element positions every frame while also changing styles. Measure first, then fix, then measure again. Stop and tell me if anything fails.
+
+1. Measure before changing anything. Write a headless test with Playwright or Puppeteer (not your built-in browser) that loads the home page with the CPU slowed 4x, smashes the first 5 clays through a test hook, and records: every long task over 50ms and every long animation frame (PerformanceObserver, types 'longtask' and 'long-animation-frame', with their script sources), plus frame times. Also save a Chrome trace file of the run. Report what each long task was.
+
+2. Add three test switches to the page address so I can compare by eye: ?preload=1 (load the portrait data 2 seconds after the page loads), ?overlayDpr=1 (overlay canvas at resolution 1), ?noRects=1 (use cached element positions).
+
+3. Then apply these fixes:
+   - Load the portrait data when the browser is idle after the page loads (requestIdleCallback with a 2 second timeout, with a fallback), never on a smash. Keep "scroll near the bottom" only as a backup trigger.
+   - Do the work that never changes at build time with a script: the unpacked frames as compact typed arrays in a binary file, each piece's fullest size, the build order and the piece count. Serve the voice as a normal MP3 file, decoded with decodeAudioData. Unpack anything left in a Web Worker, passing typed arrays back as transferables. No task over 10ms on the main thread.
+   - Create the audio context once, on the first click on the page, and build the rumble's noise buffer then.
+   - Warm up the overlay canvas shortly after load: size it once and draw one invisible piece off screen, so its setup happens before anyone plays.
+   - Cap the overlay canvas resolution at 1.5 times the screen (the portrait can stay at up to 2).
+   - Never read element positions inside the animation loop: cache them on load, resize and with a ResizeObserver. Move elements with transforms only.
+   - Keep React out of the clay hits: no state updates per hit that re-render large parts of the page.
+   - One shared animation loop for everything, which stops completely when nothing is moving, and skips the portrait when it's off screen and the heap physics when every piece is asleep.
+
+4. Port the build-pace fix from reference/portrait-prototype.html (just replaced): the crusher's pull is 900 + 9 x the distance to the crusher, the intake takes up to 6 pieces a frame from the bottom 60px, and the tray floor is slippery while the crusher runs. Add a test that the face reaches 25%, 50%, 75% and 100% at evenly spaced times, finishing in about 4 to 5 seconds.
+
+5. Add PERF_BUDGET.md to the repo with these targets, and make the headless test check them: no long tasks or long animation frames during the first 10 seconds of smashing; no single task from a smash over 10ms; animation loop code under 4ms a frame on desktop and 8ms at 4x slowdown; 95% of frames under 16.7ms on desktop; no layout reads inside the animation loop; overlay canvas no bigger than about 4.7 million pixels; the loop asleep when nothing moves.
+
+6. Measure again with the same test and report the before and after for each number.
+
+7. Keep all existing tests passing. Don't use the built-in browser. Run all the tests, a clean production build, the code check and gitleaks git -v, commit with "Home: smooth first clays and steady build" and push to main.
+
+Tell me in plain English what the long tasks were, what fixed them, and the before and after numbers.
+```
+Changed: Smoothed the first clay smashes and steadied the portrait build.
+Files: components/clay-game.tsx, components/portrait-slot.tsx, src/portrait/sim.ts, src/portrait/sim.test.ts, src/motion/loop.ts, scripts/pack-portrait.mjs, public/portrait/portrait.bin, public/portrait/unpack.js, tests/first-clays.mjs, PERF_BUDGET.md, package.json, log/prompts.md

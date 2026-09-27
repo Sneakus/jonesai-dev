@@ -272,6 +272,48 @@ describe("clay portrait", () => {
     void now;
   }, 120000);
 
+  it("reaches each quarter of the face at an even pace", () => {
+    const sim = mount();
+    smashClays(sim, 27);
+    let now = until(sim, () => sim.pileAudit().falling === 0, 12);
+    now = run(sim, 1, now);
+    now = until(sim, () => !sim.latched && sim.isFull(), 8, now);
+    sim.leverKey();
+    now = until(sim, () => sim.latched, 3, now);
+    const started = until(
+      sim,
+      () => sim.flightsLength() > 0 || sim.faceFilled() > 0,
+      3,
+      now,
+    );
+    const marks = [0.25, 0.5, 0.75, 1];
+    const times: number[] = [];
+    let next = 0;
+    const steps = Math.ceil(8 / 0.033);
+    for (let i = 0; i < steps && next < marks.length; i += 1) {
+      now += 33;
+      sim.step(0.033, now);
+      const pile = sim.pileAudit();
+      if (pile.crossed || pile.left > 0) {
+        throw new Error(`heap passed the wall ${JSON.stringify(pile)}`);
+      }
+      while (next < marks.length && sim.faceFilled() >= marks[next] - 1e-9) {
+        times.push((now - started) / 1000);
+        next += 1;
+      }
+    }
+    expect(times).toHaveLength(4);
+    const total = times[3];
+    const mean = total / 4;
+    const gaps = [times[0], times[1] - times[0], times[2] - times[1], times[3] - times[2]];
+    for (const gap of gaps) {
+      expect(gap).toBeGreaterThan(mean * 0.6);
+      expect(gap).toBeLessThan(mean * 1.6);
+    }
+    expect(total).toBeGreaterThan(3.6);
+    expect(total).toBeLessThan(5.5);
+  }, 120000);
+
   it("lands edge smashes inside the tray", () => {
     const sim = new PortraitSim(data);
     sim.sizePortrait(350);

@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { PortraitContent } from "@/lib/content";
+import { attach, wake } from "@/src/motion/loop";
 import { PORTRAIT_HIT, type PortraitHit } from "@/src/portrait/bridge";
-import type { PortraitSim } from "@/src/portrait/sim";
+import { PortraitSim, warmPortrait, type PackedPortrait } from "@/src/portrait/sim";
 
 function fmt(n: number) {
   return n.toLocaleString("en-GB");
@@ -55,7 +56,8 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
   const barRef = useRef<HTMLDivElement>(null);
   const captionRef = useRef<HTMLParagraphElement>(null);
   const simRef = useRef<PortraitSim | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playVoiceRef = useRef<() => void>(() => undefined);
+  const voiceGainRef = useRef<GainNode | null>(null);
   const hitsRef = useRef<PortraitHit[]>([]);
   const copyRef = useRef(copy);
   const clickRef = useRef<{ x: number; y: number; t: number } | null>(null);
@@ -67,31 +69,15 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
   }, [copy]);
 
   useEffect(() => {
+    warmPortrait();
     let alive = true;
-    let frame = 0;
-    let looping = false;
     let loading = false;
-    let wake = false;
     let lastT = 0;
     let captionUntil = 0;
     let lastWarn = 0;
     let lastSlam = 0;
     let lastHint = "";
     let audioCtx: AudioContext | null = null;
-
-    const sound = () => {
-      if (mutedRef.current) {
-        return null;
-      }
-      const Ctx =
-        window.AudioContext ||
-        (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!Ctx) {
-        return null;
-      }
-      audioCtx = audioCtx || new Ctx();
-      return audioCtx;
-    };
 
     const paintHint = (sim: PortraitSim) => {
       const hint = hintRef.current;
@@ -125,111 +111,355 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
       hint.textContent = words.full;
     };
 
-    const loop = (now: number) => {
-      if (!alive) {
-        return;
-      }
-      frame = window.requestAnimationFrame(loop);
-      if (!simRef.current && wake && !loading) {
-        loading = true;
-        void start();
-      }
-      const sim = simRef.current;
-      const wrap = wrapRef.current;
+    let voiceBytes: ArrayBuffer | null = null;
+    let voiceBuffer: AudioBuffer | null = null;
+    let voiceSource: AudioBufferSourceNode | null = null;
+    let voiceGain: GainNode | null = null;
+    let voiceStarted = 0;
+    let rumbleBuffer: AudioBuffer | null = null;
+    let rumble: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
+
+    type Box = { left: number; top: number; width: number; height: number };
+    const boxes = {
+      tray: { left: 0, top: 0, width: 1, height: 240 } as Box,
+      crusher: { left: 0, top: 0, width: 86, height: 92 } as Box,
+      leverLeft: 0,
+      face: { left: 0, top: 0, width: 1, height: 1 } as Box,
+      workshop: { left: 0, top: 0, width: 1, height: 1 } as Box,
+      looks: [] as Box[],
+      wrapWidth: 0,
+    };
+    const params = new URLSearchParams(window.location.search);
+    const overlayCap = params.get("overlayDpr") === "1" ? 1 : 1.5;
+    const readBox = (el: HTMLElement): Box => {
+      const rect = el.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+    };
+    const refresh = () => {
       const tray = trayRef.current;
       const crusher = crusherRef.current;
       const lever = leverRef.current;
+      const face = faceRef.current;
+      const root = rootRef.current;
+      const wrap = wrapRef.current;
+      if (!tray || !crusher || !lever || !face || !root || !wrap) {
+        return;
+      }
+      boxes.wrapWidth = wrap.clientWidth;
+      crusher.style.right = `${lever.offsetWidth + 12}px`;
+      boxes.tray = readBox(tray);
+      boxes.crusher = readBox(crusher);
+      boxes.leverLeft = readBox(lever).left;
+      boxes.face = readBox(face);
+      boxes.workshop = readBox(root);
+      boxes.looks = Array.from(document.querySelectorAll<HTMLElement>(".look")).map(readBox);
+    };
+    const faceScale = () => Math.min(window.devicePixelRatio || 1, 2);
+    const overlayScale = () => Math.min(window.devicePixelRatio || 1, overlayCap);
+    const sizeCanvases = () => {
+      const fx = fxRef.current;
+      const face = faceRef.current;
+      const sim = simRef.current;
+      if (fx) {
+        const dpr = overlayScale();
+        const width = Math.max(1, Math.round(window.innerWidth * dpr));
+        const height = Math.max(1, Math.round(window.innerHeight * dpr));
+        if (fx.width !== width) {
+          fx.width = width;
+        }
+        if (fx.height !== height) {
+          fx.height = height;
+        }
+      }
+      if (face && sim && sim.pw > 0) {
+        const dpr = faceScale();
+        const width = Math.max(1, Math.round(sim.pw * dpr));
+        const height = Math.max(1, Math.round(sim.ph * dpr));
+        if (face.width !== width) {
+          face.width = width;
+        }
+        if (face.height !== height) {
+          face.height = height;
+        }
+        face.style.height = `${sim.ph}px`;
+      }
+    };
+    const warmCanvas = () => {
+      sizeCanvases();
+      const fx = fxRef.current;
+      const ctx = fx?.getContext("2d");
+      if (!ctx) {
+        return;
+      }
+      ctx.fillStyle = "#000";
+      ctx.fillRect(-20, -20, 1, 1);
+    };
+
+    const decodeVoice = () => {
+      if (!audioCtx || !voiceBytes || voiceBuffer) {
+        return;
+      }
+      const bytes = voiceBytes.slice(0);
+      void audioCtx.decodeAudioData(bytes).then((buffer) => {
+        voiceBuffer = buffer;
+      }).catch(() => undefined);
+    };
+    const ensureAudio = () => {
+      if (audioCtx) {
+        return audioCtx;
+      }
+      const Ctx =
+        window.AudioContext ||
+        (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctx) {
+        return null;
+      }
+      audioCtx = new Ctx();
+      const len = audioCtx.sampleRate;
+      const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let k = 0; k < len; k += 1) {
+        data[k] = (Math.random() * 2 - 1) * (0.6 + 0.4 * Math.sin((k / len) * Math.PI * 40));
+      }
+      rumbleBuffer = buf;
+      decodeVoice();
+      return audioCtx;
+    };
+    const playVoice = () => {
+      const ctx = audioCtx;
+      if (!ctx || !voiceBuffer || !barRef.current) {
+        return;
+      }
+      barRef.current.hidden = false;
+      if (voiceGain) {
+        voiceGain.gain.value = mutedRef.current ? 0 : 1;
+      }
+      try {
+        voiceSource?.stop();
+      } catch {
+        // The previous line may already have finished.
+      }
+      const src = ctx.createBufferSource();
+      const gain = voiceGain ?? ctx.createGain();
+      voiceGain = gain;
+      gain.gain.value = mutedRef.current ? 0 : 1;
+      src.buffer = voiceBuffer;
+      src.connect(gain).connect(ctx.destination);
+      voiceStarted = ctx.currentTime;
+      src.onended = () => {
+        if (voiceSource === src) {
+          voiceSource = null;
+          captionUntil = performance.now() + 1500;
+        }
+      };
+      src.start();
+      voiceSource = src;
+      voiceGainRef.current = gain;
+    };
+    const stopRumble = () => {
+      const ctx = audioCtx;
+      if (!rumble || !ctx) {
+        rumble = null;
+        return;
+      }
+      try {
+        const t = ctx.currentTime;
+        rumble.gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+        rumble.src.stop(t + 0.7);
+      } catch {
+        // The rumble may already have stopped.
+      }
+      rumble = null;
+    };
+    const startRumble = () => {
+      const ctx = audioCtx;
+      if (!ctx || !rumbleBuffer || rumble) {
+        return;
+      }
+      const src = ctx.createBufferSource();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+      src.buffer = rumbleBuffer;
+      src.loop = true;
+      filter.type = "lowpass";
+      filter.frequency.value = 260;
+      gain.gain.value = 0.0001;
+      gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.3);
+      src.connect(filter).connect(gain).connect(ctx.destination);
+      src.start();
+      rumble = { src, gain };
+    };
+
+    const wire = (sim: PortraitSim) => {
+      sim.onSpeak = () => playVoice();
+      sim.onThunk = (big) => {
+        if (navigator.vibrate) {
+          navigator.vibrate(big ? 35 : 6);
+        }
+        const ctx = audioCtx;
+        if (ctx) {
+          playThunk(ctx, big);
+        }
+      };
+      sim.onTick = () => {
+        const ctx = audioCtx;
+        if (ctx) {
+          playTick(ctx);
+        }
+      };
+      sim.onRumble = (on) => {
+        if (!on) {
+          stopRumble();
+          return;
+        }
+        if (navigator.vibrate) {
+          navigator.vibrate([30, 60, 30, 60, 30, 60, 30, 60, 30, 60, 30]);
+        }
+        startRumble();
+      };
+    };
+
+    let worker: Worker | null = null;
+    const loadPortrait = () => {
+      if (loading || simRef.current) {
+        return;
+      }
+      loading = true;
+      worker = new Worker("/portrait/unpack.js");
+      worker.onmessage = (event: MessageEvent) => {
+        if (!alive) {
+          return;
+        }
+        const msg = event.data as {
+          fps: number;
+          cols: number;
+          nr: number;
+          sc: number;
+          n: number;
+          full: number;
+          frameCount: number;
+          orderCount: number;
+          ramp: string;
+          idle: number[];
+          eyes: PackedPortrait["eyes"];
+          headCol: number;
+          vmax: number;
+          shape: number;
+          jx: number;
+          jy: number;
+          depth: number;
+          rnd1: number;
+          rnd2: number;
+          order: number;
+          frames: number;
+          buffer: ArrayBuffer;
+        };
+        const buffer = msg.buffer;
+        const cellCount = msg.nr * msg.cols;
+        const frames: Uint8Array[] = [];
+        for (let f = 0; f < msg.frameCount; f += 1) {
+          frames.push(new Uint8Array(buffer, msg.frames + f * cellCount, cellCount));
+        }
+        const packed: PackedPortrait = {
+          fps: msg.fps,
+          cols: msg.cols,
+          nr: msg.nr,
+          sc: msg.sc,
+          n: msg.n,
+          full: msg.full,
+          frameCount: msg.frameCount,
+          ramp: msg.ramp,
+          idle: msg.idle,
+          eyes: msg.eyes,
+          headCol: msg.headCol,
+          vmax: new Float32Array(buffer, msg.vmax, msg.n),
+          shape: new Float32Array(buffer, msg.shape, msg.n * 6),
+          jx: new Float32Array(buffer, msg.jx, msg.n),
+          jy: new Float32Array(buffer, msg.jy, msg.n),
+          depth: new Float32Array(buffer, msg.depth, msg.n),
+          rnd1: new Float32Array(buffer, msg.rnd1, msg.n),
+          rnd2: new Float32Array(buffer, msg.rnd2, msg.n),
+          order: new Uint16Array(buffer, msg.order, msg.orderCount),
+          frames,
+        };
+        const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const sim = new PortraitSim(packed, { reduce });
+        wire(sim);
+        const wrap = wrapRef.current;
+        if (wrap && boxes.wrapWidth > 0) {
+          sim.sizePortrait(boxes.wrapWidth);
+        }
+        simRef.current = sim;
+        sizeCanvases();
+        wake();
+        worker?.terminate();
+        worker = null;
+      };
+      worker.postMessage("go");
+    };
+
+    const loop = (now: number) => {
+      if (!alive) {
+        return false;
+      }
+      const sim = simRef.current;
+      const wrap = wrapRef.current;
+      const crusher = crusherRef.current;
       const box = boxRef.current;
       const face = faceRef.current;
       const fx = fxRef.current;
-      if (!sim || !wrap || !tray || !crusher || !lever || !box || !face || !fx) {
+      if (!sim || !wrap || !crusher || !box || !face || !fx) {
         lastT = now;
-        return;
+        return false;
       }
-      const dt = Math.min(0.033, (now - lastT) / 1000);
-      lastT = now;
-      const width = wrap.clientWidth;
-      if (width > 0 && Math.abs(width - sim.pw) > 0.5) {
-        sim.sizePortrait(width);
+      const workshop = boxes.workshop;
+      const faceOnScreen =
+        workshop.top < window.innerHeight && workshop.top + workshop.height > 0;
+      if (boxes.wrapWidth > 0 && Math.abs(boxes.wrapWidth - sim.pw) > 0.5) {
+        sim.sizePortrait(boxes.wrapWidth);
+        sizeCanvases();
       }
-      crusher.style.right = `${lever.offsetWidth + 12}px`;
-      const trayBox = tray.getBoundingClientRect();
-      const crusherBox = crusher.getBoundingClientRect();
-      const leverBox = lever.getBoundingClientRect();
-      const faceBox = face.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const fxW = Math.max(1, Math.round(window.innerWidth * dpr));
-      const fxH = Math.max(1, Math.round(window.innerHeight * dpr));
-      if (fx.width !== fxW) {
-        fx.width = fxW;
-      }
-      if (fx.height !== fxH) {
-        fx.height = fxH;
-      }
-      const faceW = Math.max(1, Math.round(sim.pw * dpr));
-      const faceH = Math.max(1, Math.round(sim.ph * dpr));
-      if (face.width !== faceW) {
-        face.width = faceW;
-      }
-      if (face.height !== faceH) {
-        face.height = faceH;
-      }
-      face.style.height = `${sim.ph}px`;
-      const looks = Array.from(document.querySelectorAll<HTMLElement>(".look")).map(
-        (link) => {
-          const rect = link.getBoundingClientRect();
-          return {
-            left: rect.left,
-            top: rect.top,
-            width: rect.width,
-            height: rect.height,
-          };
-        },
-      );
       sim.sync({
         vw: window.innerWidth,
         vh: window.innerHeight,
         scrollX: window.scrollX,
         scrollY: window.scrollY,
-        dpr,
-        tray: {
-          left: trayBox.left,
-          top: trayBox.top,
-          width: trayBox.width,
-          height: trayBox.height,
-        },
-        leverLeft: leverBox.left,
-        crusher: {
-          left: crusherBox.left,
-          top: crusherBox.top,
-          width: crusherBox.width,
-          height: crusherBox.height,
-        },
-        portrait: {
-          left: faceBox.left,
-          top: faceBox.top,
-          width: faceBox.width,
-          height: faceBox.height,
-        },
-        looks,
+        dpr: faceScale(),
+        fxDpr: overlayScale(),
+        tray: boxes.tray,
+        leverLeft: boxes.leverLeft,
+        crusher: boxes.crusher,
+        portrait: boxes.face,
+        looks: boxes.looks,
       });
-      if (sim.cw > 0) {
+      if (sim.cw > 0 && hitsRef.current.length) {
         const queued = hitsRef.current.splice(0);
         for (const hit of queued) {
           sim.smash(hit.x, hit.y);
         }
       }
-      const fxCtx = fx.getContext("2d");
-      const faceCtx = face.getContext("2d");
-      const audio = audioRef.current;
-      const speaking = Boolean(audio && !audio.paused && !audio.ended);
+      if (!sim.awake() && !(faceOnScreen && sim.built > 0)) {
+        return false;
+      }
+      const dt = Math.min(0.033, lastT ? (now - lastT) / 1000 : 0.016);
+      lastT = now;
+      const speaking = Boolean(
+        voiceSource &&
+          voiceBuffer &&
+          audioCtx &&
+          audioCtx.currentTime < voiceStarted + voiceBuffer.duration,
+      );
       sim.step(
         dt,
         now,
-        { fx: fxCtx, face: faceCtx },
-        { speaking, time: audio?.currentTime ?? 0 },
+        { fx: fx.getContext("2d"), face: face.getContext("2d") },
+        { speaking, time: audioCtx ? Math.max(0, audioCtx.currentTime - voiceStarted) : 0 },
+        faceOnScreen,
       );
-      wrap.style.height = `${sim.winH.toFixed(2)}px`;
+      const nextHeight = `${sim.winH.toFixed(2)}px`;
+      if (wrap.style.height !== nextHeight) {
+        wrap.style.height = nextHeight;
+      }
       if (sim.pendingScroll) {
         const dy = sim.pendingScroll;
         sim.pendingScroll = 0;
@@ -240,9 +470,12 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
       }
       const tank = sim.reservoir();
       if (fillRef.current) {
-        fillRef.current.style.height = `${tank.share * 100}%`;
+        const nextFill = `${tank.share * 100}%`;
+        if (fillRef.current.style.height !== nextFill) {
+          fillRef.current.style.height = nextFill;
+        }
       }
-      if (countRef.current) {
+      if (countRef.current && countRef.current.textContent !== `${tank.pct}%`) {
         countRef.current.textContent = `${tank.pct}%`;
       }
       crusher.classList.toggle("up", sim.crusherUp);
@@ -254,138 +487,17 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
       if (sim.slam !== lastSlam) {
         lastSlam = sim.slam;
         box.classList.remove("slam");
-        void box.offsetWidth;
-        box.classList.add("slam");
+        window.setTimeout(() => box.classList.add("slam"), 0);
       }
       paintHint(sim);
       const hint = hintRef.current;
       if (hint && sim.warns !== lastWarn) {
         lastWarn = sim.warns;
         hint.classList.remove("warn");
-        void hint.offsetWidth;
-        hint.classList.add("warn");
+        window.setTimeout(() => hint.classList.add("warn"), 0);
       }
-      captionRef.current?.classList.toggle(
-        "on",
-        speaking || now < captionUntil,
-      );
-    };
-
-    const start = async () => {
-      try {
-        const [{ PortraitSim }, response] = await Promise.all([
-          import("@/src/portrait/sim"),
-          fetch("/portrait/portrait.json"),
-        ]);
-        if (!response.ok) {
-          throw new Error("portrait data");
-        }
-        const portrait = (await response.json()) as ConstructorParameters<
-          typeof PortraitSim
-        >[0];
-        if (!alive) {
-          return;
-        }
-        const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        const sim = new PortraitSim(portrait, { reduce });
-        const voice = new Audio("/portrait/voice.mp3");
-        voice.preload = "auto";
-        voice.addEventListener("ended", () => {
-          captionUntil = performance.now() + 1500;
-        });
-        sim.onSpeak = () => {
-          if (!barRef.current) {
-            return;
-          }
-          barRef.current.hidden = false;
-          voice.currentTime = 0;
-          voice.muted = mutedRef.current;
-          void voice.play().catch(() => undefined);
-        };
-        sim.onThunk = (big) => {
-          if (navigator.vibrate) {
-            navigator.vibrate(big ? 35 : 6);
-          }
-          const ctx = sound();
-          if (ctx) {
-            playThunk(ctx, big);
-          }
-        };
-        sim.onTick = () => {
-          const ctx = sound();
-          if (ctx) {
-            playTick(ctx);
-          }
-        };
-        let rumble: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
-        const stopRumble = () => {
-          const ctx = audioCtx;
-          if (!rumble || !ctx) {
-            rumble = null;
-            return;
-          }
-          try {
-            const t = ctx.currentTime;
-            rumble.gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
-            rumble.src.stop(t + 0.7);
-          } catch {
-            // The rumble may already have stopped.
-          }
-          rumble = null;
-        };
-        sim.onRumble = (on) => {
-          if (!on) {
-            stopRumble();
-            return;
-          }
-          if (navigator.vibrate) {
-            navigator.vibrate([30, 60, 30, 60, 30, 60, 30, 60, 30, 60, 30]);
-          }
-          const ctx = sound();
-          if (!ctx) {
-            return;
-          }
-          try {
-            const len = ctx.sampleRate;
-            const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-            const data = buf.getChannelData(0);
-            for (let k = 0; k < len; k += 1) {
-              data[k] = (Math.random() * 2 - 1) * (0.6 + 0.4 * Math.sin((k / len) * Math.PI * 40));
-            }
-            const src = ctx.createBufferSource();
-            const filter = ctx.createBiquadFilter();
-            const gain = ctx.createGain();
-            src.buffer = buf;
-            src.loop = true;
-            filter.type = "lowpass";
-            filter.frequency.value = 260;
-            gain.gain.value = 0.0001;
-            gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.3);
-            src.connect(filter).connect(gain).connect(ctx.destination);
-            src.start();
-            rumble = { src, gain };
-          } catch {
-            rumble = null;
-          }
-        };
-        const wrap = wrapRef.current;
-        if (wrap && wrap.clientWidth > 0) {
-          sim.sizePortrait(wrap.clientWidth);
-        }
-        simRef.current = sim;
-        audioRef.current = voice;
-      } catch {
-        loading = true;
-      }
-    };
-
-    const ensure = () => {
-      if (looping) {
-        return;
-      }
-      looping = true;
-      lastT = performance.now();
-      frame = window.requestAnimationFrame(loop);
+      captionRef.current?.classList.toggle("on", speaking || now < captionUntil);
+      return sim.awake() || (faceOnScreen && sim.built > 0);
     };
 
     const onHit = (event: Event) => {
@@ -394,64 +506,111 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
         return;
       }
       hitsRef.current.push(detail);
-      wake = true;
-      ensure();
+      wake();
     };
 
     const onScroll = () => {
+      refresh();
       simRef.current?.noteScroll(window.scrollY, performance.now());
       const root = rootRef.current;
-      if (!root || wake) {
+      if (!root || simRef.current || loading) {
         return;
       }
       if (root.getBoundingClientRect().top < window.innerHeight + 240) {
-        wake = true;
-        ensure();
+        loadPortrait();
       }
     };
 
     const onPointer = (event: PointerEvent) => {
       simRef.current?.movePointer(event.clientX, event.clientY, performance.now());
+      if (simRef.current?.awake()) {
+        wake();
+      }
     };
 
     const onKey = () => {
       simRef.current?.noteKey(performance.now());
     };
 
+    const onFirstPointer = () => {
+      const ctx = ensureAudio();
+      void ctx?.resume();
+    };
+
+    const watched = [
+      rootRef.current,
+      wrapRef.current,
+      trayRef.current,
+      leverRef.current,
+      crusherRef.current,
+      faceRef.current,
+    ];
+    const observer = new ResizeObserver(() => {
+      refresh();
+      sizeCanvases();
+    });
+    for (const el of watched) {
+      if (el) {
+        observer.observe(el);
+      }
+    }
+    for (const link of document.querySelectorAll<HTMLElement>(".look")) {
+      observer.observe(link);
+    }
+    refresh();
+    window.requestAnimationFrame(warmCanvas);
+    void fetch("/portrait/voice.mp3")
+      .then((response) => response.arrayBuffer())
+      .then((bytes) => {
+        voiceBytes = bytes;
+        decodeVoice();
+      })
+      .catch(() => undefined);
+    if (params.get("preload") === "1" || typeof window.requestIdleCallback !== "function") {
+      window.setTimeout(loadPortrait, 2000);
+    } else {
+      window.requestIdleCallback(() => loadPortrait(), { timeout: 2000 });
+    }
+    const detach = attach(loop);
+    playVoiceRef.current = playVoice;
+    window.addEventListener("pointerdown", onFirstPointer, { capture: true });
     window.addEventListener(PORTRAIT_HIT, onHit);
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", refresh);
     window.addEventListener("pointermove", onPointer);
     window.addEventListener("keydown", onKey);
 
     return () => {
       alive = false;
-      window.cancelAnimationFrame(frame);
+      detach();
+      observer.disconnect();
+      worker?.terminate();
+      window.removeEventListener("pointerdown", onFirstPointer, { capture: true });
       window.removeEventListener(PORTRAIT_HIT, onHit);
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", refresh);
       window.removeEventListener("pointermove", onPointer);
       window.removeEventListener("keydown", onKey);
-      audioRef.current?.pause();
+      try {
+        voiceSource?.stop();
+      } catch {
+        // Already finished.
+      }
       simRef.current = null;
     };
   }, []);
 
   const toggleSound = () => {
     mutedRef.current = !mutedRef.current;
-    if (audioRef.current) {
-      audioRef.current.muted = mutedRef.current;
+    const gain = voiceGainRef.current;
+    if (gain) {
+      gain.gain.value = mutedRef.current ? 0 : 1;
     }
     setSoundOn(!mutedRef.current);
   };
 
   const sayAgain = () => {
-    const voice = audioRef.current;
-    if (!voice || !barRef.current) {
-      return;
-    }
-    barRef.current.hidden = false;
-    voice.currentTime = 0;
-    voice.muted = mutedRef.current;
-    void voice.play().catch(() => undefined);
+    playVoiceRef.current();
   };
 
   return (

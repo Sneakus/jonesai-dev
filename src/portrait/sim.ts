@@ -20,6 +20,29 @@ export type PortraitData = {
   pieces?: number;
 };
 
+export type PackedPortrait = {
+  fps: number;
+  cols: number;
+  nr: number;
+  sc: number;
+  n: number;
+  full: number;
+  frameCount: number;
+  ramp: string;
+  idle: number[];
+  eyes: PortraitEye[][];
+  headCol: number;
+  vmax: Float32Array;
+  shape: Float32Array;
+  jx: Float32Array;
+  jy: Float32Array;
+  depth: Float32Array;
+  rnd1: Float32Array;
+  rnd2: Float32Array;
+  order: Uint16Array;
+  frames: Uint8Array[];
+};
+
 export type PortraitRect = {
   left: number;
   top: number;
@@ -33,6 +56,7 @@ export type PortraitLayout = {
   scrollX: number;
   scrollY: number;
   dpr: number;
+  fxDpr?: number;
   tray: PortraitRect;
   leverLeft: number;
   crusher: PortraitRect;
@@ -151,6 +175,7 @@ export class PortraitSim {
   vw = 1;
   vh = 1;
   dpr = 1;
+  private fxDpr = 1;
   scrollX = 0;
   scrollY = 0;
   wallX = 1e9;
@@ -187,7 +212,8 @@ export class PortraitSim {
   private readonly random: () => number;
   private readonly ramp: string;
   private readonly topv: number;
-  private readonly frames: number[][][];
+  private frames: Uint8Array[] = [];
+  private packedOrder: Uint16Array | null = null;
   private readonly idle: number[];
   private readonly eyes: PortraitEye[][];
   private readonly n: number;
@@ -281,32 +307,75 @@ export class PortraitSim {
   private heapAwake = 0;
 
   constructor(
-    data: PortraitData,
+    data: PortraitData | PackedPortrait,
     options?: { reduce?: boolean; random?: () => number },
   ) {
     this.reduce = options?.reduce ?? false;
     this.random = options?.random ?? Math.random;
-    this.fps = data.fps;
-    this.cols = data.cols;
-    this.idle = data.idle;
-    this.eyes = data.eyes;
-    this.ramp = ` ${data.ramp}`;
+    if ("order" in data && data.order instanceof Uint16Array) {
+      const packed = data;
+      this.fps = packed.fps;
+      this.cols = packed.cols;
+      this.nr = packed.nr;
+      this.sc = packed.sc;
+      this.n = packed.n;
+      this.full = packed.full;
+      this.perClay = Math.ceil(this.full / 25);
+      this.idle = packed.idle;
+      this.eyes = packed.eyes;
+      this.ramp = packed.ramp;
+      this.topv = this.ramp.length - 1;
+      this.frames = packed.frames;
+      this.packedOrder = packed.order;
+      this.shape = packed.shape;
+      this.jx = packed.jx;
+      this.jy = packed.jy;
+      this.depth = packed.depth;
+      this.vmax = packed.vmax;
+      this.rnd1 = packed.rnd1;
+      this.rnd2 = packed.rnd2;
+      this.headCol = packed.headCol;
+      this.ox = new Float32Array(this.n);
+      this.oy = new Float32Array(this.n);
+      this.springX = new Float32Array(this.n);
+      this.springY = new Float32Array(this.n);
+      this.here = new Uint8Array(this.n);
+      this.regArrive = new Float64Array(this.n).fill(-1e9);
+      this.swarmX = new Float32Array(this.n);
+      this.swarmY = new Float32Array(this.n);
+      this.swarmVx = new Float32Array(this.n);
+      this.swarmVy = new Float32Array(this.n);
+      this.away = new Uint8Array(this.n);
+      this.retT0 = new Float32Array(this.n);
+      this.retD = new Float32Array(this.n);
+      this.retX = new Float32Array(this.n);
+      this.retY = new Float32Array(this.n);
+      this.retVx = new Float32Array(this.n);
+      this.retVy = new Float32Array(this.n);
+      return;
+    }
+    const json = data as PortraitData;
+    this.fps = json.fps;
+    this.cols = json.cols;
+    this.idle = json.idle;
+    this.eyes = json.eyes;
+    this.ramp = ` ${json.ramp}`;
     this.topv = this.ramp.length - 1;
     this.sc = Math.floor(this.cols / 2);
 
-    const grid = data.rows.map((row) =>
+    const grid = json.rows.map((row) =>
       row.split("").map((ch) => (ch === " " ? 0 : this.ramp.indexOf(ch))),
     );
     this.nr = grid.length;
-    this.frames = [grid.map((row) => row.slice())];
-    for (const delta of data.deltas) {
+    const grids: number[][][] = [grid.map((row) => row.slice())];
+    for (const delta of json.deltas) {
       const bin = atob(delta);
       for (let k = 0; k < bin.length; k += 3) {
         const p = bin.charCodeAt(k) | (bin.charCodeAt(k + 1) << 8);
         const v = bin.charCodeAt(k + 2);
         grid[Math.floor(p / this.cols)][p % this.cols] = v;
       }
-      this.frames.push(grid.map((row) => row.slice()));
+      grids.push(grid.map((row) => row.slice()));
     }
 
     this.n = this.sc * this.nr;
@@ -366,10 +435,9 @@ export class PortraitSim {
       const r = Math.floor(i / this.sc);
       const s = i % this.sc;
       let m = 0;
-      for (let f = 0; f < this.frames.length; f += 1) {
+      for (let f = 0; f < grids.length; f += 1) {
         const vv =
-          (this.frames[f][r][s * 2] + this.frames[f][r][s * 2 + 1]) /
-          (2 * this.topv);
+          (grids[f][r][s * 2] + grids[f][r][s * 2 + 1]) / (2 * this.topv);
         if (vv > m) {
           m = vv;
         }
@@ -392,7 +460,7 @@ export class PortraitSim {
     void order.length;
 
     const xs: number[] = [];
-    const f0 = this.frames[0];
+    const f0 = grids[0];
     for (let r = 0; r < NECK - 5; r += 1) {
       for (let s = 0; s < this.sc; s += 1) {
         if ((f0[r][s * 2] + f0[r][s * 2 + 1]) / (2 * this.topv) > 0.04) {
@@ -406,6 +474,13 @@ export class PortraitSim {
         (xs[Math.floor(xs.length * 0.05)] + xs[Math.floor(xs.length * 0.95)]) /
         2;
     }
+    this.frames = grids.map((rows) => {
+      const flat = new Uint8Array(this.nr * this.cols);
+      for (let r = 0; r < this.nr; r += 1) {
+        flat.set(rows[r], r * this.cols);
+      }
+      return flat;
+    });
   }
 
   sync(layout: PortraitLayout) {
@@ -414,6 +489,7 @@ export class PortraitSim {
     this.scrollX = layout.scrollX;
     this.scrollY = layout.scrollY;
     this.dpr = Math.min(layout.dpr || 1, 2);
+    this.fxDpr = layout.fxDpr ?? this.dpr;
     this.vw = nextVw;
     this.trayTop = layout.tray.top;
     this.trayHeight = layout.tray.height;
@@ -684,6 +760,7 @@ export class PortraitSim {
     now: number,
     view?: PortraitView | null,
     audio?: { speaking: boolean; time: number },
+    faceOnScreen = true,
   ) {
     this.now = now;
     const fx = view?.fx ?? null;
@@ -744,7 +821,7 @@ export class PortraitSim {
     }
 
     if (fx) {
-      fx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      fx.setTransform(this.fxDpr, 0, 0, this.fxDpr, 0, 0);
       fx.clearRect(0, 0, this.vw, this.vh);
     }
     const flyBy: Record<string, Path2D> = {};
@@ -754,7 +831,9 @@ export class PortraitSim {
     const nozY = this.crusherRect.top + 4;
     const inX = this.crusherRect.left + 4;
     const inY = this.crusherRect.top + this.crusherRect.height - 16;
-    this.stepHeap(dt);
+    if (this.feeding || this.heapMoving()) {
+      this.stepHeap(dt);
+    }
     for (let k = this.intake.length - 1; k >= 0; k -= 1) {
       const bit = this.intake[k];
       bit.t += dt;
@@ -953,7 +1032,13 @@ export class PortraitSim {
       this.onSpeak?.();
     }
     this.stepLever(dt);
+    if (!faceOnScreen) {
+      return;
+    }
     this.updateAttention(dt, now, Boolean(audio?.speaking));
+    if (this.built === 0 && !audio?.speaking) {
+      return;
+    }
     const grid = audio?.speaking
       ? this.frames[
           Math.min(this.frames.length - 1, Math.floor(audio.time * this.fps))
@@ -1022,6 +1107,51 @@ export class PortraitSim {
     return pts;
   }
 
+  faceFilled() {
+    let arrived = 0;
+    for (let i = 0; i < this.n; i += 1) {
+      if (this.vmax[i] > 0.04 && this.here[i]) {
+        arrived += 1;
+      }
+    }
+    return this.full ? arrived / this.full : 0;
+  }
+
+  awake() {
+    if (
+      this.live.length ||
+      this.flights.length ||
+      this.intake.length ||
+      this.burst.length ||
+      this.feeding ||
+      this.dragging ||
+      this.snapping ||
+      this.effect ||
+      this.armAt ||
+      this.windAt ||
+      this.sinkAt ||
+      this.crusherOn
+    ) {
+      return true;
+    }
+    if (this.crusherUp ? this.crOpen < 0.999 : this.crOpen > 0.001) {
+      return true;
+    }
+    if (Math.abs(this.winH - this.winTarget) > 0.5) {
+      return true;
+    }
+    return this.heapMoving();
+  }
+
+  private heapMoving() {
+    for (let i = 0; i < this.settled.length; i += 1) {
+      if (!this.settled[i].asleep) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private stepHeap(dt: number) {
     if (!this.settled.length) {
       this.heapPast = 0;
@@ -1043,7 +1173,7 @@ export class PortraitSim {
         const vy = (body.y - body.py) * 0.985;
         body.px = body.x;
         body.py = body.y;
-        body.x += vx + (this.feeding ? 700 : 0) * HEAP_H * HEAP_H;
+        body.x += vx + (this.feeding ? 900 + 9 * Math.max(0, this.wallX - body.x) : 0) * HEAP_H * HEAP_H;
         body.y += vy - HEAP_G * HEAP_H * HEAP_H;
         body.rot += body.vr * HEAP_H;
         body.vr *= 0.995;
@@ -1119,22 +1249,26 @@ export class PortraitSim {
         for (const body of this.settled) {
           if (!body.asleep && body.y < body.r) {
             body.y = body.r;
-            body.px = body.x - (body.x - body.px) * 0.6;
+            if (!this.feeding) {
+              body.px = body.x - (body.x - body.px) * 0.6;
+            }
             body.py = body.y;
           }
           if (body.x < this.trayLeftX + body.r) {
+            const overlap = this.trayLeftX + body.r - body.x;
             body.x = this.trayLeftX + body.r;
             body.px = body.x;
-            if (body.asleep) {
+            if (body.asleep && overlap > 0.5) {
               body.asleep = false;
               body.still = 0;
             }
           }
           if (body.x > this.wallX - body.r) {
+            const overlap = body.x - (this.wallX - body.r);
             body.x = this.wallX - body.r;
             body.px = body.x;
             // The sliding wall still shoves a piece that has already gone to sleep.
-            if (body.asleep) {
+            if (body.asleep && overlap > 0.5) {
               body.asleep = false;
               body.still = 0;
             }
@@ -1160,9 +1294,9 @@ export class PortraitSim {
     }
     if (this.feeding) {
       let took = 0;
-      for (let i = this.settled.length - 1; i >= 0 && took < 4; i -= 1) {
+      for (let i = this.settled.length - 1; i >= 0 && took < 6; i -= 1) {
         const body = this.settled[i];
-        if (body.x > this.wallX - body.r - 3 && body.y < 34) {
+        if (body.x > this.wallX - body.r - 3 && body.y < 60) {
           this.settled.splice(i, 1);
           this.fedCount += 1;
           took += 1;
@@ -1269,15 +1403,24 @@ export class PortraitSim {
       return;
     }
     this.todoFace = [];
-    for (let i = 0; i < this.n; i += 1) {
-      if (this.vmax[i] > 0.04 && !this.here[i]) {
-        this.todoFace.push({
-          i,
-          key: Math.floor(i / this.sc) + this.random() * 6,
-        });
+    if (this.packedOrder) {
+      for (let k = 0; k < this.packedOrder.length; k += 1) {
+        const i = this.packedOrder[k];
+        if (this.vmax[i] > 0.04 && !this.here[i]) {
+          this.todoFace.push({ i, key: 0 });
+        }
       }
+    } else {
+      for (let i = 0; i < this.n; i += 1) {
+        if (this.vmax[i] > 0.04 && !this.here[i]) {
+          this.todoFace.push({
+            i,
+            key: Math.floor(i / this.sc) + this.random() * 6,
+          });
+        }
+      }
+      this.todoFace.sort((a, b) => b.key - a.key);
     }
-    this.todoFace.sort((a, b) => b.key - a.key);
     this.emitTotal = this.todoFace.length;
     this.emitted = 0;
     this.fedCount = 0;
@@ -1463,7 +1606,13 @@ export class PortraitSim {
       this.nextBlink = now + 2500 + this.random() * 3500;
     }
     const base = this.frames[this.idle[this.idlePos]];
-    const g = base.map((row) => row.slice());
+    const g = new Uint8Array(base);
+    const at = (r: number, c: number) => base[r * this.cols + c];
+    const put = (r: number, c: number, v: number) => {
+      if (r >= 0 && c >= 0 && r < this.nr && c < this.cols) {
+        g[r * this.cols + c] = v;
+      }
+    };
     const sxAll = Math.round(this.gaze.x * 2);
     const sy = Math.round(this.gaze.y * 1);
     const closed = now < this.blinkUntil || this.dozing;
@@ -1488,22 +1637,22 @@ export class PortraitSim {
       if (closed) {
         for (const r of rs) {
           for (let c = minC - 1; c <= maxC + 1; c += 1) {
-            g[r][c] = base[Math.min(this.nr - 1, eye.r1 + 1)][c];
+            put(r, c, at(Math.min(this.nr - 1, eye.r1 + 1), c));
           }
         }
         for (let c = minC - 1; c <= maxC + 1; c += 1) {
-          g[mid][c] = Math.round(this.topv * 0.75);
+          put(mid, c, Math.round(this.topv * 0.75));
         }
         return;
       }
       for (const p of eye.iris) {
-        g[p[0]][p[1]] = Math.round(this.topv * 0.45);
+        put(p[0], p[1], Math.round(this.topv * 0.45));
       }
       for (const p of eye.iris) {
         const r = p[0] + sy;
         const c = p[1] + sx;
         if (r >= eye.r0 && r < eye.r1 && c >= eye.c0 && c < eye.c1) {
-          g[r][c] = p[2];
+          put(r, c, p[2]);
         }
       }
     });
@@ -1881,7 +2030,7 @@ export class PortraitSim {
   }
 
   private drawFace(
-    grid: number[][],
+    grid: Uint8Array,
     dt: number,
     now: number,
     face: CanvasRenderingContext2D | null,
@@ -1920,7 +2069,7 @@ export class PortraitSim {
     const paths: Array<Path2D | null> = [null, null, null];
     const chars: string[][] = [[], [], []];
     for (let r = 0; r < this.nr; r += 1) {
-      const row = grid[r];
+      const rowAt = r * this.cols;
       for (let s = 0; s < this.sc; s += 1) {
         const i = r * this.sc + s;
         if (!this.here[i] || (swarming && this.away[i])) {
@@ -1928,7 +2077,7 @@ export class PortraitSim {
         }
         const since = now - this.regArrive[i];
         const pulse = since < 200 ? 1 + 0.25 * Math.sin((since / 200) * Math.PI) : 1;
-        const v = (row[s * 2] + row[s * 2 + 1]) / (2 * this.topv);
+        const v = (grid[rowAt + s * 2] + grid[rowAt + s * 2 + 1]) / (2 * this.topv);
         const ef = this.effectAt(
           i,
           r,
@@ -2027,4 +2176,48 @@ export class PortraitSim {
       }
     }
   }
+}
+
+export function warmPortrait() {
+  const sim = new PortraitSim(
+    {
+      fps: 20,
+      cols: 2,
+      nr: 1,
+      sc: 1,
+      n: 1,
+      full: 1,
+      frameCount: 1,
+      ramp: " #",
+      idle: [0],
+      eyes: [],
+      headCol: 0.5,
+      vmax: new Float32Array([0.5]),
+      shape: new Float32Array(6).fill(0.2),
+      jx: new Float32Array(1),
+      jy: new Float32Array(1),
+      depth: new Float32Array(1),
+      rnd1: new Float32Array(1),
+      rnd2: new Float32Array(1),
+      order: new Uint16Array([0]),
+      frames: [new Uint8Array(2)],
+    },
+    { reduce: true },
+  );
+  sim.sizePortrait(80);
+  sim.sync({
+    vw: 400,
+    vh: 800,
+    scrollX: 0,
+    scrollY: 0,
+    dpr: 1,
+    tray: { left: 10, top: 400, width: 300, height: 240 },
+    leverLeft: 200,
+    crusher: { left: 120, top: 500, width: 86, height: 92 },
+    portrait: { left: 10, top: 10, width: 80, height: 80 },
+    looks: [],
+  });
+  sim.smash(40, 500);
+  sim.step(0.016, 10, null, undefined, false);
+  sim.step(0.016, 40, null, undefined, false);
 }

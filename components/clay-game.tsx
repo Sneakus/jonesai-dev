@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { attach, wake } from "@/src/motion/loop";
 import { clayBoxClass } from "@/components/clay-scene";
 import { reportClayBreak } from "@/src/portrait/bridge";
 
@@ -531,10 +532,10 @@ export function ClayGame({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const handRef = useRef<HTMLDivElement>(null);
   const replayRef = useRef<HTMLButtonElement>(null);
+  const scoreRef = useRef<HTMLParagraphElement>(null);
   const onFailRef = useRef(onFail);
   const hitMarkRef = useRef(hitMark);
   const scoreMessagesRef = useRef(scoreMessages);
-  const [score, setScore] = useState({ hits: 0, launched: 0 });
   const [over, setOver] = useState(false);
   const [result, setResult] = useState<GameResult | null>(null);
 
@@ -568,7 +569,6 @@ export function ClayGame({
     const uiFont = getComputedStyle(box).fontFamily || "Instrument Sans, sans-serif";
     let width = 0;
     let height = 0;
-    let frame = 0;
     let last = 0;
     let visible = true;
     let stopped = false;
@@ -714,11 +714,21 @@ export function ClayGame({
     let pointerDown: { x: number; y: number } | null = null;
     let finePointer = window.matchMedia("(pointer: fine)").matches;
     let pointerInside = false;
+    let pointerDirty = false;
     const shots: Shot[] = [];
     const floaters: Floater[] = [];
 
     const publish = () => {
-      setScore({ hits, launched });
+      const node = scoreRef.current;
+      if (!node) {
+        return;
+      }
+      if (launched <= 0) {
+        node.hidden = true;
+        return;
+      }
+      node.hidden = false;
+      node.textContent = `${hits} / ${launched}`;
     };
 
     const pickScoreMessage = (value: number) => {
@@ -1149,6 +1159,8 @@ export function ClayGame({
       aimY = point.y;
       pointerInside = true;
       finePointer = true;
+      pointerDirty = true;
+      wake();
     };
 
     const onPointerLeave = (event: PointerEvent) => {
@@ -1570,19 +1582,13 @@ export function ClayGame({
       applyShake(now);
     };
 
+    let launchTimer = 0;
+    let detach: (() => void) | null = null;
+
     const tick = (now: number) => {
-      if (stopped) {
-        return;
+      if (stopped || document.hidden || !visible) {
+        return false;
       }
-      if (document.hidden || !visible) {
-        frame = 0;
-        last = now;
-        if (box.style.transform) {
-          box.style.transform = "";
-        }
-        return;
-      }
-      frame = window.requestAnimationFrame(tick);
 
       const dt = Math.min(0.032, last === 0 ? 0.016 : (now - last) / 1000);
       dtHand = dt;
@@ -1644,20 +1650,38 @@ export function ClayGame({
       }
 
       draw(now);
+      const shaking = shakeAt > 0 && now - shakeAt < shakeTime;
+      const celebrating = celebrationAt > 0 && !celebrationFinished;
+      const live =
+        Boolean(clay) || shots.length > 0 || floaters.length > 0 || shaking || celebrating;
+      const waiting = !clay && !finished && nextLaunchAt > now;
+      if (waiting && !live) {
+        window.clearTimeout(launchTimer);
+        launchTimer = window.setTimeout(() => wake(), Math.max(16, nextLaunchAt - now));
+      }
+      const cursor = pointerDirty;
+      pointerDirty = false;
+      return live || cursor;
     };
 
     const start = () => {
-      if (frame || stopped) {
+      if (stopped) {
         return;
       }
-      last = 0;
-      frame = window.requestAnimationFrame(tick);
+      if (!detach) {
+        last = 0;
+        detach = attach(tick);
+        return;
+      }
+      wake();
     };
 
     const stop = () => {
-      if (frame) {
-        window.cancelAnimationFrame(frame);
-        frame = 0;
+      window.clearTimeout(launchTimer);
+      detach?.();
+      detach = null;
+      if (box.style.transform) {
+        box.style.transform = "";
       }
     };
 
@@ -1697,10 +1721,20 @@ export function ClayGame({
     canvas.addEventListener("pointerleave", onPointerLeave);
     canvas.addEventListener("pointercancel", onPointerCancel);
     canvas.addEventListener("replay", onReplay);
+    (window as Window & { __jonesTest?: { smash: () => boolean } }).__jonesTest = {
+      smash: () => {
+        if (!clay || finished) {
+          return false;
+        }
+        breakClay(performance.now());
+        return true;
+      },
+    };
     start();
 
     return () => {
       stopped = true;
+      delete (window as Window & { __jonesTest?: { smash: () => boolean } }).__jonesTest;
       stop();
       box.style.transform = "";
       observer.disconnect();
@@ -1746,14 +1780,12 @@ export function ClayGame({
           />
         ))}
       </div>
-      {score.launched > 0 ? (
-        <p
-          className="pointer-events-none absolute top-4 right-4 text-[13px] font-medium text-ink"
-          aria-live="polite"
-        >
-          {score.hits} / {score.launched}
-        </p>
-      ) : null}
+      <p
+        ref={scoreRef}
+        hidden
+        className="pointer-events-none absolute top-4 right-4 text-[13px] font-medium text-ink"
+        aria-live="polite"
+      />
       {over && result ? (
         <div
           className="absolute top-1/2 left-1/2 flex w-[min(88%,28rem)] -translate-x-1/2 -translate-y-1/2 flex-col items-center rounded-2xl border border-line bg-card px-5 py-5 text-center"
@@ -1774,7 +1806,6 @@ export function ClayGame({
             type="button"
             className="mt-4 rounded-full border border-line bg-card px-5 py-2.5 text-base text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
             onClick={() => {
-              setScore({ hits: 0, launched: 0 });
               setResult(null);
               setOver(false);
               const canvas = canvasRef.current;
