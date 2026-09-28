@@ -1668,3 +1668,29 @@ Tell me in plain English what the long tasks were, what fixed them, and the befo
 ```
 Changed: Smoothed the first clay smashes and steadied the portrait build.
 Files: components/clay-game.tsx, components/portrait-slot.tsx, src/portrait/sim.ts, src/portrait/sim.test.ts, src/motion/loop.ts, scripts/pack-portrait.mjs, public/portrait/portrait.bin, public/portrait/unpack.js, tests/first-clays.mjs, PERF_BUDGET.md, package.json, log/prompts.md
+
+### 2026-09-27 03:17
+Prompt:
+```
+Follow-up to the smooth-first-clays work. First commit what you have: those fixes removed the big freezes, so run gitleaks git -v, commit with "Home: no freezes on first clays, steady build" and push to main, even though two budget items were missed. Then fix the rest. Stop and tell me if anything fails.
+
+On my PC (a high-refresh monitor) the game runs at its full rate until the first clay breaks, then drops to about 100fps, which feels laggy. The likely cause is the full-page overlay canvas being cleared, redrawn and blended over the game every frame once fragments exist, which your headless test can't see because it has no real graphics card.
+
+1. Falling fragments: while they fall, draw each fragment as a small absolutely positioned element (the fragment's own polygon shape via clip-path, its own colour), moved only with transform: translate3d(...) rotate(...), from a reused pool, with no layout reads. Keep the exact same motion, drift into the tray and landing as now. Remove the element when the fragment joins the heap. Check by eye against reference/portrait-prototype.html that they look the same.
+
+2. The heap: draw it on its own canvas sized to the tray, sitting in the page at the bottom (not fixed), redrawn only on frames where at least one heap piece is awake or one was added or removed.
+
+3. The full-page overlay canvas: only create or show it for the crusher build, the swarm and the balloon pop, and hide it (display none, nothing drawn) the rest of the time.
+
+4. Sleep: every heap piece should be asleep within about 1.5 seconds after the last piece lands (tighten the resting rule if needed, without the heap looking frozen mid-fall). When no fragments are falling, the heap is asleep and the portrait is off screen or idle, the animation loop stops completely until something new happens.
+
+5. Warm-up: in idle time after the page loads, run the heap physics on a throwaway heap of about 100 pieces for about 200 steps, using the real functions, so the code is ready before anyone plays.
+
+6. Measure with your headless test as before (4x slowdown and desktop), and add a check that no canvas bigger than the tray or the game is being redrawn during the first 10 seconds of smashing. Report before and after.
+
+7. Keep all tests passing. Don't use the built-in browser. Run all the tests, a clean production build, the code check and gitleaks git -v, commit with "Home: light falling pieces, sleeping heap" and push to main.
+
+Tell me in plain English what changed and the numbers.
+```
+Changed: Drew falling pieces as small elements and let the heap sleep, but did not commit because one hitch remained.
+Files: components/portrait-slot.tsx, components/clay-game.tsx, src/portrait/sim.ts, src/portrait/sim.test.ts, app/globals.css, tests/first-clays.mjs, PERF_BUDGET.md, log/prompts.md

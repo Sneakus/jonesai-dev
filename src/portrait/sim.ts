@@ -67,9 +67,21 @@ export type PortraitLayout = {
 export type PortraitView = {
   fx: CanvasRenderingContext2D | null;
   face: CanvasRenderingContext2D | null;
+  heap?: CanvasRenderingContext2D | null;
+};
+
+export type FallingPiece = {
+  id: number;
+  x: number;
+  y: number;
+  rot: number;
+  color: string;
+  clip: string;
+  box: number;
 };
 
 type LivePiece = {
+  id: number;
   x: number;
   y: number;
   vx: number;
@@ -81,6 +93,8 @@ type LivePiece = {
   color: string;
   flutter: number;
   cell: number;
+  clip: string;
+  box: number;
 };
 
 type Body = {
@@ -97,6 +111,7 @@ type Body = {
   cell: number;
   still: number;
   asleep: boolean;
+  flow: number;
 };
 
 type Flight = {
@@ -138,7 +153,7 @@ type EffectName = "words" | "decode" | "swarm" | "balloon";
 
 const CLAY = ["#E8480C", "#E8480C", "#E8480C", "#C93F0B", "#F06A33"];
 const TIERS = ["#E8480C", "#B8390A", "#782608"];
-const PILE_H = 300;
+export const PILE_H = 300;
 const CHUNKS_PER_CLAY = 22;
 const CHUNKS_FULL = 25 * CHUNKS_PER_CLAY;
 const HEAP_G = 1500;
@@ -248,6 +263,9 @@ export class PortraitSim {
   private pendingSpeak = false;
   private speakReady = false;
   private trayLeftX = 0;
+  private trayScreenLeft = 0;
+  private heapDirty = false;
+  private nextPieceId = 1;
   private leverLine = 1e9;
   private crusherLine = 1e9;
   private crOpen = 0;
@@ -493,6 +511,7 @@ export class PortraitSim {
     this.vw = nextVw;
     this.trayTop = layout.tray.top;
     this.trayHeight = layout.tray.height;
+    this.trayScreenLeft = layout.tray.left;
     this.floorY = layout.tray.top + layout.scrollY + layout.tray.height - 8;
     this.trayLeftX = layout.tray.left + layout.scrollX + 4;
     this.leverLine = layout.leverLeft + layout.scrollX - 4;
@@ -612,19 +631,13 @@ export class PortraitSim {
       const a = this.random() * Math.PI * 2;
       const hard = this.random() < 0.3;
       const sp = hard ? 200 + this.random() * 240 : 50 + this.random() * 170;
-      this.live.push({
-        x: px + (this.random() - 0.5) * 24,
-        y: py + (this.random() - 0.5) * 8,
-        vx: Math.cos(a) * sp,
-        vy: Math.sin(a) * sp - (hard ? 220 : 120),
-        rot: this.random() * 6.28,
-        vr: (this.random() - 0.5) * 14,
-        size: sz,
-        shape: this.makeShape(sz),
-        color: CLAY[Math.floor(this.random() * CLAY.length)],
-        flutter: this.random() * 6.28,
-        cell: -1,
-      });
+      this.spawnFragment(
+        px + (this.random() - 0.5) * 24,
+        py + (this.random() - 0.5) * 8,
+        Math.cos(a) * sp,
+        Math.sin(a) * sp - (hard ? 220 : 120),
+        sz,
+      );
     }
     this.smashed += 1;
     if (this.reduce) {
@@ -820,9 +833,11 @@ export class PortraitSim {
       }
     }
 
-    if (fx) {
-      fx.setTransform(this.fxDpr, 0, 0, this.fxDpr, 0, 0);
-      fx.clearRect(0, 0, this.vw, this.vh);
+    const overlay = this.overlayActive();
+    const page = overlay ? fx : null;
+    if (page) {
+      page.setTransform(this.fxDpr, 0, 0, this.fxDpr, 0, 0);
+      page.clearRect(0, 0, this.vw, this.vh);
     }
     const flyBy: Record<string, Path2D> = {};
     const floorScreen = this.trayTop + this.trayHeight - 8;
@@ -845,7 +860,7 @@ export class PortraitSim {
       const kx = bit.x - this.scrollX + (inX + 8 - (bit.x - this.scrollX)) * ku;
       const ky = floorScreen - bit.y + (inY - (floorScreen - bit.y)) * ku;
       this.paintShard(
-        fx,
+        page,
         flyBy,
         bit.color,
         bit.shape,
@@ -925,7 +940,7 @@ export class PortraitSim {
         continue;
       }
       this.paintShard(
-        fx,
+        page,
         flyBy,
         fl.fs.color,
         fl.fs.shape,
@@ -955,7 +970,7 @@ export class PortraitSim {
     ) {
       this.setWindow(this.winTarget);
     }
-    this.fillGroups(fx, flyBy);
+    this.fillGroups(page, flyBy);
     if (this.burst.length) {
       const burstBy: Record<string, Path2D> = {};
       for (let b = this.burst.length - 1; b >= 0; b -= 1) {
@@ -971,7 +986,7 @@ export class PortraitSim {
         bit.rot += bit.vr * dt;
         const fade = 1 - bit.t / bit.life;
         this.paintShard(
-          fx,
+          page,
           burstBy,
           bit.fs.color,
           bit.fs.shape,
@@ -981,41 +996,9 @@ export class PortraitSim {
           fade,
         );
       }
-      this.fillGroups(fx, burstBy);
+      this.fillGroups(page, burstBy);
     }
-    const byCol: Record<string, Path2D> = {};
-    for (const piece of this.live) {
-      const ly = piece.y - this.scrollY;
-      if (ly < -30 || ly > this.vh + 30) {
-        continue;
-      }
-      this.paintShard(
-        fx,
-        byCol,
-        piece.color,
-        piece.shape,
-        piece.x - this.scrollX,
-        ly,
-        piece.rot,
-      );
-    }
-    this.fillGroups(fx, byCol);
-    const floorScreenY = this.floorY - this.scrollY;
-    if (floorScreenY > -20 && floorScreenY - PILE_H < this.vh) {
-      const heapBy: Record<string, Path2D> = {};
-      for (const body of this.settled) {
-        this.paintShard(
-          fx,
-          heapBy,
-          body.color,
-          body.shape,
-          body.x - this.scrollX,
-          floorScreenY - body.y,
-          body.rot,
-        );
-      }
-      this.fillGroups(fx, heapBy);
-    }
+    this.drawHeap(view?.heap ?? null);
     if (
       this.grinding &&
       !this.feeding &&
@@ -1044,7 +1027,7 @@ export class PortraitSim {
           Math.min(this.frames.length - 1, Math.floor(audio.time * this.fps))
         ]
       : this.idleGrid(dt, now);
-    this.drawFace(grid, dt, now, face, fx);
+    this.drawFace(grid, dt, now, face, page);
   }
 
   flightsLength() {
@@ -1105,6 +1088,127 @@ export class PortraitSim {
       pts.push([Math.cos(a) * r, Math.sin(a) * r]);
     }
     return pts;
+  }
+
+  overlayActive() {
+    return Boolean(
+      this.feeding ||
+        this.flights.length ||
+        this.intake.length ||
+        this.burst.length ||
+        this.grinding ||
+        this.effect?.type === "swarm",
+    );
+  }
+
+  fallingViews(): FallingPiece[] {
+    const views: FallingPiece[] = [];
+    for (const piece of this.live) {
+      views.push({
+        id: piece.id,
+        x: piece.x - this.scrollX,
+        y: piece.y - this.scrollY,
+        rot: piece.rot,
+        color: piece.color,
+        clip: piece.clip,
+        box: piece.box,
+      });
+    }
+    return views;
+  }
+
+  private spawnFragment(x: number, y: number, vx: number, vy: number, size: number) {
+    const rot = this.random() * 6.28;
+    const vr = (this.random() - 0.5) * 14;
+    const shape = this.makeShape(size);
+    const color = CLAY[Math.floor(this.random() * CLAY.length)];
+    const flutter = this.random() * 6.28;
+    let reach = 1;
+    for (let i = 0; i < shape.length; i += 1) {
+      reach = Math.max(reach, Math.abs(shape[i][0]), Math.abs(shape[i][1]));
+    }
+    const box = Math.ceil(reach * 2 + 2);
+    const half = box / 2;
+    const clip = `polygon(${shape
+      .map((point) => `${(point[0] + half).toFixed(2)}px ${(point[1] + half).toFixed(2)}px`)
+      .join(",")})`;
+    this.live.push({
+      id: this.nextPieceId,
+      x,
+      y,
+      vx,
+      vy,
+      rot,
+      vr,
+      size,
+      shape,
+      color,
+      flutter,
+      cell: -1,
+      clip,
+      box,
+    });
+    this.nextPieceId += 1;
+  }
+
+  private drawHeap(ctx: CanvasRenderingContext2D | null) {
+    if (!ctx || !this.heapDirty) {
+      return;
+    }
+    const scale = this.dpr || 1;
+    const width = ctx.canvas.width / scale;
+    const height = ctx.canvas.height / scale;
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    const groups: Record<string, Path2D> = {};
+    const floorLocal = height - 8;
+    for (const body of this.settled) {
+      this.paintShard(
+        ctx,
+        groups,
+        body.color,
+        body.shape,
+        body.x - this.scrollX - this.trayScreenLeft,
+        floorLocal - body.y,
+        body.rot,
+      );
+    }
+    this.fillGroups(ctx, groups);
+    this.heapDirty = this.heapMoving();
+  }
+
+  seedWarmHeap(count: number) {
+    const left = this.trayLeftX + 8;
+    const right = Math.max(left + 40, this.wallX - 8);
+    const span = right - left;
+    for (let i = 0; i < count; i += 1) {
+      const size = 4 + (i % 6);
+      this.land({
+        id: 0,
+        x: left + (i % 17) * (span / 17),
+        y: this.floorY - 20 - (i % 8) * 12,
+        vx: ((i % 5) - 2) * 30,
+        vy: 60,
+        rot: i * 0.2,
+        vr: 1,
+        size,
+        shape: this.makeShape(size),
+        color: CLAY[i % CLAY.length],
+        flutter: 0,
+        cell: -1,
+        clip: "",
+        box: 1,
+      });
+    }
+  }
+
+  pumpWarmHeap() {
+    this.stepHeap(1 / 60);
+  }
+
+  clearWarmHeap() {
+    this.settled = [];
+    this.heapDirty = false;
   }
 
   faceFilled() {
@@ -1169,8 +1273,13 @@ export class PortraitSim {
         if (body.asleep) {
           continue;
         }
-        const vx = (body.x - body.px) * 0.985;
-        const vy = (body.y - body.py) * 0.985;
+        const gapX = body.x - body.px;
+        const gapY = body.y - body.py;
+        const speed = Math.abs(gapX) + Math.abs(gapY);
+        const damp = !this.feeding && speed < 1.5 ? 0.9 : 0.985;
+        const vx = gapX * damp;
+        const vy = gapY * damp;
+        body.flow = Math.abs(vx) + Math.abs(vy);
         body.px = body.x;
         body.py = body.y;
         body.x += vx + (this.feeding ? 900 + 9 * Math.max(0, this.wallX - body.x) : 0) * HEAP_H * HEAP_H;
@@ -1220,7 +1329,12 @@ export class PortraitSim {
                 const nx = dx / d;
                 const ny = dy / d;
                 const over = rr - d;
-                if (over > 1.5 && (body.asleep || other.asleep)) {
+                const hit =
+                  (!body.asleep &&
+                    Math.abs(body.x - body.px) + Math.abs(body.y - body.py) > 1) ||
+                  (!other.asleep &&
+                    Math.abs(other.x - other.px) + Math.abs(other.y - other.py) > 1);
+                if (over > 4 && hit && (body.asleep || other.asleep)) {
                   body.asleep = false;
                   other.asleep = false;
                   body.still = 0;
@@ -1279,13 +1393,14 @@ export class PortraitSim {
         if (body.asleep) {
           continue;
         }
-        const mv = Math.abs(body.x - body.px) + Math.abs(body.y - body.py);
-        if (mv < 0.05 && !this.feeding) {
+        const mv = body.flow;
+        if (mv < 0.35 && !this.feeding) {
           body.still += HEAP_H;
-          if (body.still > 0.25) {
+          if (body.still > 0.12) {
             body.asleep = true;
             body.px = body.x;
             body.py = body.y;
+            body.flow = 0;
           }
         } else {
           body.still = 0;
@@ -1298,6 +1413,7 @@ export class PortraitSim {
         const body = this.settled[i];
         if (body.x > this.wallX - body.r - 3 && body.y < 60) {
           this.settled.splice(i, 1);
+          this.heapDirty = true;
           this.fedCount += 1;
           took += 1;
           this.intake.push({
@@ -1369,7 +1485,9 @@ export class PortraitSim {
       cell: p.cell,
       still: 0,
       asleep: false,
+      flow: Math.abs(vx) + Math.abs(vy),
     });
+    this.heapDirty = true;
   }
 
   private setWindow(hgt: number) {
@@ -1393,6 +1511,7 @@ export class PortraitSim {
         }
       }
       this.settled = [];
+      this.heapDirty = true;
       this.feeding = false;
       this.grinding = false;
       this.pendingSpeak = true;
@@ -2009,19 +2128,13 @@ export class PortraitSim {
       const sz = 4 + this.random() * 6;
       const a = this.random() * 6.283;
       const sp2 = 80 + this.random() * 320;
-      this.live.push({
-        x: pageX + Math.cos(a) * 30,
-        y: pageY + Math.sin(a) * 30,
-        vx: Math.cos(a) * sp2,
-        vy: Math.sin(a) * sp2 - 180,
-        rot: this.random() * 6.28,
-        vr: (this.random() - 0.5) * 14,
-        size: sz,
-        shape: this.makeShape(sz),
-        color: CLAY[Math.floor(this.random() * CLAY.length)],
-        flutter: this.random() * 6.28,
-        cell: -1,
-      });
+      this.spawnFragment(
+        pageX + Math.cos(a) * 30,
+        pageY + Math.sin(a) * 30,
+        Math.cos(a) * sp2,
+        Math.sin(a) * sp2 - 180,
+        sz,
+      );
     }
     this.builtCount -= popped;
     this.built = this.builtCount / this.full;
@@ -2178,7 +2291,7 @@ export class PortraitSim {
   }
 }
 
-export function warmPortrait() {
+export function startHeapWarmup() {
   const sim = new PortraitSim(
     {
       fps: 20,
@@ -2202,22 +2315,37 @@ export function warmPortrait() {
       order: new Uint16Array([0]),
       frames: [new Uint8Array(2)],
     },
-    { reduce: true },
+    { reduce: false },
   );
-  sim.sizePortrait(80);
   sim.sync({
-    vw: 400,
+    vw: 900,
     vh: 800,
     scrollX: 0,
     scrollY: 0,
     dpr: 1,
-    tray: { left: 10, top: 400, width: 300, height: 240 },
-    leverLeft: 200,
-    crusher: { left: 120, top: 500, width: 86, height: 92 },
+    tray: { left: 10, top: 400, width: 700, height: 240 },
+    leverLeft: 560,
+    crusher: { left: 470, top: 540, width: 86, height: 92 },
     portrait: { left: 10, top: 10, width: 80, height: 80 },
     looks: [],
   });
-  sim.smash(40, 500);
-  sim.step(0.016, 10, null, undefined, false);
-  sim.step(0.016, 40, null, undefined, false);
+  sim.seedWarmHeap(100);
+  let left = 200;
+  const pump = () => {
+    const start = performance.now();
+    while (left > 0 && performance.now() - start < 6) {
+      sim.pumpWarmHeap();
+      left -= 1;
+    }
+    if (left > 0) {
+      setTimeout(pump, 0);
+      return;
+    }
+    sim.clearWarmHeap();
+  };
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(pump, { timeout: 100 });
+  } else {
+    setTimeout(pump, 50);
+  }
 }

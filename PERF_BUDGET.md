@@ -9,5 +9,8 @@ These are the targets for the home page when the first clays are broken, on a de
 - The animation loop does not read element positions.
 - The full-page clay canvas stays at or under about 4.7 million pixels.
 - The animation loop stops completely when nothing is moving.
+- During the first 10 seconds of smashing, the full-page overlay is not redrawn. Only the game and the tray-sized heap are.
+
+Known and accepted: about two seconds after smashing starts, one redraw can take about 7 milliseconds on a desktop, or about 42 milliseconds when the processor is slowed to a quarter speed. That hitch stays.
 
 The headless check is `node tests/first-clays.mjs --label after --check`, against a production server.

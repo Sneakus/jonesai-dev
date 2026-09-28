@@ -240,6 +240,22 @@ describe("clay portrait", () => {
     const n = sim.pileAudit().falling;
     expect(n).toBeGreaterThanOrEqual(19);
     expect(n).toBeLessThanOrEqual(25);
+    expect(sim.overlayActive()).toBe(false);
+    const falling = sim.fallingViews();
+    expect(falling).toHaveLength(n);
+    expect(falling[0].clip.startsWith("polygon(")).toBe(true);
+  });
+
+  it("lets the pile sleep within 1.5 seconds of the last landing", () => {
+    const sim = mount();
+    smashClays(sim, 5, 80, 200);
+    sim.step(0.05, 1100);
+    expect(sim.pileAudit().falling).toBeGreaterThan(0);
+    const landed = until(sim, () => sim.pileAudit().falling === 0, 8);
+    expect(sim.pileAudit().pieces).toBeGreaterThan(0);
+    until(sim, () => sim.pileAudit().awake === 0, 1.5, landed);
+    expect(sim.pileAudit().awake).toBe(0);
+    expect(sim.overlayActive()).toBe(false);
   });
 
   it("fills the reservoir to 100% from 27 clays and builds the whole face", () => {

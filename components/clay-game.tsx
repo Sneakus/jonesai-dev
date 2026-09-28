@@ -1759,6 +1759,7 @@ export function ClayGame({
       <canvas
         ref={canvasRef}
         className="absolute inset-0 h-full w-full select-none"
+        data-canvas="clay-canvas"
         style={{ touchAction: "pan-y" }}
         aria-hidden="true"
       />

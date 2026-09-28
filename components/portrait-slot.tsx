@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PortraitContent } from "@/lib/content";
 import { attach, wake } from "@/src/motion/loop";
 import { PORTRAIT_HIT, type PortraitHit } from "@/src/portrait/bridge";
-import { PortraitSim, warmPortrait, type PackedPortrait } from "@/src/portrait/sim";
+import { PortraitSim, startHeapWarmup, PILE_H, type FallingPiece, type PackedPortrait } from "@/src/portrait/sim";
 
 function fmt(n: number) {
   return n.toLocaleString("en-GB");
@@ -45,6 +45,8 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const faceRef = useRef<HTMLCanvasElement>(null);
   const fxRef = useRef<HTMLCanvasElement>(null);
+  const heapRef = useRef<HTMLCanvasElement>(null);
+  const fallRef = useRef<HTMLDivElement>(null);
   const trayRef = useRef<HTMLDivElement>(null);
   const crusherRef = useRef<HTMLDivElement>(null);
   const leverRef = useRef<HTMLDivElement>(null);
@@ -69,7 +71,7 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
   }, [copy]);
 
   useEffect(() => {
-    warmPortrait();
+    startHeapWarmup();
     let alive = true;
     let loading = false;
     let lastT = 0;
@@ -156,21 +158,40 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
     };
     const faceScale = () => Math.min(window.devicePixelRatio || 1, 2);
     const overlayScale = () => Math.min(window.devicePixelRatio || 1, overlayCap);
-    const sizeCanvases = () => {
+    const sizeHeap = () => {
+      const heap = heapRef.current;
+      if (!heap || boxes.tray.width < 2) {
+        return;
+      }
+      const dpr = faceScale();
+      const width = Math.max(1, Math.round(boxes.tray.width * dpr));
+      const height = Math.max(1, Math.round(PILE_H * dpr));
+      if (heap.width !== width) {
+        heap.width = width;
+      }
+      if (heap.height !== height) {
+        heap.height = height;
+      }
+    };
+    const sizeOverlay = () => {
       const fx = fxRef.current;
+      if (!fx) {
+        return;
+      }
+      const dpr = overlayScale();
+      const width = Math.max(1, Math.round(window.innerWidth * dpr));
+      const height = Math.max(1, Math.round(window.innerHeight * dpr));
+      if (fx.width !== width) {
+        fx.width = width;
+      }
+      if (fx.height !== height) {
+        fx.height = height;
+      }
+    };
+    const sizeCanvases = () => {
       const face = faceRef.current;
       const sim = simRef.current;
-      if (fx) {
-        const dpr = overlayScale();
-        const width = Math.max(1, Math.round(window.innerWidth * dpr));
-        const height = Math.max(1, Math.round(window.innerHeight * dpr));
-        if (fx.width !== width) {
-          fx.width = width;
-        }
-        if (fx.height !== height) {
-          fx.height = height;
-        }
-      }
+      sizeHeap();
       if (face && sim && sim.pw > 0) {
         const dpr = faceScale();
         const width = Math.max(1, Math.round(sim.pw * dpr));
@@ -186,13 +207,6 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
     };
     const warmCanvas = () => {
       sizeCanvases();
-      const fx = fxRef.current;
-      const ctx = fx?.getContext("2d");
-      if (!ctx) {
-        return;
-      }
-      ctx.fillStyle = "#000";
-      ctx.fillRect(-20, -20, 1, 1);
     };
 
     const decodeVoice = () => {
@@ -398,6 +412,52 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
       worker.postMessage("go");
     };
 
+    let overlayOn = false;
+    const usedShards = new Map<number, HTMLDivElement>();
+    const freeShards: HTMLDivElement[] = [];
+    const syncOverlay = (show: boolean) => {
+      const node = fxRef.current;
+      if (!node || overlayOn === show) {
+        return;
+      }
+      overlayOn = show;
+      node.classList.toggle("on", show);
+      if (show) {
+        sizeOverlay();
+      }
+    };
+    const syncFalling = (pieces: FallingPiece[]) => {
+      const host = fallRef.current;
+      if (!host) {
+        return;
+      }
+      const seen = new Set<number>();
+      for (const piece of pieces) {
+        seen.add(piece.id);
+        let el = usedShards.get(piece.id);
+        if (!el) {
+          el = freeShards.pop() || document.createElement("div");
+          el.className = "falling-shard";
+          el.style.width = `${piece.box}px`;
+          el.style.height = `${piece.box}px`;
+          el.style.background = piece.color;
+          el.style.clipPath = piece.clip;
+          host.appendChild(el);
+          usedShards.set(piece.id, el);
+        }
+        const half = piece.box * 0.5;
+        el.style.transform = `translate3d(${(piece.x - half).toFixed(1)}px,${(piece.y - half).toFixed(1)}px,0) rotate(${piece.rot.toFixed(3)}rad)`;
+      }
+      for (const [id, el] of usedShards) {
+        if (seen.has(id)) {
+          continue;
+        }
+        usedShards.delete(id);
+        el.className = "falling-shard parked";
+        freeShards.push(el);
+      }
+    };
+
     const loop = (now: number) => {
       if (!alive) {
         return false;
@@ -439,6 +499,8 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
         }
       }
       if (!sim.awake() && !(faceOnScreen && sim.built > 0)) {
+        syncFalling([]);
+        syncOverlay(false);
         return false;
       }
       const dt = Math.min(0.033, lastT ? (now - lastT) / 1000 : 0.016);
@@ -449,13 +511,22 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
           audioCtx &&
           audioCtx.currentTime < voiceStarted + voiceBuffer.duration,
       );
+      const showOverlay = sim.overlayActive();
+      syncOverlay(showOverlay);
+      sizeHeap();
+      const heap = heapRef.current;
       sim.step(
         dt,
         now,
-        { fx: fx.getContext("2d"), face: face.getContext("2d") },
+        {
+          fx: showOverlay ? fx.getContext("2d") : null,
+          face: face.getContext("2d"),
+          heap: heap ? heap.getContext("2d") : null,
+        },
         { speaking, time: audioCtx ? Math.max(0, audioCtx.currentTime - voiceStarted) : 0 },
         faceOnScreen,
       );
+      syncFalling(sim.fallingViews());
       const nextHeight = `${sim.winH.toFixed(2)}px`;
       if (wrap.style.height !== nextHeight) {
         wrap.style.height = nextHeight;
@@ -615,7 +686,8 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
 
   return (
     <div className="workshop" id="workshop" ref={rootRef}>
-      <canvas ref={fxRef} className="portrait-fx" aria-hidden="true" />
+      <canvas ref={fxRef} className="portrait-fx" data-canvas="portrait-fx" aria-hidden="true" />
+      <div ref={fallRef} className="falling-layer" aria-hidden="true" />
       <div
         className="portrait-wrap"
         ref={wrapRef}
@@ -667,6 +739,7 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
         </button>
       </div>
       <div className="tray" ref={trayRef}>
+        <canvas ref={heapRef} className="heap-canvas" data-canvas="heap-canvas" aria-hidden="true" />
         <div className="crusher" ref={crusherRef} aria-hidden="true">
           <div className="body">
             <div className="nozzle" />

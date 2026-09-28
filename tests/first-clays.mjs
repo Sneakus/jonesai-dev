@@ -109,10 +109,25 @@ const init = () => {
   } catch {
     loafs.push({ error: "long-animation-frame unsupported" });
   }
+  const origClear = CanvasRenderingContext2D.prototype.clearRect;
+  CanvasRenderingContext2D.prototype.clearRect = function patchedClear(x, y, w, h) {
+    if (framing) {
+      const canvas = this.canvas;
+      const name = String(canvas.getAttribute("data-canvas") || canvas.className || "canvas");
+      const pixels = canvas.width * canvas.height;
+      const redrawn = window.__redrawn || (window.__redrawn = {});
+      const rec = redrawn[name] || { pixels: 0, clears: 0 };
+      rec.pixels = Math.max(rec.pixels, pixels);
+      rec.clears += 1;
+      redrawn[name] = rec;
+    }
+    return origClear.call(this, x, y, w, h);
+  };
   window.__frames = frames;
   window.__longTasks = longTasks;
   window.__loafs = loafs;
   window.__layoutReads = 0;
+  window.__redrawn = {};
 };
 
 function percentile(values, p) {
@@ -151,6 +166,7 @@ async function smashFive(page) {
   await page.waitForFunction(() => window.__jonesTest, null, { timeout: 20000 });
   await page.evaluate(() => {
     window.__anyReads = 0;
+    window.__redrawn = {};
     performance.mark("jones-smash-start");
   });
   const start = await page.evaluate(() => performance.now());
@@ -196,6 +212,11 @@ async function readStats(page, smashStart) {
         .map((sample) => sample.ms || 0),
       asleep: Boolean(perf?.asleep),
       shared: Boolean(perf?.shared),
+      redrawn: window.__redrawn || {},
+      canvases: Array.from(document.querySelectorAll("canvas")).map((canvas) => ({
+        name: String(canvas.getAttribute("data-canvas") || canvas.className || "canvas"),
+        pixels: canvas.width * canvas.height,
+      })),
       observerErrors: [
         ...(window.__longTasks || []).filter((task) => task.error),
         ...(window.__loafs || []).filter((frame) => frame.error),
@@ -270,6 +291,8 @@ async function runPass(browser, { throttle }) {
     loopMax: Math.max(0, ...loop),
     asleep: stats.asleep,
     shared: stats.shared,
+    redrawn: stats.redrawn,
+    canvases: stats.canvases,
     observerErrors: stats.observerErrors,
   };
 }
@@ -405,6 +428,26 @@ if (check && throttled) {
   }
   if (!desktop.asleep || !throttled.asleep) {
     problems.push("animation loop was still running when nothing was moving");
+  }
+  for (const pass of [throttled, desktop]) {
+    const name = pass.throttle === 1 ? "desktop" : "4x";
+    const allowed = Math.max(
+      0,
+      ...pass.canvases
+        .filter((canvas) => canvas.name.includes("clay-canvas") || canvas.name.includes("heap-canvas"))
+        .map((canvas) => canvas.pixels),
+    );
+    for (const [canvasName, rec] of Object.entries(pass.redrawn || {})) {
+      if (canvasName.includes("portrait-fx") && rec.clears > 0) {
+        problems.push(
+          `${name} redrew the full-page overlay ${rec.clears} times (${rec.pixels} pixels)`,
+        );
+      } else if (allowed > 0 && rec.pixels > allowed * 1.02 && rec.clears > 0) {
+        problems.push(
+          `${name} redrew ${canvasName} at ${rec.pixels} pixels, bigger than the game and the tray (${allowed})`,
+        );
+      }
+    }
   }
   if (problems.length) {
     console.error(problems.join("\n"));
