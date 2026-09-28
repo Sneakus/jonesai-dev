@@ -87,9 +87,13 @@ const flatFrames = frames.map((rows) => {
 });
 const rampBytes = Buffer.from(ramp, "utf8");
 const eyesBytes = Buffer.from(JSON.stringify(data.eyes), "utf8");
+const extraBytes = Buffer.from(
+  JSON.stringify({ idleEnd: data.idleEnd, eyesEnd: data.eyesEnd }),
+  "utf8",
+);
 const idle = data.idle;
 const header = 38;
-const bodyStart = header + rampBytes.length + eyesBytes.length + idle.length * 2;
+const bodyStart = header + rampBytes.length + eyesBytes.length + idle.length * 2 + 4 + extraBytes.length;
 const aligned = (value) => (value + 3) & ~3;
 const tables = aligned(bodyStart);
 const orderAt = tables + (n + n * 6 + n * 5) * 4;
@@ -116,6 +120,10 @@ for (const frame of idle) {
   out.writeUInt16LE(frame, cursor);
   cursor += 2;
 }
+out.writeUInt32LE(extraBytes.length, cursor);
+cursor += 4;
+extraBytes.copy(out, cursor);
+cursor += extraBytes.length;
 const writeFloats = (arr, at) => {
   for (let i = 0; i < arr.length; i += 1) {
     out.writeFloatLE(arr[i], at + i * 4);

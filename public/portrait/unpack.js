@@ -33,6 +33,10 @@ self.onmessage = async () => {
     idle.push(view.getUint16(cursor, true));
     cursor += 2;
   }
+  const extraLen = view.getUint32(cursor, true);
+  cursor += 4;
+  const extra = JSON.parse(text.decode(bytes.subarray(cursor, cursor + extraLen)));
+  cursor += extraLen;
   const align = (value) => (value + 3) & ~3;
   cursor = align(cursor);
   const floats = (count) => {
@@ -64,6 +68,8 @@ self.onmessage = async () => {
       ramp,
       eyes,
       idle,
+      idleEnd: extra.idleEnd,
+      eyesEnd: extra.eyesEnd,
       headCol,
       vmax,
       shape,

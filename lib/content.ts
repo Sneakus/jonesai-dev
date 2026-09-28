@@ -30,6 +30,7 @@ export type PortraitContent = {
   progress: string;
   full: string;
   caption: string;
+  nudge: string;
   sayAgain: string;
   soundOn: string;
   soundOff: string;
@@ -263,6 +264,7 @@ export function readPortrait(): PortraitContent {
     progress: requiredString(data, "progress", file),
     full: requiredString(data, "full", file),
     caption: requiredString(data, "caption", file),
+    nudge: requiredString(data, "nudge", file),
     sayAgain: requiredString(data, "sayAgain", file),
     soundOn: requiredString(data, "soundOn", file),
     soundOff: requiredString(data, "soundOff", file),

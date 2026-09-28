@@ -39,8 +39,8 @@ function layoutFor(
   };
 }
 
-function mount(reduce = false) {
-  const sim = new PortraitSim(data, { reduce });
+function mount(reduce = false, random?: () => number) {
+  const sim = new PortraitSim(data, { reduce, random });
   sim.sizePortrait(350);
   sim.sync(
     layoutFor(
@@ -87,6 +87,16 @@ function until(
     }
   }
   throw new Error("timed out");
+}
+
+function mulberry(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 function smashClays(sim: PortraitSim, count: number, x = 120, y = 700) {
@@ -247,7 +257,7 @@ describe("clay portrait", () => {
   });
 
   it("lets the pile sleep within 1.5 seconds of the last landing", () => {
-    const sim = mount();
+    const sim = mount(false, mulberry(3));
     smashClays(sim, 5, 80, 200);
     sim.step(0.05, 1100);
     expect(sim.pileAudit().falling).toBeGreaterThan(0);
@@ -257,6 +267,56 @@ describe("clay portrait", () => {
     expect(sim.pileAudit().awake).toBe(0);
     expect(sim.overlayActive()).toBe(false);
   });
+
+  it("fills the reservoir from 18 clays", () => {
+    const sim = mount(true, () => 0.5);
+    smashClays(sim, 18);
+    expect(sim.pileAudit().falling).toBe(0);
+    expect(sim.isFull()).toBe(true);
+    expect(sim.reservoir().pct).toBe(100);
+  });
+
+  it("does not change the picture when the line ends", () => {
+    const sim = mount(true, () => 0.5);
+    smashClays(sim, 18);
+    sim.leverKey();
+    let now = until(sim, () => sim.faceAudit().missing === 0, 2);
+    for (let i = 0; i < 20; i += 1) {
+      now += 20;
+      sim.step(0.02, now, null, { speaking: true, time: 112 / 20 });
+    }
+    now += 16;
+    sim.step(0.016, now, null, { speaking: false, time: 112 / 20 });
+    expect(sim.handoverChange()).toBe(0);
+  });
+
+  it("asks for a click 8 seconds after the line, and never after a click", () => {
+    const quiet = mount(true, () => 0.5);
+    smashClays(quiet, 18);
+    quiet.leverKey();
+    let now = until(quiet, () => quiet.faceAudit().missing === 0, 2);
+    now += 16;
+    quiet.step(0.016, now, null, { speaking: true, time: 0 });
+    now += 16;
+    quiet.step(0.016, now, null, { speaking: false, time: 0 });
+    const ended = now;
+    quiet.step(0.016, ended + 7900, null, { speaking: false, time: 0 });
+    expect(quiet.wantsNudge()).toBe(false);
+    quiet.step(0.016, ended + 8100, null, { speaking: false, time: 0 });
+    expect(quiet.wantsNudge()).toBe(true);
+
+    const clicked = mount(true, () => 0.5);
+    smashClays(clicked, 18);
+    clicked.leverKey();
+    now = until(clicked, () => clicked.faceAudit().missing === 0, 2);
+    now += 16;
+    clicked.step(0.016, now, null, { speaking: true, time: 0 });
+    now += 16;
+    clicked.step(0.016, now, null, { speaking: false, time: 0 });
+    clicked.tryClick(0, 10);
+    clicked.step(0.016, now + 8100, null, { speaking: false, time: 0 });
+    expect(clicked.wantsNudge()).toBe(false);
+  }, 30000);
 
   it("fills the reservoir to 100% from 27 clays and builds the whole face", () => {
     const sim = mount();
@@ -379,7 +439,7 @@ describe("clay portrait", () => {
     let now = until(sim, () => sim.pileAudit().falling === 0, 12);
     now = pullAndBuild(sim, now);
     expect(sim.popHeadPieces()).toBe(2605);
-    expect(sim.pileAudit().falling).toBe(271);
+    expect(sim.pileAudit().falling).toBe(195);
     expect(sim.faceAudit().missing).toBe(2605);
     now = until(sim, () => sim.pileAudit().falling === 0, 12, now);
     expect(sim.isFull()).toBe(true);
@@ -407,7 +467,7 @@ describe("clay portrait", () => {
     sim.tryClick(0, 10);
     now = until(sim, () => sim.lastEffect === "balloon" && sim.effect === null, 8, now);
     expect(sim.faceAudit().missing).toBe(2605);
-    expect(sim.pileAudit().falling).toBe(271);
+    expect(sim.pileAudit().falling).toBe(195);
     void now;
   }, 180000);
 

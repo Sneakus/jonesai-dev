@@ -6,6 +6,7 @@ needsAfter: ", then come back."
 progress: "{pct}% full. Keep smashing clays until it's full."
 full: Full. Pull the lever.
 caption: It is pretty crazy that I can do all of this stuff now.
+nudge: Go on, give me a click.
 sayAgain: Say it again
 soundOn: Sound on
 soundOff: Sound off

@@ -1694,3 +1694,22 @@ Tell me in plain English what changed and the numbers.
 ```
 Changed: Drew falling pieces as small elements and let the heap sleep, but did not commit because one hitch remained.
 Files: components/portrait-slot.tsx, components/clay-game.tsx, src/portrait/sim.ts, src/portrait/sim.test.ts, app/globals.css, tests/first-clays.mjs, PERF_BUDGET.md, log/prompts.md
+
+### 2026-09-28 13:49
+Prompt:
+```
+Two things. Stop and tell me if anything fails.
+
+1. Commit the light falling pieces work you have locally. It runs very nicely on my PC, so accept the remaining small hitch about two seconds in (7ms on desktop): note it in PERF_BUDGET.md as a known item. Run gitleaks git -v, commit with "Home: light falling pieces, sleeping heap" and push to main.
+
+2. Then port these changes from reference/portrait-prototype.html (just replaced, with new data: idleEnd and eyesEnd):
+   - About 18 clays fills the reservoir (CHUNKS_FULL = 18 x 22 fragments).
+   - Remove the Say it again and Sound on buttons. The line plays once after the build, with its caption.
+   - The resting face: before the line, rest in the video's first frame with its eyes; once the line has ended, rest in the video's last frame, using the new eye positions for that frame. At the moment the line ends, reset the eyes to centre and let them drift to the cursor slowly for the first 1.2 seconds, and hold off blinking for 1.8 seconds. Add the gentle breathing (about 0.2% of the portrait's width, rising and falling). Ease into talking over 0.25 seconds. Port all of this exactly from the reference, including the extra data.
+   - The nudge: if the face hasn't been clicked 8 seconds after the line ends, the caption area shows the nudge line with a gentle bob, and the face's shards give a small shiver every 2.6 seconds, until the first click, after which it never shows again. Reduced motion: the line only, no bob or shiver. Put the nudge line in content/portrait.md, marked draft.
+   - Tests: 18 clays fills the reservoir; the picture changes by exactly 0 at the moment the line ends; the nudge appears 8 seconds after the line with no click, and never after a click.
+
+Keep all tests passing. Don't use the built-in browser. Run all the tests, a clean production build, the code check and gitleaks git -v, commit with "Home: seamless face, click nudge, 18 clays" and push to main.
+```
+Changed: Noted the small hitch, then made the resting face follow the video, play the line once, ask for a click, and fill from 18 clays.
+Files: PERF_BUDGET.md, app/globals.css, components/clay-game.tsx, components/portrait-slot.tsx, content/portrait.md, lib/content.ts, log/prompts.md, public/portrait/portrait.bin, public/portrait/portrait.json, public/portrait/unpack.js, scripts/pack-portrait.mjs, src/portrait/sim.test.ts, src/portrait/sim.ts, tests/first-clays.mjs

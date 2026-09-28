@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { PortraitContent } from "@/lib/content";
 import { attach, wake } from "@/src/motion/loop";
 import { PORTRAIT_HIT, type PortraitHit } from "@/src/portrait/bridge";
@@ -58,13 +58,10 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
   const barRef = useRef<HTMLDivElement>(null);
   const captionRef = useRef<HTMLParagraphElement>(null);
   const simRef = useRef<PortraitSim | null>(null);
-  const playVoiceRef = useRef<() => void>(() => undefined);
   const voiceGainRef = useRef<GainNode | null>(null);
   const hitsRef = useRef<PortraitHit[]>([]);
   const copyRef = useRef(copy);
   const clickRef = useRef<{ x: number; y: number; t: number } | null>(null);
-  const mutedRef = useRef(false);
-  const [soundOn, setSoundOn] = useState(true);
 
   useEffect(() => {
     copyRef.current = copy;
@@ -246,7 +243,7 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
       }
       barRef.current.hidden = false;
       if (voiceGain) {
-        voiceGain.gain.value = mutedRef.current ? 0 : 1;
+        voiceGain.gain.value = 1;
       }
       try {
         voiceSource?.stop();
@@ -256,7 +253,7 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
       const src = ctx.createBufferSource();
       const gain = voiceGain ?? ctx.createGain();
       voiceGain = gain;
-      gain.gain.value = mutedRef.current ? 0 : 1;
+      gain.gain.value = 1;
       src.buffer = voiceBuffer;
       src.connect(gain).connect(ctx.destination);
       voiceStarted = ctx.currentTime;
@@ -355,6 +352,8 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
           orderCount: number;
           ramp: string;
           idle: number[];
+          idleEnd: number[];
+          eyesEnd: PackedPortrait["eyesEnd"];
           eyes: PackedPortrait["eyes"];
           headCol: number;
           vmax: number;
@@ -385,6 +384,8 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
           ramp: msg.ramp,
           idle: msg.idle,
           eyes: msg.eyes,
+          idleEnd: msg.idleEnd,
+          eyesEnd: msg.eyesEnd,
           headCol: msg.headCol,
           vmax: new Float32Array(buffer, msg.vmax, msg.n),
           shape: new Float32Array(buffer, msg.shape, msg.n * 6),
@@ -567,8 +568,20 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
         hint.classList.remove("warn");
         window.setTimeout(() => hint.classList.add("warn"), 0);
       }
-      captionRef.current?.classList.toggle("on", speaking || now < captionUntil);
-      return sim.awake() || (faceOnScreen && sim.built > 0);
+      const nudge = sim.wantsNudge();
+      if (nudge && barRef.current) {
+        barRef.current.hidden = false;
+      }
+      const caption = captionRef.current;
+      if (caption) {
+        const next = nudge ? copyRef.current.nudge : copyRef.current.caption;
+        if (caption.textContent !== next) {
+          caption.textContent = next;
+        }
+        caption.classList.toggle("nudge", nudge);
+        caption.classList.toggle("on", speaking || now < captionUntil || nudge);
+      }
+      return sim.awake() || (faceOnScreen && sim.built > 0) || nudge;
     };
 
     const onHit = (event: Event) => {
@@ -643,7 +656,6 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
       window.requestIdleCallback(() => loadPortrait(), { timeout: 2000 });
     }
     const detach = attach(loop);
-    playVoiceRef.current = playVoice;
     window.addEventListener("pointerdown", onFirstPointer, { capture: true });
     window.addEventListener(PORTRAIT_HIT, onHit);
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -670,19 +682,6 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
       simRef.current = null;
     };
   }, []);
-
-  const toggleSound = () => {
-    mutedRef.current = !mutedRef.current;
-    const gain = voiceGainRef.current;
-    if (gain) {
-      gain.gain.value = mutedRef.current ? 0 : 1;
-    }
-    setSoundOn(!mutedRef.current);
-  };
-
-  const sayAgain = () => {
-    playVoiceRef.current();
-  };
 
   return (
     <div className="workshop" id="workshop" ref={rootRef}>
@@ -726,17 +725,6 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
         <p className="caption" ref={captionRef} aria-live="polite">
           {copy.caption}
         </p>
-        <button type="button" className="chip" onClick={sayAgain}>
-          {copy.sayAgain}
-        </button>
-        <button
-          type="button"
-          className="chip"
-          aria-pressed={soundOn ? "false" : "true"}
-          onClick={toggleSound}
-        >
-          {soundOn ? copy.soundOn : copy.soundOff}
-        </button>
       </div>
       <div className="tray" ref={trayRef}>
         <canvas ref={heapRef} className="heap-canvas" data-canvas="heap-canvas" aria-hidden="true" />

@@ -175,6 +175,23 @@ a:hover {
   opacity: 1;
 }
 
+.workshop .caption.nudge {
+  color: var(--color-muted);
+  font-size: 0.95rem;
+  animation: caption-bob 2.4s ease-in-out infinite;
+}
+
+@keyframes caption-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
 .workshop .tray {
   position: relative;
   height: 240px;
@@ -594,6 +611,10 @@ a:hover {
 
   .workshop .caption {
     transition: none;
+  }
+
+  .workshop .caption.nudge {
+    animation: none;
   }
 }
 

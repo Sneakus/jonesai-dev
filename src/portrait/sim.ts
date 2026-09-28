@@ -17,6 +17,8 @@ export type PortraitData = {
   cols: number;
   idle: number[];
   eyes: PortraitEye[][];
+  idleEnd: number[];
+  eyesEnd: PortraitEye[][];
   pieces?: number;
 };
 
@@ -31,6 +33,8 @@ export type PackedPortrait = {
   ramp: string;
   idle: number[];
   eyes: PortraitEye[][];
+  idleEnd: number[];
+  eyesEnd: PortraitEye[][];
   headCol: number;
   vmax: Float32Array;
   shape: Float32Array;
@@ -155,7 +159,7 @@ const CLAY = ["#E8480C", "#E8480C", "#E8480C", "#C93F0B", "#F06A33"];
 const TIERS = ["#E8480C", "#B8390A", "#782608"];
 export const PILE_H = 300;
 const CHUNKS_PER_CLAY = 22;
-const CHUNKS_FULL = 25 * CHUNKS_PER_CLAY;
+const CHUNKS_FULL = 18 * CHUNKS_PER_CLAY;
 const HEAP_G = 1500;
 const HEAP_CELL = 14;
 const HEAP_H = 1 / 120;
@@ -231,6 +235,8 @@ export class PortraitSim {
   private packedOrder: Uint16Array | null = null;
   private readonly idle: number[];
   private readonly eyes: PortraitEye[][];
+  private readonly idleEnd: number[];
+  private readonly eyesEnd: PortraitEye[][];
   private readonly n: number;
   private readonly shape: Float32Array;
   private readonly jx: Float32Array;
@@ -288,14 +294,26 @@ export class PortraitSim {
   private parT = { x: 0, y: 0 };
   private gaze = { x: 0, y: 0 };
   private gazeT = { x: 0, y: 0 };
+  private gazeSlowUntil = 0;
+  private hasSpoken = false;
+  private wasSpeaking = false;
+  private justEnded = false;
+  private blendFrom: Uint8Array | null = null;
+  private blendStart = 0;
+  private blendDur = 700;
+  private blendBuf: Uint8Array | null = null;
+  private lastGrid: Uint8Array | null = null;
+  private restingNow = true;
+  private faceReadyAt = 0;
+  private clickedFace = false;
+  private nextWiggle = 0;
+  private nudging = false;
+  handover = -1;
   private lastPointer = 0;
   private glanceUntil = 0;
   private lookAround = 0;
   private blinkUntil = 0;
   private nextBlink = 2000;
-  private idlePos = 0;
-  private idleDir = 1;
-  private idleClock = 0;
   private dozing = false;
   private dozeLevel = 0;
   private lastScroll = 0;
@@ -341,6 +359,8 @@ export class PortraitSim {
       this.perClay = Math.ceil(this.full / 25);
       this.idle = packed.idle;
       this.eyes = packed.eyes;
+      this.idleEnd = packed.idleEnd;
+      this.eyesEnd = packed.eyesEnd;
       this.ramp = packed.ramp;
       this.topv = this.ramp.length - 1;
       this.frames = packed.frames;
@@ -377,6 +397,8 @@ export class PortraitSim {
     this.cols = json.cols;
     this.idle = json.idle;
     this.eyes = json.eyes;
+    this.idleEnd = json.idleEnd;
+    this.eyesEnd = json.eyesEnd;
     this.ramp = ` ${json.ramp}`;
     this.topv = this.ramp.length - 1;
     this.sc = Math.floor(this.cols / 2);
@@ -753,6 +775,7 @@ export class PortraitSim {
     if (this.effect || this.flights.length || this.built < 1) {
       return;
     }
+    this.clickedFace = true;
     const type = this.reduce
       ? "decode"
       : EFFECTS[this.effIdx % EFFECTS.length];
@@ -1018,16 +1041,84 @@ export class PortraitSim {
     if (!faceOnScreen) {
       return;
     }
-    this.updateAttention(dt, now, Boolean(audio?.speaking));
-    if (this.built === 0 && !audio?.speaking) {
+    const speaking = Boolean(audio?.speaking);
+    this.nudging =
+      this.built >= 1 &&
+      !speaking &&
+      !this.clickedFace &&
+      this.faceReadyAt > 0 &&
+      now - this.faceReadyAt > 8000;
+    if (this.nudging && !this.reduce && now > this.nextWiggle) {
+      this.nextWiggle = now + 2600;
+      for (let i = 0; i < this.n; i += 1) {
+        if (!this.here[i]) {
+          continue;
+        }
+        this.springX[i] += (this.random() - 0.5) * 70;
+        this.springY[i] += (this.random() - 0.5) * 70;
+      }
+    }
+    this.updateAttention(dt, now, speaking);
+    if (this.built === 0 && !speaking) {
       return;
     }
-    const grid = audio?.speaking
+    if (speaking !== this.wasSpeaking) {
+      if (!speaking) {
+        this.hasSpoken = true;
+        this.gaze.x = 0;
+        this.gaze.y = 0;
+        this.gazeT.x = 0;
+        this.gazeT.y = 0;
+        this.gazeSlowUntil = now + 1200;
+        this.nextBlink = Math.max(this.nextBlink, now + 1800);
+        this.blendFrom = null;
+        this.faceReadyAt = now;
+      } else {
+        this.blendFrom = this.lastGrid ? this.lastGrid.slice() : null;
+        this.blendStart = now;
+        this.blendDur = 250;
+      }
+      this.wasSpeaking = speaking;
+    }
+    let grid = speaking
       ? this.frames[
-          Math.min(this.frames.length - 1, Math.floor(audio.time * this.fps))
+          Math.min(this.frames.length - 1, Math.floor((audio?.time ?? 0) * this.fps))
         ]
-      : this.idleGrid(dt, now);
+      : this.idleGrid(now);
+    if (this.blendFrom && now - this.blendStart < this.blendDur) {
+      const bu = (now - this.blendStart) / this.blendDur;
+      const be = bu * bu * (3 - 2 * bu);
+      const from = this.blendFrom;
+      if (!this.blendBuf || this.blendBuf.length !== grid.length) {
+        this.blendBuf = new Uint8Array(grid.length);
+      }
+      const out = this.blendBuf;
+      for (let i = 0; i < from.length; i += 1) {
+        out[i] = from[i] + (grid[i] - from[i]) * be;
+      }
+      grid = out;
+    } else {
+      this.blendFrom = null;
+    }
+    if (this.lastGrid && this.wasSpeaking === false && this.justEnded) {
+      let diff = 0;
+      for (let i = 0; i < grid.length; i += 1) {
+        diff += Math.abs(grid[i] - this.lastGrid[i]);
+      }
+      this.handover = diff / grid.length;
+    }
+    this.justEnded = speaking;
+    this.lastGrid = grid === this.blendBuf ? grid.slice() : grid;
+    this.restingNow = !speaking;
     this.drawFace(grid, dt, now, face, page);
+  }
+
+  wantsNudge() {
+    return this.nudging;
+  }
+
+  handoverChange() {
+    return this.handover;
   }
 
   flightsLength() {
@@ -1704,27 +1795,20 @@ export class PortraitSim {
         this.gazeT.y = (this.random() - 0.5) * 0.8;
       }
     }
-    this.gaze.x += (this.gazeT.x - this.gaze.x) * Math.min(1, dt * 12);
-    this.gaze.y += (this.gazeT.y - this.gaze.y) * Math.min(1, dt * 12);
+    this.gaze.x += (this.gazeT.x - this.gaze.x) * Math.min(1, dt * (now < this.gazeSlowUntil ? 2.5 : 12));
+    this.gaze.y += (this.gazeT.y - this.gaze.y) * Math.min(1, dt * (now < this.gazeSlowUntil ? 2.5 : 12));
     this.par.x += (this.parT.x - this.par.x) * Math.min(1, dt * 5);
     this.par.y += (this.parT.y - this.par.y) * Math.min(1, dt * 5);
     this.dozeLevel += ((this.dozing ? 1 : 0) - this.dozeLevel) * Math.min(1, dt * 1.5);
   }
 
-  private idleGrid(dt: number, now: number) {
-    this.idleClock += dt * (this.dozing ? 0.5 : 1);
-    if (this.idleClock > 0.16) {
-      this.idleClock = 0;
-      this.idlePos += this.idleDir;
-      if (this.idlePos >= this.idle.length - 1 || this.idlePos <= 0) {
-        this.idleDir = -this.idleDir;
-      }
-    }
+  private idleGrid(now: number) {
     if (!this.dozing && now > this.nextBlink) {
       this.blinkUntil = now + 140;
       this.nextBlink = now + 2500 + this.random() * 3500;
     }
-    const base = this.frames[this.idle[this.idlePos]];
+    const k = this.hasSpoken ? this.idleEnd[this.idleEnd.length - 1] : 0;
+    const base = this.frames[k];
     const g = new Uint8Array(base);
     const at = (r: number, c: number) => base[r * this.cols + c];
     const put = (r: number, c: number, v: number) => {
@@ -1735,7 +1819,9 @@ export class PortraitSim {
     const sxAll = Math.round(this.gaze.x * 2);
     const sy = Math.round(this.gaze.y * 1);
     const closed = now < this.blinkUntil || this.dozing;
-    const pair = this.eyes[this.idlePos] ?? [];
+    const pair = this.hasSpoken
+      ? (this.eyesEnd[this.eyesEnd.length - 1] ?? [])
+      : (this.eyes[0] ?? []);
     pair.forEach((eye, ei) => {
       const sx = this.crossEyes ? (ei === 0 ? 2 : -2) : sxAll;
       let minC = 999;
@@ -2173,6 +2259,8 @@ export class PortraitSim {
         this.effect = null;
       }
     }
+    const breathe =
+      this.reduce || !this.restingNow ? 0 : Math.sin(now / 1000 * 1.5) * this.pw * 0.0022;
     const pxs = this.reduce ? 0 : this.par.x * this.pw * 0.018;
     const pys = this.reduce ? 0 : this.par.y * this.pw * 0.012;
     const touching = this.pointer.inside && !this.reduce;
@@ -2196,7 +2284,7 @@ export class PortraitSim {
           r,
           s,
           (s + 0.5 + this.jx[i]) * this.cw + pxs * this.depth[i],
-          (r + 0.5 + this.jy[i]) * this.ch + pys * this.depth[i],
+          (r + 0.5 + this.jy[i]) * this.ch + pys * this.depth[i] + breathe * (1 - r / this.nr),
         );
         let ax = -60 * this.ox[i] - 9 * this.springX[i];
         let ay = -60 * this.oy[i] - 9 * this.springY[i];
@@ -2304,6 +2392,8 @@ export function startHeapWarmup() {
       ramp: " #",
       idle: [0],
       eyes: [],
+      idleEnd: [0],
+      eyesEnd: [[]],
       headCol: 0.5,
       vmax: new Float32Array([0.5]),
       shape: new Float32Array(6).fill(0.2),
