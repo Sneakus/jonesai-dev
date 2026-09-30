@@ -63,6 +63,7 @@ export const settings = {
   winnerBannerDropTime: 400,
   perfectFireworkSize: 4,
   perfectSparkCount: 10,
+  handSettleTime: 420,
 };
 
 export type ThrowKind = HardThrowKind;
@@ -292,10 +293,12 @@ function placeLooper(
   boxHeight: number,
 ) {
   const u = Math.max(0, Math.min(1, amount));
-  // Slow climb, hang near the top, then fall away fast.
+  // Slow climb, brief hang near the top, then fall away fast.
+  // Hard mode hangs less so the clay is shootable for less time.
+  const hangEnd = isHardModeActive() ? 0.48 : 0.62;
   const climb = Math.min(1, u / 0.45);
-  const hang = u > 0.45 && u < 0.62 ? (u - 0.45) / 0.17 : 0;
-  const fall = u >= 0.62 ? ((u - 0.62) / 0.38) * ((u - 0.62) / 0.38) : 0;
+  const hang = u > 0.45 && u < hangEnd ? (u - 0.45) / Math.max(0.01, hangEnd - 0.45) : 0;
+  const fall = u >= hangEnd ? ((u - hangEnd) / Math.max(0.01, 1 - hangEnd)) ** 2 : 0;
   const peak = Math.min(target.y0, target.y1);
   const startY = Math.max(target.y0, target.y1);
   target.x = lerp(target.x0, target.x1, u) + Math.sin(u * Math.PI) * target.cx;
@@ -525,6 +528,10 @@ function launchCrosser(
     sizeScale,
   );
   time /= hardCrosserSpeedMul();
+  if (isHardModeActive()) {
+    // Keep a fair wall-clock window after applyTouchSpeed chops by feel.speed.
+    time = Math.max(settings.fairTime + 0.05, time) * Math.max(1, activeClayFeel().speed);
+  }
   const look = lookOf(target);
   const riseLimit = kind === "high" ? 0.06 : 0.2;
   const yMin = kind === "high" ? height * 0.14 : height * 0.32;
@@ -563,10 +570,12 @@ function launchAway({ width, height }: LaunchBox, sizeScale: number) {
   target.x1 = width * rand(0.22, 0.78);
   target.y1 = height * rand(0.1, 0.28);
   target.cx = (Math.random() - 0.5) * width * 0.18;
-  target.duration = flightTime(
-    (target.distance0 + target.distance1) / 2,
-    pickPace(0.15, 0.9),
-    sizeScale,
+  target.duration = pathDuration(
+    flightTime(
+      (target.distance0 + target.distance1) / 2,
+      pickPace(0.15, 0.9),
+      sizeScale,
+    ) * (isHardModeActive() ? 0.7 : 1),
   );
   holdLongEnough(target, width, height);
   aimPath(target, width);
@@ -596,10 +605,12 @@ function launchIncomer({ width, height }: LaunchBox, sizeScale: number) {
     Math.min(width * 0.84, lerp(target.x0, target.x1, 0.4) + width * rand(-0.1, 0.1)),
   );
   target.cy = height * rand(0.4, 0.62);
-  target.duration = flightTime(
-    (target.distance0 + target.distance1) / 2,
-    pickPace(0.1, 0.7),
-    sizeScale,
+  target.duration = pathDuration(
+    flightTime(
+      (target.distance0 + target.distance1) / 2,
+      pickPace(0.1, 0.7),
+      sizeScale,
+    ) * (isHardModeActive() ? 0.7 : 1),
   );
   holdLongEnough(target, width, height);
   aimPath(target, width);
@@ -610,7 +621,12 @@ function launchRabbit({ width, height }: LaunchBox, sizeScale: number) {
   const distance = pickDistance(0, 0.5);
   const target = freshClay("rabbit", distance, sizeScale);
   const direction = Math.random() < 0.5 ? 1 : -1;
-  const time = flightTime(distance, lerp(0.48, 0.7, Math.random()), sizeScale);
+  let time = flightTime(distance, lerp(0.48, 0.7, Math.random()), sizeScale);
+  if (isHardModeActive()) {
+    time =
+      Math.max(settings.fairTime + 0.05, time * 0.88) *
+      Math.max(1, activeClayFeel().speed);
+  }
   const look = lookOf(target);
   const span = width + look.rx * 2;
   target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
@@ -626,7 +642,12 @@ function launchBattue({ width, height }: LaunchBox, sizeScale: number) {
   const distance = pickDistance(0.1, 0.8);
   const target = freshClay("battue", distance, sizeScale);
   const direction = Math.random() < 0.5 ? 1 : -1;
-  const duration = Math.max(flightTime(distance, pickPace(0.4, 0.95), sizeScale), 1.7);
+  let duration = Math.max(flightTime(distance, pickPace(0.4, 0.95), sizeScale), 1.7);
+  if (isHardModeActive()) {
+    duration =
+      Math.max(settings.fairTime + 0.05, duration * 0.82) *
+      Math.max(1, activeClayFeel().speed);
+  }
   target.roll = 0;
   const look = lookOf(target);
   target.y = rand(height * 0.28, height * 0.52);
@@ -653,13 +674,154 @@ function launchTeal({ width, height }: LaunchBox, sizeScale: number) {
   target.gravityScale = 0.62 * boost;
   target.vy = -Math.sqrt(2 * gravity * rise);
   target.vx = (Math.random() - 0.5) * width * 0.05;
-  target.duration = 1.7;
+  let time = 1.7;
+  if (isHardModeActive()) {
+    time =
+      Math.max(settings.fairTime + 0.05, 1.35) * Math.max(1, activeClayFeel().speed);
+  }
+  target.duration = time;
   return applyTouchSpeed(target);
 }
 
 function pathDuration(base: number) {
-  const speed = Math.max(1, activeClayFeel().speed);
-  return Math.max((settings.fairTime + 0.65) * speed, base * speed);
+  // Hard mode pre-scales by feel speed so applyTouchSpeed leaves a fair window.
+  // Soft mode leaves duration raw so phone speed still shortens the flight.
+  const pad = isHardModeActive() ? 0.05 : 0.55;
+  const wall = Math.max(settings.fairTime + pad, base);
+  if (!isHardModeActive()) {
+    return wall;
+  }
+  return wall * Math.max(1, activeClayFeel().speed);
+}
+
+function isPathKind(kind: ThrowKind) {
+  return (
+    kind === "away" ||
+    kind === "incomer" ||
+    kind === "dropper" ||
+    kind === "curler" ||
+    kind === "looper"
+  );
+}
+
+/** Nudge an almost-fair throw until it passes, without turning it into an easy clay. */
+export function nudgeTowardFair(
+  source: Clay,
+  box: LaunchBox,
+  hidden: (x: number, y: number) => boolean = () => false,
+): Clay | null {
+  const candidate: Clay = { ...source };
+  // Duration is already in wall-clock time (after applyTouchSpeed).
+  const startDuration = Math.max(0.01, candidate.duration);
+  const maxDuration = Math.max(
+    startDuration * (isHardModeActive() ? 1.2 : 1.18),
+    settings.fairTime + (isHardModeActive() ? 0.08 : 0.45),
+  );
+  for (let step = 0; step < 16; step += 1) {
+    if (flightIsFair(candidate, box.width, box.height, hidden)) {
+      return candidate;
+    }
+    candidate.wind *= 0.5;
+    if (isPathKind(candidate.kind)) {
+      candidate.duration = Math.min(candidate.duration * 1.04, maxDuration);
+      aimPath(candidate, box.width);
+    } else if (candidate.kind === "rabbit") {
+      candidate.vx *= 0.97;
+      candidate.duration = Math.min(candidate.duration * 1.03, maxDuration);
+    } else {
+      candidate.vx *= 0.97;
+      candidate.vy *= 0.97;
+      candidate.gravityScale *= 0.97 * 0.97;
+      candidate.duration = Math.min(candidate.duration * 1.03, maxDuration);
+    }
+  }
+  return flightIsFair(candidate, box.width, box.height, hidden)
+    ? candidate
+    : null;
+}
+
+/** Hard-mode last resort: still a hard-feeling throw, never the soft safe crosser. */
+export function hardFallbackThrow(
+  box: LaunchBox,
+  sizeScale: number,
+  extraTime = 0,
+) {
+  const { width, height } = box;
+  const feel = activeClayFeel();
+  const target = freshClay(
+    "battue",
+    lerp(settings.nearDistance, settings.farDistance, 0.4),
+    Math.min(sizeScale, settings.fastClaySize + 0.15),
+  );
+  target.wind = 0;
+  target.roll = 0;
+  const direction = Math.random() < 0.5 ? 1 : -1;
+  const duration =
+    (settings.fairTime + 0.08 + Math.max(0, extraTime)) *
+    Math.max(1, feel.speed);
+  const look = lookOf(target);
+  target.y = height * 0.4;
+  const rise = height * 0.035;
+  const gravity = rise / (0.125 * duration * duration);
+  const span = width + look.rx * 2;
+  target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
+  target.vx = (direction * span) / duration;
+  target.vy = -0.5 * gravity * duration;
+  target.gravityScale = gravity / Math.max(settings.gravity, 1);
+  target.duration = duration;
+  return applyTouchSpeed(target);
+}
+
+export function chooseFairThrow(
+  kind: ThrowKind,
+  box: LaunchBox,
+  sizeScale: number,
+  options: {
+    hard?: boolean;
+    hidden?: (x: number, y: number) => boolean;
+    tries?: number;
+  } = {},
+): { clay: Clay | null; fallback: boolean } {
+  const hidden = options.hidden ?? (() => false);
+  const tries = Math.max(1, options.tries ?? Math.round(settings.fairTries));
+  for (let attempt = 0; attempt < tries; attempt += 1) {
+    const candidate = launchThrow(kind, box, sizeScale);
+    if (flightIsFair(candidate, box.width, box.height, hidden)) {
+      return { clay: candidate, fallback: false };
+    }
+    const nudged = nudgeTowardFair(candidate, box, hidden);
+    if (nudged) {
+      return { clay: nudged, fallback: false };
+    }
+  }
+  if (options.hard) {
+    for (let attempt = 0; attempt < tries; attempt += 1) {
+      // Retry the planned kind with a slightly longer nudge budget before a hard fallback.
+      const retry = launchThrow(kind, box, sizeScale);
+      const nudgedRetry = nudgeTowardFair(retry, box, hidden);
+      if (nudgedRetry) {
+        return { clay: nudgedRetry, fallback: false };
+      }
+    }
+    for (let attempt = 0; attempt < tries; attempt += 1) {
+      const fallback = hardFallbackThrow(box, sizeScale, attempt * 0.06);
+      if (flightIsFair(fallback, box.width, box.height, hidden)) {
+        return { clay: fallback, fallback: true };
+      }
+      const nudged = nudgeTowardFair(fallback, box, hidden);
+      if (nudged) {
+        return { clay: nudged, fallback: true };
+      }
+    }
+    return { clay: null, fallback: true };
+  }
+  for (let attempt = 0; attempt < tries; attempt += 1) {
+    const fallback = safeCrosser(box, sizeScale, attempt * 0.04);
+    if (flightIsFair(fallback, box.width, box.height, hidden)) {
+      return { clay: fallback, fallback: true };
+    }
+  }
+  return { clay: null, fallback: true };
 }
 
 function launchLooper({ width, height }: LaunchBox, sizeScale: number) {
@@ -674,7 +836,11 @@ function launchLooper({ width, height }: LaunchBox, sizeScale: number) {
   target.y1 = height * rand(0.12, 0.22);
   target.cx = direction * width * rand(0.04, 0.1);
   target.duration = pathDuration(
-    Math.max(2.2, flightTime(distance, pickPace(0.05, 0.25), sizeScale)),
+    Math.max(
+      isHardModeActive() ? 1.28 : 2.2,
+      flightTime(distance, pickPace(0.05, 0.25), sizeScale) *
+        (isHardModeActive() ? 0.62 : 1),
+    ),
   );
   holdLongEnough(target, width, height);
   placeLooper(target, 0, width, height);
@@ -703,12 +869,12 @@ function launchDropper({ width, height }: LaunchBox, sizeScale: number) {
   target.cy = height * rand(0.28, 0.4);
   target.duration = pathDuration(
     Math.max(
-      1.9,
+      isHardModeActive() ? 1.28 : 1.9,
       flightTime(
         (target.distance0 + target.distance1) / 2,
         pickPace(0.15, 0.55),
         sizeScale,
-      ),
+      ) * (isHardModeActive() ? 0.68 : 1),
     ),
   );
   holdLongEnough(target, width, height);
@@ -730,7 +896,11 @@ function launchCurler({ width, height }: LaunchBox, sizeScale: number) {
   target.cy = height * rand(0.22, 0.4);
   target.curl = direction * rand(0.1, 0.18);
   target.duration = pathDuration(
-    Math.max(1.9, flightTime(distance, pickPace(0.2, 0.7), sizeScale)),
+    Math.max(
+      isHardModeActive() ? 1.28 : 1.9,
+      flightTime(distance, pickPace(0.2, 0.7), sizeScale) *
+        (isHardModeActive() ? 0.68 : 1),
+    ),
   );
   holdLongEnough(target, width, height);
   aimPath(target, width);
@@ -791,18 +961,16 @@ export function fairSample(
   kind: ThrowKind,
   box: LaunchBox,
   tries = 40,
+  hard = false,
 ): Clay | null {
   for (let attempt = 0; attempt < tries; attempt += 1) {
-    const sizeScale = isHardModeActive() ? pickSize() : 1;
-    const candidate = launchThrow(kind, box, sizeScale);
-    if (flightIsFair(candidate, box.width, box.height)) {
-      return candidate;
-    }
-  }
-  for (let attempt = 0; attempt < tries; attempt += 1) {
-    const fallback = safeCrosser(box, 1, attempt * 0.04);
-    if (flightIsFair(fallback, box.width, box.height)) {
-      return fallback;
+    const sizeScale = hard || isHardModeActive() ? pickSize() : 1;
+    const chosen = chooseFairThrow(kind, box, sizeScale, {
+      hard: hard || isHardModeActive(),
+      tries: 1,
+    });
+    if (chosen.clay) {
+      return chosen.clay;
     }
   }
   return null;

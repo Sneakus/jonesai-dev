@@ -7,7 +7,6 @@ import { reportClayBreak } from "@/src/portrait/bridge";
 import {
   activeClayFeel,
   clayFeel,
-  hardCelebration,
   hardMode,
   pickAvoidingRepeat,
   planHardRound,
@@ -17,13 +16,20 @@ import {
   type HardThrowKind,
 } from "@/src/clay-feel";
 import {
+  highGunDuration,
+  highGunPhases,
+  highGunTiming,
+  perfectBannerStart,
+  perfectCelebrationDuration,
+  perfectHandOpacity,
+  perfectLastShotAt,
+} from "@/src/clay-celebration";
+import {
   settings,
   lookOf,
   stepClay,
   clayGone,
-  flightIsFair,
-  launchThrow,
-  safeCrosser,
+  chooseFairThrow,
   pickNormalThrow,
   pickSize,
   type Clay,
@@ -254,6 +260,7 @@ export function ClayGame({
   hardModeLabel,
   normalModeLabel,
   beatLine,
+  highGunLabel,
   hard,
   onHardChange,
   onHardUnlock,
@@ -271,6 +278,7 @@ export function ClayGame({
   hardModeLabel: string;
   normalModeLabel: string;
   beatLine: string | null;
+  highGunLabel: string;
   hard: boolean;
   onHardChange: (hard: boolean) => void;
   onHardUnlock: () => void;
@@ -286,6 +294,7 @@ export function ClayGame({
   const scoreMessagesRef = useRef(scoreMessages);
   const hardScoreMessagesRef = useRef(hardScoreMessages);
   const hardWinsRef = useRef(hardWins);
+  const highGunLabelRef = useRef(highGunLabel);
   const hardInvitesRef = useRef(hardInvites);
   const hardRef = useRef(hard);
   const onHardChangeRef = useRef(onHardChange);
@@ -313,6 +322,9 @@ export function ClayGame({
   useEffect(() => {
     hardWinsRef.current = hardWins;
   }, [hardWins]);
+  useEffect(() => {
+    highGunLabelRef.current = highGunLabel;
+  }, [highGunLabel]);
 
   useEffect(() => {
     hardInvitesRef.current = hardInvites;
@@ -366,6 +378,9 @@ export function ClayGame({
     let forcePerfect = window.location.href.endsWith("?perfect");
     let celebrationAt = 0;
     let celebrationFinished = false;
+    let highGunActive = false;
+    let handHolstered = false;
+    let slowMoUntil = 0;
     let pendingResult: GameResult | null = null;
     let nextLaunchAt = performance.now() + 280;
     let readyAt = 0;
@@ -596,9 +611,19 @@ export function ClayGame({
         hardWin: perfect && hardRound ? pickHardWin() : null,
       };
       publish();
+      if (perfect && hardRound) {
+        celebrationAt = now;
+        celebrationFinished = false;
+        highGunActive = true;
+        if (!reducedMotion) {
+          slowMoUntil = now + highGunTiming.slowMoMs;
+        }
+        return;
+      }
       if (perfect && !reducedMotion) {
         celebrationAt = now;
         celebrationFinished = false;
+        highGunActive = false;
         return;
       }
       if (perfect && !hardRound) {
@@ -652,42 +677,20 @@ export function ClayGame({
         !hardRef.current &&
         fastStillNeeded > 0 &&
         (launched + 1 >= fastClayDeadline || throwsLeft <= fastStillNeeded);
-      const tries = Math.max(1, Math.round(settings.fairTries));
       const kind: ThrowKind = hardRef.current
         ? hardPlan[launched] || pickNormalThrow()
         : pickNormalThrow();
       const box = { width, height };
-      let chosen: Clay | null = null;
-      for (let attempt = 0; attempt < tries; attempt += 1) {
-        const sizeScale = forceFast
-          ? settings.fastClaySize
-          : hardRef.current
-            ? pickSize()
-            : pickSize();
-        const candidate = launchThrow(kind, box, sizeScale);
-        if (flightIsFair(candidate, width, height, behindHand)) {
-          chosen = candidate;
-          break;
-        }
-      }
-      if (!chosen) {
-        for (let attempt = 0; attempt < tries; attempt += 1) {
-          const fallback = safeCrosser(
-            box,
-            forceFast ? settings.fastClaySize : 1,
-            attempt * 0.04,
-          );
-          if (flightIsFair(fallback, width, height, behindHand)) {
-            chosen = fallback;
-            break;
-          }
-        }
-      }
-      if (!chosen) {
+      const sizeScale = forceFast ? settings.fastClaySize : pickSize();
+      const chosenThrow = chooseFairThrow(kind, box, sizeScale, {
+        hard: hardRef.current,
+        hidden: behindHand,
+      });
+      if (!chosenThrow.clay) {
         nextLaunchAt = performance.now() + 50;
         return;
       }
-      clay = chosen;
+      clay = chosenThrow.clay;
       if (clay.sizeScale <= settings.fastClaySize + 0.001) {
         fastClays += 1;
       }
@@ -794,6 +797,9 @@ export function ClayGame({
         1 + Math.floor(Math.random() * Math.max(1, settings.claysPerRound));
       celebrationAt = 0;
       celebrationFinished = false;
+      highGunActive = false;
+      handHolstered = false;
+      slowMoUntil = 0;
       pendingResult = null;
       readyAt = 0;
       clay = null;
@@ -876,59 +882,189 @@ export function ClayGame({
       return "straight";
     };
 
+    const celebrationSettings = () => ({
+      perfectSpinTime: settings.perfectSpinTime,
+      perfectSweepStart: settings.perfectSweepStart,
+      perfectSweepTime: settings.perfectSweepTime,
+      perfectShotCount: settings.perfectShotCount,
+      perfectRecoilTime: settings.perfectRecoilTime,
+      perfectFireworkTravel: settings.perfectFireworkTravel,
+      perfectSparkTime: settings.perfectSparkTime,
+      winnerBannerDropTime: settings.winnerBannerDropTime,
+      handSettleTime: settings.handSettleTime,
+    });
+
+    const drawRosette = (
+      label: string,
+      centerX: number,
+      centerY: number,
+      size: number,
+      swing: number,
+    ) => {
+      ctx.save();
+      ctx.translate(centerX, centerY);
+      ctx.rotate(swing);
+      const petals = 14;
+      for (let index = 0; index < petals; index += 1) {
+        const angle = (Math.PI * 2 * index) / petals;
+        ctx.save();
+        ctx.rotate(angle);
+        ctx.fillStyle = index % 2 === 0 ? colors.clay : colors.clayDark;
+        ctx.beginPath();
+        ctx.ellipse(0, -size * 0.42, size * 0.14, size * 0.28, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.fillStyle = colors.field;
+      ctx.beginPath();
+      ctx.arc(0, 0, size * 0.32, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = colors.ink;
+      ctx.lineWidth = Math.max(1, size * 0.03);
+      ctx.stroke();
+      ctx.fillStyle = colors.clay;
+      ctx.beginPath();
+      ctx.arc(0, 0, size * 0.26, 0, Math.PI * 2);
+      ctx.fill();
+      // Ribbon tails
+      ctx.fillStyle = colors.clay;
+      ctx.beginPath();
+      ctx.moveTo(-size * 0.08, size * 0.2);
+      ctx.lineTo(-size * 0.28, size * 1.05);
+      ctx.lineTo(-size * 0.02, size * 0.55);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(size * 0.08, size * 0.2);
+      ctx.lineTo(size * 0.28, size * 1.05);
+      ctx.lineTo(size * 0.02, size * 0.55);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = colors.field;
+      ctx.font = `700 ${Math.max(11, size * 0.22)}px ${uiFont}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, 0, 1);
+      ctx.restore();
+    };
+
+    const drawHighGun = (now: number) => {
+      if (celebrationAt <= 0 || celebrationFinished) {
+        return;
+      }
+      const elapsed = Math.max(0, now - celebrationAt);
+      const phases = highGunPhases(elapsed, reducedMotion);
+      const straight = handImages.straight;
+      const handHeight = Math.min(height * 0.38, Math.max(86, width * 0.24));
+      const restY = height - handHeight * 0.42;
+      const tipX = width / 2;
+      const tipY =
+        restY -
+        handHeight * 0.4 +
+        phases.handLowerProgress * (height + handHeight);
+
+      if (phases.smoke && straight) {
+        const smokeLife = highGunTiming.smokeMs;
+        for (let puff = 0; puff < 7; puff += 1) {
+          const born = puff * 90;
+          const age = (elapsed - born) / smokeLife;
+          if (age < 0 || age > 1) {
+            continue;
+          }
+          const drift = Math.sin(elapsed * 0.003 + puff) * 10;
+          const x = tipX + drift + puff * 1.4;
+          const y = tipY - age * height * 0.28 - puff * 4;
+          ctx.save();
+          ctx.globalAlpha = (1 - age) * 0.35;
+          ctx.fillStyle = "#8a8680";
+          ctx.beginPath();
+          ctx.ellipse(
+            x,
+            y,
+            3 + age * 10,
+            5 + age * 14,
+            drift * 0.02,
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      if (straight && phases.handLowerProgress < 1) {
+        const y = restY + phases.handLowerProgress * (height * 0.55 + handHeight);
+        drawHandPhoto(straight, width / 2, y, handHeight, 0, 1);
+      } else {
+        handHolstered = true;
+      }
+
+      if (phases.rosetteProgress > 0) {
+        const drop = phases.rosetteProgress;
+        const bounce = drop < 1 ? Math.sin(drop * Math.PI) * 10 * (1 - drop) : 0;
+        const y = lerp(-80, height * 0.28, 1 - Math.pow(1 - Math.min(1, drop), 3)) - bounce;
+        const swing = Math.sin(elapsed * 0.004) * 0.08 * (1 - drop * 0.5);
+        drawRosette(
+          highGunLabelRef.current,
+          width / 2,
+          y,
+          Math.min(64, width * 0.14),
+          swing,
+        );
+      }
+
+      if (phases.showBanner && pendingResult?.hardWin) {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const fontSize = Math.max(20, Math.min(36, width * 0.055));
+        ctx.font = `700 ${fontSize}px ${uiFont}`;
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = colors.field;
+        ctx.fillStyle = colors.clay;
+        const bannerY = height * 0.48;
+        ctx.strokeText(pendingResult.hardWin.banner, width / 2, bannerY);
+        ctx.fillText(pendingResult.hardWin.banner, width / 2, bannerY);
+        ctx.font = `600 ${Math.max(15, fontSize * 0.72)}px ${uiFont}`;
+        ctx.fillStyle = colors.ink;
+        ctx.fillText(pendingResult.hardWin.quip, width / 2, bannerY + fontSize * 1.25);
+        ctx.restore();
+      }
+    };
+
     const drawCelebration = (now: number) => {
       if (celebrationAt <= 0) {
         return;
       }
-      const cele = hardRef.current
-        ? hardCelebration(settings)
-        : {
-            perfectDuration: settings.perfectDuration,
-            perfectShotCount: settings.perfectShotCount,
-            perfectSweepTime: settings.perfectSweepTime,
-          };
-      const elapsed = Math.min(
-        Math.max(0, now - celebrationAt),
-        cele.perfectDuration,
-      );
+      if (highGunActive) {
+        drawHighGun(now);
+        return;
+      }
+      const cele = celebrationSettings();
+      const duration = perfectCelebrationDuration(cele);
+      const elapsed = Math.min(Math.max(0, now - celebrationAt), duration);
       const straight = handImages.straight;
+      const handOpacityValue = perfectHandOpacity(elapsed, cele);
+      const bannerAt = perfectBannerStart(cele);
+      const { shotCount, interval } = perfectLastShotAt(cele);
+      const handHeight = Math.min(height * 0.38, Math.max(86, width * 0.24));
 
-      if (
-        straight &&
-        !celebrationFinished &&
-        elapsed < settings.perfectSpinTime
-      ) {
+      if (straight && !celebrationFinished && elapsed < settings.perfectSpinTime) {
         const progress = clamp01(elapsed / settings.perfectSpinTime);
         const eased = 1 - Math.pow(1 - progress, 3);
-        const handHeight = Math.min(
-          height * 0.38,
-          Math.max(86, width * 0.24),
-        );
         drawHandPhoto(
           straight,
           width / 2,
           height - handHeight * 0.42,
           handHeight,
           eased * Math.PI * 2,
-          1 - clamp01((progress - 0.82) / 0.18),
+          1,
         );
       }
 
-      if (
-        !celebrationFinished &&
-        elapsed >= settings.perfectSweepStart
-      ) {
-        const shotCount = Math.max(
-          1,
-          Math.round(cele.perfectShotCount),
-        );
-        const interval =
-          shotCount <= 1
-            ? cele.perfectSweepTime
-            : cele.perfectSweepTime / (shotCount - 1);
+      if (!celebrationFinished && elapsed >= settings.perfectSweepStart) {
         const sweep = clamp01(
-          (elapsed - settings.perfectSweepStart) /
-            cele.perfectSweepTime,
+          (elapsed - settings.perfectSweepStart) / cele.perfectSweepTime,
         );
         const facing = celebrationFacing(sweep);
         const latestShot = Math.min(
@@ -936,13 +1072,11 @@ export function ClayGame({
           Math.max(
             0,
             Math.floor(
-              (elapsed - settings.perfectSweepStart) /
-                Math.max(1, interval),
+              (elapsed - settings.perfectSweepStart) / Math.max(1, interval),
             ),
           ),
         );
-        const latestFireAt =
-          settings.perfectSweepStart + latestShot * interval;
+        const latestFireAt = settings.perfectSweepStart + latestShot * interval;
         const recoiling =
           elapsed >= latestFireAt &&
           elapsed < latestFireAt + settings.perfectRecoilTime;
@@ -951,42 +1085,25 @@ export function ClayGame({
         );
         const pose = recoiling ? recoilPose(shotFacing) : facing;
         const handImage = handImages[pose];
-        const handHeight = Math.min(
-          height * 0.38,
-          Math.max(86, width * 0.24),
-        );
-        if (handImage && elapsed <= settings.winnerBannerStart) {
-          const sweepEnd =
-            settings.perfectSweepStart + cele.perfectSweepTime;
-          const settleGap = Math.max(
-            1,
-            settings.winnerBannerStart - sweepEnd,
-          );
-          const opacity =
-            elapsed <= sweepEnd
-              ? 1
-              : 1 - clamp01((elapsed - sweepEnd) / settleGap);
+        if (handImage && handOpacityValue > 0.01) {
           drawHandPhoto(
             handImage,
             width / 2,
             height - handHeight * 0.42,
             handHeight,
             0,
-            opacity,
+            handOpacityValue,
           );
         }
 
         for (let index = 0; index < shotCount; index += 1) {
-          const shotProgress =
-            shotCount <= 1 ? 0.5 : index / (shotCount - 1);
-          const fireAt =
-            settings.perfectSweepStart + index * interval;
+          const shotProgress = shotCount <= 1 ? 0.5 : index / (shotCount - 1);
+          const fireAt = settings.perfectSweepStart + index * interval;
           const fireworkAge = elapsed - fireAt;
           if (
             fireworkAge < 0 ||
             fireworkAge >
-              settings.perfectFireworkTravel +
-                settings.perfectSparkTime
+              settings.perfectFireworkTravel + settings.perfectSparkTime
           ) {
             continue;
           }
@@ -996,11 +1113,8 @@ export function ClayGame({
           const burstX =
             lerp(width * 0.12, width * 0.88, shotProgress) +
             Math.sin(index * 2.4) * width * 0.025;
-          const burstY =
-            height * (0.18 + ((index % 3) / 2) * 0.12);
-          const travel = clamp01(
-            fireworkAge / settings.perfectFireworkTravel,
-          );
+          const burstY = height * (0.18 + ((index % 3) / 2) * 0.12);
+          const travel = clamp01(fireworkAge / settings.perfectFireworkTravel);
           if (travel < 1) {
             const easedTravel = 1 - Math.pow(1 - travel, 2);
             const fireX = lerp(startFireX, burstX, easedTravel);
@@ -1008,10 +1122,7 @@ export function ClayGame({
             ctx.save();
             ctx.globalAlpha = 0.55;
             ctx.strokeStyle = index % 2 === 0 ? colors.clay : colors.ink;
-            ctx.lineWidth = Math.max(
-              1,
-              settings.perfectFireworkSize * 0.5,
-            );
+            ctx.lineWidth = Math.max(1, settings.perfectFireworkSize * 0.5);
             ctx.beginPath();
             ctx.moveTo(startFireX, startFireY);
             ctx.lineTo(fireX, fireY);
@@ -1019,13 +1130,7 @@ export function ClayGame({
             ctx.globalAlpha = 1;
             ctx.fillStyle = index % 2 === 0 ? colors.clay : colors.ink;
             ctx.beginPath();
-            ctx.arc(
-              fireX,
-              fireY,
-              settings.perfectFireworkSize,
-              0,
-              Math.PI * 2,
-            );
+            ctx.arc(fireX, fireY, settings.perfectFireworkSize, 0, Math.PI * 2);
             ctx.fill();
             ctx.restore();
           }
@@ -1034,17 +1139,12 @@ export function ClayGame({
             (fireworkAge - settings.perfectFireworkTravel) /
             settings.perfectSparkTime;
           if (sparkAge >= 0 && sparkAge <= 1) {
-            const sparkCount = Math.max(
-              1,
-              Math.round(settings.perfectSparkCount),
-            );
-            const radius =
-              sparkAge * settings.perfectFireworkSize * 11;
+            const sparkCount = Math.max(1, Math.round(settings.perfectSparkCount));
+            const radius = sparkAge * settings.perfectFireworkSize * 11;
             ctx.save();
             ctx.globalAlpha = 1 - sparkAge;
             for (let spark = 0; spark < sparkCount; spark += 1) {
-              const angle =
-                (Math.PI * 2 * spark) / sparkCount + index * 0.47;
+              const angle = (Math.PI * 2 * spark) / sparkCount + index * 0.47;
               ctx.fillStyle =
                 (spark + index) % 2 === 0 ? colors.clay : colors.ink;
               ctx.beginPath();
@@ -1062,14 +1162,9 @@ export function ClayGame({
         }
       }
 
-      if (
-        !celebrationFinished &&
-        elapsed >= settings.winnerBannerStart &&
-        pendingResult
-      ) {
+      if (!celebrationFinished && elapsed >= bannerAt && pendingResult) {
         const drop = clamp01(
-          (elapsed - settings.winnerBannerStart) /
-            settings.winnerBannerDropTime,
+          (elapsed - bannerAt) / settings.winnerBannerDropTime,
         );
         const eased = 1 - Math.pow(1 - drop, 3);
         const y = lerp(-36, height * 0.47, eased);
@@ -1139,7 +1234,12 @@ export function ClayGame({
       ctx.font = `600 18px ${uiFont}`;
       ctx.fillStyle = colors.clay;
       for (const floater of floaters) {
-        const age = (now - floater.born) / floaterTime;
+        const floaterSlow =
+          !reducedMotion &&
+          slowMoUntil > 0 &&
+          now < slowMoUntil &&
+          floater.born >= celebrationAt - 50;
+        const age = (now - floater.born) / (floaterTime * (floaterSlow ? 4 : 1));
         if (age >= 1) {
           continue;
         }
@@ -1158,10 +1258,12 @@ export function ClayGame({
           Math.min(slideLimit, (aimX / width - 0.5) * 2 * slideLimit),
         );
         hand.style.visibility =
-          handsReady && !celebrating ? "visible" : "hidden";
+          handsReady && !celebrating && !handHolstered ? "visible" : "hidden";
         hand.style.height = `${Math.round(reach)}px`;
         hand.style.width = `${Math.round(reach * photoRatio)}px`;
-        hand.style.transform = `translateX(calc(-50% + ${slide.toFixed(2)}px))`;
+        hand.style.transform = handHolstered
+          ? `translateX(calc(-50% + ${slide.toFixed(2)}px)) translateY(120%)`
+          : `translateX(calc(-50% + ${slide.toFixed(2)}px))`;
 
         const showingRecoil = recoilUntil > 0 && now < recoilUntil;
         const targetPose = showingRecoil ? recoilPose(recoilFacing) : facingFor(aimX);
@@ -1213,6 +1315,9 @@ export function ClayGame({
       const dt = Math.min(0.032, last === 0 ? 0.016 : (now - last) / 1000);
       dtHand = dt;
       last = now;
+      const slowMo =
+        !reducedMotion && slowMoUntil > 0 && now < slowMoUntil;
+      const simDt = slowMo ? dt * highGunTiming.slowMoScale : dt;
 
       if (!clay && !finished && nextLaunchAt > 0 && now >= nextLaunchAt) {
         if (handsReady) {
@@ -1223,7 +1328,7 @@ export function ClayGame({
       }
 
       if (clay) {
-        stepClay(clay, dt, width, height);
+        stepClay(clay, simDt, width, height);
       }
 
       for (const shot of shots) {
@@ -1261,22 +1366,35 @@ export function ClayGame({
         celebrationAt > 0 &&
         !celebrationFinished &&
         now - celebrationAt >=
-          (hardRef.current
-            ? hardCelebration(settings).perfectDuration
-            : settings.perfectDuration)
+          (highGunActive
+            ? highGunDuration(reducedMotion)
+            : perfectCelebrationDuration(celebrationSettings()))
       ) {
         celebrationFinished = true;
-        if (pendingResult) {
-          if (pendingResult.invite) {
-            pendingResult.message = pickInvite();
+        if (highGunActive) {
+          handHolstered = true;
+        }
+        celebrationAt = 0;
+        highGunActive = false;
+        slowMoUntil = 0;
+        shots.length = 0;
+        floaters.length = 0;
+        clearShake();
+        const reveal = pendingResult;
+        window.setTimeout(() => {
+          if (!reveal) {
+            return;
+          }
+          if (reveal.invite) {
+            reveal.message = pickInvite();
             onHardUnlockRef.current();
           }
-          if (pendingResult.hardWin) {
+          if (reveal.hardWin) {
             onHardPerfectRef.current();
           }
-          setResult(pendingResult);
-        }
-        setOver(true);
+          setResult(reveal);
+          setOver(true);
+        }, 0);
       }
 
       draw(now);

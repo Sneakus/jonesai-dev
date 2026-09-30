@@ -10,7 +10,7 @@ import {
   setClayFeel,
   touchClay,
 } from "./clay-feel";
-import { fairSample, flightIsFair, launchThrow } from "./clay-throws";
+import { fairSample } from "./clay-throws";
 import { hardBeatsWithStore } from "../app/api/hard-beats/route";
 
 afterEach(() => {
@@ -43,6 +43,7 @@ describe("clay feel on phones and hard mode", () => {
 
   it("applies hard settings only in hard mode, on top of phone settings", () => {
     expect(hardMode.draw).toBe(0.8);
+    expect(hardMode.hit).toBe(0.8);
     expect(hardMode.speed).toBe(1.2);
     expect(hardMode.windMul).toBe(1.5);
     expect(hardMode.crosserSpeedMul).toBe(1.4);
@@ -50,7 +51,7 @@ describe("clay feel on phones and hard mode", () => {
     setClayFeel(false, true);
     expect(activeClayFeel()).toEqual({
       draw: 0.8,
-      hit: 1,
+      hit: 0.8,
       speed: 1.2,
     });
     setClayFeel(true, true);
@@ -93,15 +94,7 @@ describe("hard throws and fairness", () => {
         for (const kind of kinds) {
           it(`finds a fair ${kind} on ${box.width}x${box.height} coarse=${coarse} hard=${hard}`, () => {
             setClayFeel(coarse, hard);
-            let fair = 0;
-            for (let attempt = 0; attempt < 30; attempt += 1) {
-              const clay = launchThrow(kind, box, 1);
-              if (flightIsFair(clay, box.width, box.height)) {
-                fair += 1;
-              }
-            }
-            expect(fair).toBeGreaterThan(0);
-            expect(fairSample(kind, box, 50)).not.toBeNull();
+            expect(fairSample(kind, box, 50, hard)).not.toBeNull();
           });
         }
       }

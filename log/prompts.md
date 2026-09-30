@@ -1981,3 +1981,32 @@ Tell me in plain English what changed and what to try.
 Changed: Harder phone clays, plus a full hard mode with new throws, unlock, messages and a quiet beat counter.
 Files: src/clay-feel.ts, src/clay-throws.ts, src/clay-feel.test.ts, components/clay-game.tsx, components/clay-game-host.tsx, content/game.md, lib/content.ts, app/page.tsx, app/api/hard-beats/route.ts, tests/first-clays.mjs, log/prompts.md
 
+
+### 2026-09-30 17:51
+Prompt:
+```
+Three fixes to the clay game (still local, don't push). Stop and tell me if anything fails.
+
+1. Hard mode is easier than normal. Find out why before changing anything:
+   - Write a difficulty report that simulates 1,000 rounds of each mode (normal and hard, on a desktop-sized and a phone-sized box, with the right settings for each) and measures: average clay size on screen, average speed on screen, average time each clay is shootable, how often the fairness check falls back to the safe crosser, and how often each throw type actually appears.
+   - My guess: smaller, faster hard clays fail the fairness check far more often, so hard mode keeps falling back to the simple safe crosser. Also check the hit area really does shrink in hard mode, and that the new throws aren't slower or bigger than intended (the dropping incomer grows as it comes towards you).
+   - Tell me the numbers for both modes and the cause you found. Then fix it at the source: hard throws should be generated to pass the fairness check with the hard settings (for example by adjusting a throw that fails, rather than falling back), and any fallback in hard mode must itself be a hard throw.
+   - Add a test using the report: hard mode must be harder than normal on every measure (smaller, faster, shorter shootable time) while every throw still passes the fairness check, and hard mode's fallback rate must be under 5%.
+
+2. The hand vanishing at the end of the celebration: the celebration must only finish once the final shot, its recoil and its firework have completely finished. The hand then settles back smoothly, never disappearing mid-shot. Fix this in normal mode's celebration too, and add a test that the hand stays visible until the last shot's recoil has ended.
+
+3. A new celebration for beating hard mode (5/5), called High gun, replacing the bigger fireworks version:
+   - The last clay breaks in slow motion (time slowed to about a quarter for about a second).
+   - A thin curl of grey smoke rises from the fingertip (the point shots come from), drifting and fading over about two seconds.
+   - The hand then lowers slowly out of the bottom of the frame, as if holstered, and stays down until the player presses Pull again, when it rises back.
+   - A rosette in clay orange (a pleated ring with two ribbon tails, like a shooting competition rosette) drops in from the top with a small bounce and a gentle swing, reading "High Gun".
+   - Then the hard mode banner and quip appear below it, as now.
+   - Reduced motion: no slow motion or smoke; the hand simply lowers, and the rosette, banner and quip appear straight away.
+   Keep the site's look (paper, ink, clay orange). The performance check must pass during the celebration.
+
+4. Run all the tests, a clean production build, the code check, the home page performance check (normal and hard) and gitleaks git -v. Commit locally with "Clay game: harder hard mode, High gun, hand fix". Don't push.
+
+Tell me in plain English the difficulty numbers before and after, the cause you found, and what to try.
+```
+Changed: Hard mode fairness and difficulty, High gun celebration, and celebration hand timing fix.
+Files: src/clay-throws.ts, src/clay-feel.ts, src/clay-difficulty.ts, src/clay-difficulty.test.ts, src/clay-celebration.ts, src/clay-celebration.test.ts, components/clay-game.tsx, components/clay-game-host.tsx, content/game.md, lib/content.ts, app/page.tsx, log/prompts.md

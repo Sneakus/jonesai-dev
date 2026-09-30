@@ -9,16 +9,13 @@ export const touchClay = {
 // Hard mode multipliers, applied on top of normal settings (and on top of touchClay on phones).
 export const hardMode = {
   draw: 0.8, // about 20% smaller than normal
-  hit: 1, // hard mode does not shrink the hit area on its own
+  hit: 0.8, // hit area about 20% smaller than normal
   speed: 1.2, // about 20% faster than normal
   windMul: 1.5, // wind about 50% stronger
   crosserSpeedMul: 1.4, // crossers about 40% faster in hard mode
   midiWeightMul: 2, // midi clays about twice as common
   miniWeightMul: 2, // mini clays about twice as common
   minTricky: 3, // every hard round has at least this many tricky throws
-  perfectDurationMul: 1.4, // longer 5/5 celebration
-  perfectShotCountMul: 1.6, // more fireworks
-  perfectSweepTimeMul: 1.25,
   // How often each throw appears in hard mode. A higher number means it comes up more often.
   throwCrosser: 2,
   throwAway: 1,
@@ -92,16 +89,8 @@ export function hardCelebration(settings: {
   perfectShotCount: number;
   perfectSweepTime: number;
 }) {
-  if (!hardActive) {
-    return settings;
-  }
-  return {
-    perfectDuration: settings.perfectDuration * hardMode.perfectDurationMul,
-    perfectShotCount: Math.round(
-      settings.perfectShotCount * hardMode.perfectShotCountMul,
-    ),
-    perfectSweepTime: settings.perfectSweepTime * hardMode.perfectSweepTimeMul,
-  };
+  // Hard mode uses the High gun celebration instead of a longer fireworks sweep.
+  return settings;
 }
 
 // Desktop clay numbers the touch multipliers scale from. Kept here so a test

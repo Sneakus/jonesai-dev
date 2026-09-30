@@ -20,6 +20,7 @@ type ClayGameHostProps = {
   beatNone: string;
   beatOne: string;
   beatMany: string;
+  highGunLabel: string;
 };
 
 export function ClayGameHost({
@@ -38,6 +39,7 @@ export function ClayGameHost({
   beatNone,
   beatOne,
   beatMany,
+  highGunLabel,
 }: ClayGameHostProps) {
   const [Game, setGame] = useState<
     typeof import("@/components/clay-game").ClayGame | null
@@ -164,6 +166,7 @@ export function ClayGameHost({
         hardModeLabel={hardModeLabel}
         normalModeLabel={normalModeLabel}
         beatLine={beatLine}
+        highGunLabel={highGunLabel}
         hard={hard}
         onHardChange={setMode}
         onHardUnlock={unlock}

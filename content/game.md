@@ -59,4 +59,5 @@ hardWins:
 beatNone: Nobody's beaten it yet. Could be you.
 beatOne: Only 1 person has beaten it.
 beatMany: Only {n} people have beaten it.
+highGunLabel: High Gun
 ---
