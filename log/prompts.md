@@ -2029,3 +2029,16 @@ Make this easy for me to test, without touching the live site:
 ```
 Changed: Preview-only clay test shortcuts, then push hard-mode branch for a Vercel preview.
 Files: next.config.ts, src/clay-test-shortcuts.ts, src/clay-test-shortcuts-live.ts, src/clay-test-shortcuts.test.ts, tests/clay-test-shortcuts-absent.mjs, components/clay-game-host.tsx, components/clay-game.tsx, log/prompts.md
+
+### 2026-09-30 22:51
+Prompt:
+```
+Add Vercel Web Analytics to the site (I've enabled it in the Vercel dashboard):
+- Install the package: npm i @vercel/analytics
+- In the root layout, import { Analytics } from "@vercel/analytics/next" and add <Analytics /> so every page is counted.
+- No cookies, no consent banner, and nothing that slows the page: confirm it loads after the page is interactive and passes the home page performance check.
+- Don't count visits from development or test shortcuts.
+Run all the tests, a clean production build, the code check and gitleaks git -v. Put this on the hard-mode branch with the rest, so it all goes live together.
+```
+Changed: Added Vercel Web Analytics, skipping development and clay test shortcuts.
+Files: app/layout.tsx, src/site-analytics.ts, src/site-analytics.test.ts, package.json, package-lock.json, log/prompts.md

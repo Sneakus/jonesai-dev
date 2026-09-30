@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Instrument_Sans } from "next/font/google";
+import { SiteAnalytics } from "@/components/site-analytics";
 import { readHome } from "@/lib/content";
 import { DEFAULT_SHARE_IMAGE, SITE_URL } from "@/lib/site-config";
 import "./globals.css";
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={instrumentSans.variable}>
       <body className={`${instrumentSans.className} bg-paper text-ink`}>
         {children}
+        <SiteAnalytics />
       </body>
     </html>
   );
