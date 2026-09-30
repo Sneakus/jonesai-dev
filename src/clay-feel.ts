@@ -40,15 +40,6 @@ export type ClayFeel = {
 export function clayFeel(coarse: boolean, hard = false): ClayFeel {
   const phone = coarse ? touchClay : desktopClay;
   if (!hard) {
-    if (coarse) {
-      // Phone normal: new flight paths measure faster. Pull pace back so
-      // difficulty stays near the pre-physics numbers (launch feel only).
-      return {
-        draw: phone.draw * 0.985,
-        hit: phone.hit * 0.985,
-        speed: phone.speed * 0.52,
-      };
-    }
     return phone;
   }
   return {

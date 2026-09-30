@@ -2100,3 +2100,63 @@ Tell me in plain English what caused the regression, what changed, and the diffi
 ```
 Changed: Fixed hand/shard stacking, retuned normal launches, and made High gun smoke thicker for about 4 seconds.
 Files: app/globals.css, components/clay-game.tsx, src/clay-celebration.ts, src/clay-difficulty.ts, src/clay-difficulty-before.test.ts, src/clay-difficulty.test.ts, src/clay-feel.ts, src/clay-feel.test.ts, src/clay-flight.test.ts, src/clay-throws.ts, src/clay-hand.ts, src/clay-hand.test.ts, log/prompts.md
+
+### 2026-10-01 00:29
+Prompt:
+```
+Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.
+```
+Changed: none - those shell exits were the local check servers being stopped after the first-clays run
+Files: none
+
+### 2026-10-01 00:36
+Prompt:
+```
+Hard mode must not change normal mode at all. Stop and tell me if anything fails.
+
+1. Normal mode back to exactly what's live on main:
+   - Normal throws use main's flight code and launch settings again, unchanged. The new physics model applies to hard mode only.
+   - The normal 5/5 celebration uses main's timing and animation again, unchanged, with one exception: the hand stays visible until its final shot's recoil has finished. Nothing else about the celebration's timing may change; tell me exactly how much time that adds.
+   - Keep these on top of main: the phone tuning I asked for (touchClay), and the layering fix for the hand and shards.
+   - Add a test proving it: with the same random seed, normal mode on this branch produces exactly the same throws (positions over time) and the same celebration timings as main, on a desktop-sized and a phone-sized box (phone with the current touchClay settings applied to both).
+
+2. The unlock: confirm hard mode can only be unlocked by a 5/5 round in normal mode (or the ?test=hard shortcut on preview and development). Add a test that no other path unlocks it.
+
+3. High gun smoke: make it last about 1 second longer (about 5 seconds).
+
+4. Run all the tests, a clean production build, the code check, the home page performance check (normal and hard) and gitleaks git -v. Push to the hard-mode branch only, and give me the preview links.
+
+Tell me in plain English what changed, and confirm normal mode now matches main.
+```
+Changed: Normal mode matches main again (flight and celebration); hard keeps new physics; High gun smoke about 5s; unlock only via normal 5/5 or ?test=hard.
+Files: components/clay-game.tsx, components/clay-game-host.tsx, components/portrait-slot.tsx, src/clay-throws.ts, src/clay-throws-main-mirror.ts, src/clay-flight.ts, src/clay-feel.ts, src/clay-celebration.ts, src/clay-hand.ts, src/clay-unlock.ts, src/clay-normal-parity.test.ts, src/clay-test-shortcuts-live.ts, and related tests, log/prompts.md
+
+### 2026-10-01 00:39
+Prompt:
+```
+You are working in D:/jonesai-dev on the hard-mode branch.
+
+GOAL: Normal mode must use main's flight+launches exactly. Hard mode uses the new physics from src/clay-throws-hard-backup.ts + clay-flight.ts.
+
+CURRENT STATE:
+- src/clay-throws.ts was replaced with main's version (from clay-throws-main-ref.ts). It is main's hybrid placePath/stepClay and launches.
+- src/clay-throws-hard-backup.ts is the previous hard-mode physics throws file.
+- src/clay-flight.ts has stepFlight and sizeAero.
+
+DO THIS:
+1. Extend Clay type in clay-throws.ts with physics fields used by hard: drag, lift, distanceVel, launchDirX, bounce (numbers). Add defaults in freshClay (0 or sizeAero for drag/lift).
+2. Import stepFlight from clay-flight.
+3. At the START of stepClay: if isHardModeActive(), run the hard physics step from the backup (stepFlight + battue roll + rabbit bounce) and return.
+4. At the START of launchThrow: if isHardModeActive(), dispatch to hard launch functions. Copy the hard launch* functions, finishLaunch (hard-only tweaks only - remove the normal/coarse phone retune branches that slowed normal; finishLaunch should only apply hard-mode launch tweaks), and hard applyTouchSpeed path from backup into clay-throws.ts (as private functions). Hard freshClay should set aero fields.
+5. For applyTouchSpeed: if hard, use the physics version (scale vx,vy,distanceVel,bounce,duration); else keep main's version unchanged.
+6. flightIsFair: keep main logic for normal. For hard only, you may use fairTime 1.05 if needed for hard fairness (do not change settings.fairTime which must stay 1.2 for normal).
+7. Do NOT change normal launch bodies, placePath, placeLooper, or main stepClay body.
+8. Revert src/clay-feel.ts clayFeel so normal coarse returns touchClay unchanged (remove the 0.985/0.52 scaling). Keep isCoarseFeel if used by hard finishLaunch. Keep hardMode.speed 1.45 etc as on branch.
+9. Delete or leave the backup/ref files - prefer deleting clay-throws-hard-backup.ts, clay-throws-main-ref.ts, clay-celebration-main-ref.ts after wiring IF unused. Keep a frozen copy named src/clay-throws-main-mirror.ts that is an exact copy of main's throws for parity tests - export the same public API, but it must NOT import isHardModeActive hard paths - pure main. Actually for mirror: copy main clay-throws and rename isHardModeActive usages to always false for flight, OR just use main file with hard=false always when testing. Simplest mirror: file that re-exports by being a pristine main copy; tests setClayFeel(coarse,false) and compare branch clay-throws vs mirror.
+
+10. Fix any TypeScript errors. Run: npx vitest run src/clay-feel.test.ts src/clay-flight.test.ts --reporter=verbose
+
+Return: summary of what you changed and any test failures.
+```
+Changed: Wired hard physics into throws while keeping normal mode as main; reverted phone feel scaling; added main mirror and removed temp refs.
+Files: src/clay-throws.ts, src/clay-feel.ts, src/clay-feel.test.ts, src/clay-flight.test.ts, src/clay-throws-main-mirror.ts, log/prompts.md; deleted src/clay-throws-hard-backup.ts, src/clay-throws-main-ref.ts, src/clay-celebration-main-ref.ts

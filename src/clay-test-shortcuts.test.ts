@@ -26,7 +26,7 @@ describe("clay test shortcuts", () => {
     expect(clayTestSkipsHardCount(null)).toBe(false);
   });
 
-  it("sets storage so hard unlocks, normal resets, and win or highgun can play", () => {
+  it("sets storage so only ?test=hard unlocks, and win or highgun can play", () => {
     expect(clayTestStorageFor("hard")).toEqual({
       unlocked: true,
       mode: "hard",
@@ -38,7 +38,9 @@ describe("clay test shortcuts", () => {
       counted: false,
     });
     expect(clayTestStorageFor("win").mode).toBe("normal");
+    expect(clayTestStorageFor("win").unlocked).toBe(false);
     expect(clayTestStorageFor("highgun").mode).toBe("hard");
+    expect(clayTestStorageFor("highgun").unlocked).toBe(false);
     expect(clayTestStartsPlaying("win")).toBe(true);
     expect(clayTestStartsPlaying("highgun")).toBe(true);
     expect(clayTestStartsPlaying("hard")).toBe(false);

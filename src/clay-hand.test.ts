@@ -34,6 +34,14 @@ describe("clay hand visibility", () => {
     expect(
       clayHandShouldShow({
         handsReady: true,
+        celebrating: true,
+        handHolstered: false,
+        shotRecoiling: true,
+      }),
+    ).toBe(true);
+    expect(
+      clayHandShouldShow({
+        handsReady: true,
         celebrating: false,
         handHolstered: true,
       }),

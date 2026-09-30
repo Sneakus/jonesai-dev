@@ -1498,6 +1498,7 @@ export function ClayGame({
       const hand = handRef.current;
       if (hand && width > 0 && height > 0) {
         const celebrating = celebrationAt > 0;
+        const shotRecoiling = celebrating && now < recoilUntil;
         const reach = height * (height >= 500 ? settings.handSize : settings.handSizePhone);
         const slideLimit = Math.max(0, settings.handSlide);
         const slide = Math.max(
@@ -1508,6 +1509,7 @@ export function ClayGame({
           handsReady,
           celebrating,
           handHolstered,
+          shotRecoiling,
         })
           ? "visible"
           : "hidden";
@@ -1742,7 +1744,9 @@ export function ClayGame({
         applyModeFeel();
         restartPlan();
       },
-      unlock: () => onHardUnlockRef.current(),
+      unlock: () => {
+        // Product unlock is only normal 5/5 or ?test=hard. Tests write storage.
+      },
     };
     start();
 

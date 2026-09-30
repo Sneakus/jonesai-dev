@@ -33,7 +33,8 @@ describe("real clay flight physics", () => {
   it("keeps horizontal speed from rising, only gains total speed while falling, holds curl sign, and stays continuous", () => {
     for (const kind of ALL_KINDS) {
       for (let sample = 0; sample < SAMPLES; sample += 1) {
-        setClayFeel(sample % 2 === 0, sample % 3 === 0);
+        // Physics flight only runs in hard mode; normal uses main path/hybrid.
+        setClayFeel(sample % 2 === 0, true);
         const clay = launchThrow(kind, BOX, sample % 3 === 0 ? 0.5 : 1);
         const curlSign = Math.sign(clay.curl) || 0;
         let prevSpeed = Math.hypot(clay.vx, clay.vy);
@@ -101,6 +102,7 @@ describe("real clay flight physics", () => {
   });
 
   it("never rewrites curl or aero mid-flight from age alone", () => {
+    setClayFeel(false, true);
     const clay = launchThrow("curler", BOX, 1);
     const curl = clay.curl;
     const drag = clay.drag;

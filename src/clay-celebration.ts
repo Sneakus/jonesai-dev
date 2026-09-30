@@ -16,7 +16,7 @@ export type PerfectCelebrationSettings = {
 export const highGunTiming = {
   slowMoMs: 1500,
   slowMoScale: 0.22,
-  smokeMs: 4000,
+  smokeMs: 5000,
   handLowerMs: 1200,
   shardAssembleMs: 1500,
   rosetteDropMs: 750,

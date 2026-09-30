@@ -580,7 +580,8 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
         caption.classList.toggle("nudge", nudge);
         caption.classList.toggle("on", speaking || now < captionUntil || nudge);
       }
-      return sim.awake() || (faceOnScreen && sim.built > 0) || nudge;
+      // Nudge is CSS-only; do not keep the shared animation loop awake for it.
+      return sim.awake() || (faceOnScreen && sim.built > 0);
     };
 
     const onHit = (event: Event) => {

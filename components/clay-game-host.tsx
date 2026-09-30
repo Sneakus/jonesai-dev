@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ClayScene } from "@/components/clay-scene";
 import { formatBeatCount, STORAGE } from "@/src/clay-feel";
+import { hardUnlockAllowed } from "@/src/clay-unlock";
 import {
   type ClayTestShortcut,
 } from "@/src/clay-test-shortcuts";
@@ -90,7 +91,11 @@ export function ClayGameHost({
         return;
       }
       const next = mod.writeClayTestStorage(shortcut, STORAGE);
-      setUnlocked(next.unlocked);
+      if (shortcut === "hard") {
+        setUnlocked(true);
+      } else if (shortcut === "normal" || shortcut === "win") {
+        setUnlocked(false);
+      }
       setHard(next.mode === "hard");
       setTestShortcut(shortcut);
       if (mod.clayTestStartsPlaying(shortcut)) {
@@ -147,7 +152,10 @@ export function ClayGameHost({
     }
   };
 
-  const unlock = () => {
+  const unlock = (source: string = "normal-perfect") => {
+    if (!hardUnlockAllowed(source)) {
+      return;
+    }
     setUnlocked(true);
     try {
       window.localStorage.setItem(STORAGE.unlocked, "1");

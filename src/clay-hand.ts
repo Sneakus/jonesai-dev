@@ -4,8 +4,28 @@ export function clayHandShouldShow(options: {
   handsReady: boolean;
   celebrating: boolean;
   handHolstered: boolean;
+  /**
+   * True while the last real shot's recoil is still playing.
+   * Keeps the hand up through recoil even after a 5/5 celebration starts.
+   */
+  shotRecoiling?: boolean;
 }) {
-  return options.handsReady && !options.celebrating && !options.handHolstered;
+  if (!options.handsReady || options.handHolstered) {
+    return false;
+  }
+  if (options.celebrating && !options.shotRecoiling) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * How much longer the hand stays visible after a normal 5/5 starts,
+ * compared with hiding it the instant celebration begins. Celebration
+ * timing itself is unchanged.
+ */
+export function clayHandRecoilHoldMs(handRecoilMs: number) {
+  return Math.max(0, handRecoilMs);
 }
 
 /**
