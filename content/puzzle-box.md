@@ -1,5 +1,5 @@
 ---
-order: 0
+order: 1
 title: The puzzle box
 slug: builds/puzzle-box
 summary: I've always liked puzzle games, and I've done a few puzzle boxes myself. So I made one.

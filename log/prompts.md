@@ -1849,3 +1849,57 @@ One last fix before release:
 ```
 Changed: The unpacking line now fades out, and the release checks passed.
 Files: app/globals.css, src/puzzle-box/mount.js, tests/puzzle-box.mjs, log/prompts.md
+
+### 2026-09-30 12:39
+Prompt:
+```
+Copy changes and a new build, from a reviewed handover. Use the copy exactly as written here; if something doesn't fit the design, ask rather than rewording. No em-dashes or en-dashes anywhere, and no bold in the middle of sentences. Stop and tell me if anything fails.
+
+1. Homepage:
+   - Replace "My DMs are open." with: "Currently looking for my next role, my DMs are open." Keep it on one line where it fits, wrapping cleanly where it doesn't.
+   - Builds list order: Knowledge base assistant, the puzzle box, worldcupmap, Golf Agent, AJob, Meeting plan agent.
+   - New card, first: title "Knowledge base assistant", line "Finds every contradiction an update causes across our documents, and suggests the fixes."
+
+2. AJob page:
+   - Delete the "One day in September" section. Keep the intro line with the funnel graphic.
+   - Change the funnel's date label to: "15 September 2026, before the rebuild"
+   - Add this section first, before "How it works": heading "Where it came from", text "My current job is the job search, and I've already automated it."
+   - Replace the "How it works" text with:
+     "It checks 33 companies' job boards directly, plus the job boards of 16 venture capital firms, which covers hundreds of startups. A quick rules check and a cheap AI model screen every new job, then a stronger one reads the ones that get through. Every job it recommends comes with the line from the ad that decided it, and a check that the line is really in the ad.
+
+     Early runs have cost between 5p and 16p each. It runs twice a day, and it runs my current job search."
+   - Add after "How it works": heading "What went wrong, and what I changed", text:
+     "The first version stopped being useful. It was meant to remember every job it had already checked, but it was only reading back about a third of that memory, so the same roles kept coming back. One closed job showed up six times. My search had also moved on from the criteria I built it with.
+
+     I fixed the memory, rewrote the criteria around the roles I actually fit, and made every recommendation show the line from the job ad that decided it. I tested the new version against 21 real roles I'd already judged by hand. After three rounds of fixes it agreed with me on 17, and it rejected every role I would have rejected."
+
+3. Golf Agent page: add first, before "How I tested it": heading "Where it came from", text "I kept struggling at the range to work out the root cause of my bad shots. I also wanted a project that would give me experience with RAG (Retrieval-Augmented Generation) and n8n, so it was a perfect fit."
+
+4. worldcupmap page: in "Where it came from", replace "No accounts, no ads, no trackers." with "You didn't need an account, and there were no ads or trackers."
+
+5. Meeting plan agent page: in "Where it came from", replace "This solution took me about 90 minutes to build." with "It took me about 90 minutes to build."
+
+6. New page: Knowledge base assistant, at /builds/knowledge-base-assistant, in the same style as the Meeting plan agent page. Never mention the company name anywhere on it.
+   - Title: "Knowledge base assistant"
+   - Intro line: "Whenever we updated something, it would automatically find every new contradiction and suggest a list of fixes."
+   - "Where it came from": "At my last company (a gaming startup) half our knowledge base had quietly filled up with contradictions as we fleshed our design documentation out, so I built an assistant to fix it."
+   - The example, labelled "An example (made up, so I can show it - the real documents were confidential)":
+     The update: "Matches now last 8 minutes, down from 12."
+     What it found:
+     1. Game design document: "Each half lasts 6 minutes." Suggested fix: "Each half lasts 4 minutes."
+     2. Investor notes: "A typical session is three 12-minute matches." Suggested fix: "A typical session is three 8-minute matches."
+     3. Tournament rules: "A full knockout round takes about an hour." Suggested fix: "A full knockout round takes about 40 minutes."
+     "Nothing changed until someone approved each fix."
+   - The graphic, in the same spirit as the AJob funnel animation (and the site's look: paper, ink, clay orange): the update card appears; it ripples out into three simple document pages side by side (Game design document, Investor notes, Tournament rules); the clashing line in each lights up in clay orange, one at a time; a suggested fix slides in under each, old wording struck through and new wording beside it; then each fix gets an "approved" tick, one at a time. It plays once when scrolled into view and replays on a click. Reduced motion shows the finished state. The text version of the example stays on the page for screen readers and search.
+   - "What I changed": "The first version made the changes itself and over-complicated the wording, so I added a step where someone had to approve each fix and told it to write more simply."
+   - "What happened": "The knowledge base ended up being the basis for our investor materials."
+   - Closing note, in place of a code link: "The code belongs to my last company, so there's no link."
+
+7. Also commit reference/portrait-prototype.html and reference/puzzle-box-prototype.html.
+
+8. Checks: every page builds and renders; a search of all changed content finds no em-dashes or en-dashes; the knowledge base page contains no company name; the builds list is in the order above; the new graphic passes the performance check (no long tasks or long animation frames, and its loop stops when finished). Don't use the built-in browser. Run all the tests, a clean production build, the code check and gitleaks git -v, commit with "Copy: 30 Sep handover, knowledge base assistant" and push to main.
+
+Tell me in plain English what changed and the check results.
+```
+Changed: Homepage line, builds order, AJob, Golf, worldcupmap and Meeting plan copy, plus a new Knowledge base assistant page.
+Files: content/contact.md, content/puzzle-box.md, content/builds/ajob.md, content/builds/golf-agent.md, content/builds/worldcupmap.md, content/builds/meeting-plan-agent.md, content/builds/knowledge-base-assistant.md, components/contact-section.tsx, components/builds-section.tsx, components/build-article.tsx, components/job-funnel.tsx, components/kb-fixes.tsx, app/builds/knowledge-base-assistant/page.tsx, app/globals.css, lib/content.ts, tests/knowledge-base.mjs, reference/portrait-prototype.html, reference/puzzle-box-prototype.html, log/prompts.md

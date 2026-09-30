@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { JobFunnel } from "@/components/job-funnel";
+import { KbFixes } from "@/components/kb-fixes";
 import type { Build, SiteContent } from "@/lib/content";
 import { GolfAgentSlot } from "@/components/golf-agent-slot";
 import { readGolfRange } from "@/lib/golf-range";
@@ -209,6 +210,9 @@ export function BuildArticle({
           }
           if (block.type === "example") {
             return <ExamplePanel key={`example-${index}`} build={build} />;
+          }
+          if (block.type === "fixes") {
+            return build.fixes ? <KbFixes key="fixes" fixes={build.fixes} /> : null;
           }
           return (
             <p key={`p-${index}`} className="mt-4 text-[17px] leading-[1.6]">

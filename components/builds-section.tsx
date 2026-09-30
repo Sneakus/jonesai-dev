@@ -29,7 +29,7 @@ export function BuildsSection({
                   {build.title}
                 </span>
                 <span className="mt-1 block text-base leading-snug text-muted">
-                  {build.summary}
+                  {build.card || build.summary}
                 </span>
               </span>
               <svg

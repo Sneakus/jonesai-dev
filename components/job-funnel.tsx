@@ -11,7 +11,7 @@ const settings = {
 };
 
 const description =
-  "On 15 September, AJob checked 261 new jobs. A keyword check removed 177, a cheap AI model removed 77, a stronger model removed 6, and 1 reached my inbox.";
+  "On 15 September 2026, before the rebuild, AJob checked 261 new jobs. A keyword check removed 177, a cheap AI model removed 77, a stronger model removed 6, and 1 reached my inbox.";
 
 type LayoutName = "row" | "column";
 

@@ -1,5 +1,5 @@
 ---
-order: 2
+order: 3
 title: Golf Agent
 slug: golf-agent
 summary: You describe a bad golf shot in your own words, and it works out the likely cause, then gives you one thing to focus on.
@@ -18,6 +18,10 @@ links:
   - label: Code on GitHub
     url: https://github.com/Sneakus/Golf-Agent
 ---
+
+## Where it came from
+
+I kept struggling at the range to work out the root cause of my bad shots. I also wanted a project that would give me experience with RAG (Retrieval-Augmented Generation) and n8n, so it was a perfect fit.
 
 ## How I tested it
 

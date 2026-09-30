@@ -118,7 +118,7 @@ export function ContactSection({ contact }: { contact: ContactContent }) {
 
   return (
     <section className="relative z-30 border-t border-line pt-8 pb-16">
-      <h2 className="text-[22px] font-semibold tracking-[-0.035em]">
+      <h2 className="text-pretty text-[22px] font-semibold tracking-[-0.035em]">
         {contact.heading}
       </h2>
       <div className="mt-6 flex max-w-full flex-wrap items-center gap-3">

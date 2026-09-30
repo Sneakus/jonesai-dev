@@ -85,12 +85,26 @@ export type CallPlan = {
   groups: PlanGroup[];
 };
 
+export type FixItem = {
+  title: string;
+  clash: string;
+  fix: string;
+};
+
+export type BuildFixes = {
+  update: string;
+  close: string;
+  approved: string;
+  items: FixItem[];
+};
+
 export type BuildBlock =
   | { type: "heading"; text: string }
   | { type: "paragraph"; text: string }
   | { type: "list"; items: string[] }
   | { type: "callPlan" }
-  | { type: "example" };
+  | { type: "example" }
+  | { type: "fixes" };
 
 export type BuildImage = {
   src: string;
@@ -129,6 +143,7 @@ export type Build = {
   title: string;
   slug: string;
   summary: string;
+  card: string;
   repo: string;
   transcript: string;
   plan: string;
@@ -137,6 +152,7 @@ export type Build = {
   callPlan: CallPlan | null;
   example: BuildExample | null;
   funnel: BuildFunnel | null;
+  fixes: BuildFixes | null;
   links: BuildLink[];
   blocks: BuildBlock[];
 };
@@ -309,6 +325,11 @@ function parseBlocks(body: string): BuildBlock[] {
       index += 1;
       continue;
     }
+    if (line.trim() === "<!-- FIXES -->") {
+      blocks.push({ type: "fixes" });
+      index += 1;
+      continue;
+    }
     if (line.startsWith("## ")) {
       blocks.push({ type: "heading", text: line.slice(3).trim() });
       index += 1;
@@ -331,7 +352,8 @@ function parseBlocks(body: string): BuildBlock[] {
       !lines[index].startsWith("## ") &&
       !lines[index].startsWith("- ") &&
       lines[index].trim() !== "<!-- CALLPLAN -->" &&
-      lines[index].trim() !== "<!-- EXAMPLE -->"
+      lines[index].trim() !== "<!-- EXAMPLE -->" &&
+      lines[index].trim() !== "<!-- FIXES -->"
     ) {
       paragraph.push(lines[index].trim());
       index += 1;
@@ -526,6 +548,37 @@ function parseFunnel(
   };
 }
 
+function parseFixes(
+  value: FrontmatterValue | undefined,
+  file: string,
+): BuildFixes | null {
+  if (value === undefined) {
+    return null;
+  }
+  if (!isRecord(value)) {
+    throw new Error(`${file} fixes could not be read`);
+  }
+  if (!Array.isArray(value.items)) {
+    throw new Error(`${file} fixes could not be read`);
+  }
+  const items = value.items.map((item, index) => {
+    if (!isRecord(item)) {
+      throw new Error(`${file} fix ${index + 1} could not be read`);
+    }
+    return {
+      title: requiredString(item, "title", file),
+      clash: requiredString(item, "clash", file),
+      fix: requiredString(item, "fix", file),
+    };
+  });
+  return {
+    update: requiredString(value, "update", file),
+    close: requiredString(value, "close", file),
+    approved: requiredString(value, "approved", file),
+    items,
+  };
+}
+
 function parseLinks(value: FrontmatterValue | undefined, file: string): BuildLink[] {
   if (value === undefined) {
     return [];
@@ -567,6 +620,7 @@ function readBuildFile(filePath: string): Build {
     title: requiredString(data, "title", filename),
     slug,
     summary: requiredString(data, "summary", filename),
+    card: optionalString(data, "card"),
     repo: optionalString(data, "repo"),
     transcript: optionalString(data, "transcript"),
     plan: optionalString(data, "plan"),
@@ -575,6 +629,7 @@ function readBuildFile(filePath: string): Build {
     callPlan: parseCallPlan(data.callPlan, filename),
     example: parseExample(data.example, filename),
     funnel: parseFunnel(data.funnel, filename),
+    fixes: parseFixes(data.fixes, filename),
     links: parseLinks(data.links, filename),
     blocks: parseBlocks(body),
   };

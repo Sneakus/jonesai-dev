@@ -816,3 +816,243 @@ a:hover {
   }
 }
 
+.kb-stage {
+  margin-top: 1.5rem;
+  cursor: pointer;
+  border: 1px solid var(--color-line);
+  border-radius: 16px;
+  background: var(--color-paper);
+  padding: 16px;
+}
+
+.kb-update {
+  margin: 0 auto;
+  max-width: 28rem;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-card);
+  padding: 12px 14px;
+  text-align: center;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.kb-ripple {
+  height: 2px;
+  margin: 14px auto;
+  width: 72%;
+  border-radius: 999px;
+  background: var(--color-clay);
+  transform-origin: center;
+}
+
+.kb-docs {
+  display: grid;
+  gap: 12px;
+}
+
+.kb-doc {
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-card);
+  padding: 12px;
+}
+
+.kb-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.kb-line,
+.kb-fix,
+.kb-tick {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.kb-line {
+  color: var(--color-clay);
+}
+
+.kb-fix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  color: var(--color-ink);
+}
+
+.kb-fix s {
+  color: var(--color-muted);
+}
+
+.kb-tick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-ink);
+}
+
+.kb-tick svg {
+  width: 16px;
+  height: 16px;
+  color: var(--color-clay);
+}
+
+@media (min-width: 700px) {
+  .kb-docs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.kb-stage.is-armed .kb-update,
+.kb-stage.is-armed .kb-doc,
+.kb-stage.is-armed .kb-fix,
+.kb-stage.is-armed .kb-tick {
+  opacity: 0;
+}
+
+.kb-stage.is-armed .kb-ripple {
+  transform: scaleX(0);
+}
+
+.kb-stage.is-armed .kb-line {
+  color: var(--color-ink);
+}
+
+.kb-stage.is-armed .kb-fix,
+.kb-stage.is-armed .kb-tick {
+  transform: translateY(8px);
+}
+
+.kb-stage.is-play .kb-update {
+  animation: kb-in 0.55s ease forwards;
+}
+
+.kb-stage.is-play .kb-ripple {
+  animation: kb-ripple 0.7s ease 0.45s forwards;
+}
+
+.kb-stage.is-play .kb-doc {
+  animation: kb-in 0.5s ease forwards;
+}
+
+.kb-stage.is-play .kb-doc:nth-child(1) {
+  animation-delay: 0.7s;
+}
+
+.kb-stage.is-play .kb-doc:nth-child(2) {
+  animation-delay: 0.95s;
+}
+
+.kb-stage.is-play .kb-doc:nth-child(3) {
+  animation-delay: 1.2s;
+}
+
+.kb-stage.is-play .kb-line {
+  animation: kb-clay 0.35s ease forwards;
+}
+
+.kb-stage.is-play .kb-doc:nth-child(1) .kb-line {
+  animation-delay: 1.7s;
+}
+
+.kb-stage.is-play .kb-doc:nth-child(2) .kb-line {
+  animation-delay: 2.3s;
+}
+
+.kb-stage.is-play .kb-doc:nth-child(3) .kb-line {
+  animation-delay: 2.9s;
+}
+
+.kb-stage.is-play .kb-fix,
+.kb-stage.is-play .kb-tick {
+  animation: kb-slide 0.45s ease forwards;
+}
+
+.kb-stage.is-play .kb-doc:nth-child(1) .kb-fix {
+  animation-delay: 3.4s;
+}
+
+.kb-stage.is-play .kb-doc:nth-child(2) .kb-fix {
+  animation-delay: 4s;
+}
+
+.kb-stage.is-play .kb-doc:nth-child(3) .kb-fix {
+  animation-delay: 4.6s;
+}
+
+.kb-stage.is-play .kb-doc:nth-child(1) .kb-tick {
+  animation-delay: 5.2s;
+}
+
+.kb-stage.is-play .kb-doc:nth-child(2) .kb-tick {
+  animation-delay: 5.8s;
+}
+
+.kb-stage.is-play .kb-doc:nth-child(3) .kb-tick {
+  animation-delay: 6.4s;
+}
+
+@keyframes kb-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes kb-ripple {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes kb-clay {
+  from {
+    color: var(--color-ink);
+  }
+  to {
+    color: var(--color-clay);
+  }
+}
+
+@keyframes kb-slide {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kb-stage,
+  .kb-stage.is-armed,
+  .kb-stage.is-play,
+  .kb-stage.is-armed .kb-update,
+  .kb-stage.is-armed .kb-doc,
+  .kb-stage.is-armed .kb-fix,
+  .kb-stage.is-armed .kb-tick,
+  .kb-stage.is-armed .kb-line,
+  .kb-stage.is-armed .kb-ripple {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    color: inherit;
+  }
+
+  .kb-stage .kb-line,
+  .kb-stage .kb-tick svg {
+    color: var(--color-clay);
+  }
+}
+
+

@@ -1,5 +1,5 @@
 ---
-order: 4
+order: 5
 title: Meeting plan agent
 slug: meeting-plan-agent
 summary: Turns a call with a customer into a clear plan, and lists what the call forgot to ask.
@@ -57,7 +57,7 @@ links:
 
 ## Where it came from
 
-It started as a take-home for an AI agency. The brief was verbal and left vague on purpose: after calls with customers, their team was taking too long to work out a plan. This solution took me about 90 minutes to build.
+It started as a take-home for an AI agency. The brief was verbal and left vague on purpose: after calls with customers, their team was taking too long to work out a plan. It took me about 90 minutes to build.
 
 <!-- CALLPLAN -->
 

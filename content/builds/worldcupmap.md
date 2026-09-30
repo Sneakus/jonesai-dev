@@ -1,5 +1,5 @@
 ---
-order: 1
+order: 2
 title: worldcupmap
 slug: worldcupmap
 summary: A live World Cup prediction map. You pick a winner and the map shows how fans in each country are voting, in real time.
@@ -16,7 +16,7 @@ links:
 
 ## Where it came from
 
-I built it on my own in about a week for the 2026 World Cup. No accounts, no ads, no trackers.
+I built it on my own in about a week for the 2026 World Cup. You didn't need an account, and there were no ads or trackers.
 
 ## What happened
 

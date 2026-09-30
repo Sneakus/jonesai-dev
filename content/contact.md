@@ -1,5 +1,5 @@
 ---
-heading: My DMs are open.
+heading: Currently looking for my next role, my DMs are open.
 copyLabel: Copy
 copiedLabel: Copied
 copiedAnnouncement: Email copied
