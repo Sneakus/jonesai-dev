@@ -1930,3 +1930,54 @@ Tell me when it's live.
 Changed: Updated CV with a cache-busting link, KB wording, and harder clays on touch screens only.
 Files: public/Alex_Jones_CV.pdf, content/contact.md, content/builds/knowledge-base-assistant.md, components/contact-section.tsx, next.config.ts, components/clay-game.tsx, src/clay-feel.ts, src/clay-feel.test.ts, log/prompts.md
 
+### 2026-09-30 14:07
+Prompt:
+```
+Two changes to the clay game. Stop and tell me if anything fails.
+
+A. Phone tuning (touchClay only; PC unchanged): make phone clays a further 20% faster and a further 25% smaller than now, and make the hit area 25% smaller than now too. Keep the fairness check using the phone settings.
+
+B. Add a hard mode. Normal mode must stay exactly as it is on PC and phone.
+
+1. Settings: one clearly named hardMode settings object, applied on top of the normal settings (and on top of touchClay on phones). Start with: clays about 20% smaller and about 20% faster than normal, midi and mini clays about twice as common, wind about 50% stronger, crossers in hard mode about 40% faster.
+
+2. New throws, hard mode only, using the game's existing physics style:
+   - Looper: a high, slow arc that seems to hang at the top, then falls away fast.
+   - Dropping incomer: comes towards you, growing, then drops away sharply late in its flight.
+   - Curler: bends one way, then the other, during its flight.
+   Every hard round has at least three tricky throws (battue, teal, looper, dropping incomer or curler). Put the mix in hardMode.
+
+3. Fairness: every hard throw goes through the existing fairness check, with the hard settings (and phone settings on phones), so none is impossible.
+
+4. Unlock: after a 5/5 round in normal mode, once the celebration finishes, show one of these invites (rotating):
+   - "Bit of a show-off, aren't you? Try hard mode." with a button "Go on then"
+   - "Easy, was it? Try hard mode." with a button "Go on then"
+   Remember the unlock in the browser, so a returning visitor sees a small "Hard mode" option by the Pull button, and "Normal" to switch back.
+
+5. Hard rounds: 5 clays. End-of-round messages come from a separate hard-mode list, rotating so the same one never shows twice in a row:
+   0: "Nil. Behind every single one." / "Zero. Normal mode is still there. No shame in it." / "Not one. Bold."
+   1: "One. Could have been a fluke. Probably was." / "One. You're allowed to lead them, you know." / "One. Hard mode, as advertised."
+   2: "Two. The clays are laughing. Quietly, but they are." / "Two. Stop the gun and this is what happens." / "Two. Not good. Not terrible. Mostly not good."
+   3: "Three. More hits than misses. Only just." / "Three. Solid. Nobody remembers a three though." / "Three. The looper got you, didn't it."
+   4: "Four. So close. Go again, you know you want to." / "Four. One more and you'd have been unbearable." / "Four. That last one's going to bother you all day."
+   A 5/5 hard round gets a bigger version of the normal celebration (longer, more fireworks), then one of these (rotating), each a banner with a quip underneath:
+   - Banner "Five from five." Quip "Right, put that on your CV."
+   - Banner "Hard mode, done." Quip "Genuinely impressive. Now go and do something useful."
+   Put all hard mode words in content/game.md next to the normal ones, marked draft: true.
+
+6. The public count:
+   - A small API route that reads and increments one number in the Redis store connected in Vercel (read its keys from the environment; never hard-code them).
+   - A 5/5 hard round adds one, once per browser (remember it in the browser), with a simple limit of one increment per visitor address per minute.
+   - Show the count line under the invite and on the hard mode screen: "Nobody's beaten it yet. Could be you." for 0, "Only 1 person has beaten it." for 1, "Only N people have beaten it." for more (words in content/game.md, draft). If the store isn't reachable, hide the line quietly and keep the game working.
+
+7. Tests: PC settings unchanged; the new phone settings apply only on touch screens; hard settings apply only in hard mode; every new throw type passes the fairness check across many random samples on a desktop-sized and a phone-sized box, with and without the phone settings; each hard round has at least three tricky throws; the unlock appears only after 5/5; no end-of-round message shows twice in a row; the count route works against a mock store, increments once per browser and fails quietly.
+
+8. Performance: the home page check must pass in normal and hard mode (no long tasks or long animation frames).
+
+9. Don't use the built-in browser. Run all the tests, a clean production build, the code check and gitleaks git -v. Don't push yet: commit locally with "Clay game: hard mode, harder phones" and tell me how to play it on my computer and phone, so I can tune it before it goes live.
+
+Tell me in plain English what changed and what to try.
+```
+Changed: Harder phone clays, plus a full hard mode with new throws, unlock, messages and a quiet beat counter.
+Files: src/clay-feel.ts, src/clay-throws.ts, src/clay-feel.test.ts, components/clay-game.tsx, components/clay-game-host.tsx, content/game.md, lib/content.ts, app/page.tsx, app/api/hard-beats/route.ts, tests/first-clays.mjs, log/prompts.md
+

@@ -7,89 +7,34 @@ import { reportClayBreak } from "@/src/portrait/bridge";
 import {
   activeClayFeel,
   clayFeel,
-  desktopClaySettings,
+  hardCelebration,
+  hardMode,
+  pickAvoidingRepeat,
+  planHardRound,
   setClayFeel,
+  STORAGE,
   touchClay,
+  type HardThrowKind,
 } from "@/src/clay-feel";
+import {
+  settings,
+  lookOf,
+  stepClay,
+  clayGone,
+  flightIsFair,
+  launchThrow,
+  safeCrosser,
+  pickNormalThrow,
+  pickSize,
+  type Clay,
+  type ThrowKind,
+} from "@/src/clay-throws";
 
-export { activeClayFeel, clayFeel, setClayFeel, touchClay };
-
-// Feel settings. Change these numbers to tune the game.
-export const settings = {
-  gravity: 1000, // how quickly a rabbit drops back down
-  pauseBetweenClays: 560, // wait after one clay before the next, in milliseconds
-  claySize: desktopClaySettings.claySize, // base width of a clay, before distance makes it bigger or smaller
-  hitAreaSize: desktopClaySettings.hitAreaSize, // extra pixels around a clay that still count when a pellet is close
-  reloadTime: 350, // wait after a shot before the next one counts, in milliseconds
-  patternSize: 28, // how far pellets scatter around the aim point for a near clay
-  pelletCount: 12, // dots in each shot
-  shakeStrength: 2, // pixels the box shakes on a hit. 0 turns the shake off
-  claysPerRound: 5, // clays in one round
-  fastClaysPerRound: 1, // minimum mini clays in each round
-  fastClaySize: 0.5, // size used when the round still needs its fast clay
-
-  // How often each throw appears. A higher number means it comes up more often.
-  throwCrosser: 3,
-  throwAway: 2,
-  throwIncomer: 2,
-  throwHigh: 2,
-  throwRabbit: 2,
-  throwBattue: 2,
-  throwTeal: 2,
-
-  // How often each clay size appears. Most throws should stay standard.
-  sizeStandard: 6,
-  sizeMidi: 2, // about 25% smaller
-  sizeMini: 1, // about half the size, and a bit faster
-
-  windStrength: 0.1, // sideways drift as a share of the box width. 0 is no wind
-
-  aimLeft: 1 / 3, // left of this share of the box, show the left hand
-  aimRight: 2 / 3, // right of this share of the box, show the right hand
-  handFade: 100, // milliseconds to blend between hand photos
-  handRecoil: 120, // how long the recoil photo stays up, in milliseconds
-  handSize: 0.45, // how far up the hand reaches on a large screen, as a share of the box height
-  handSizePhone: 0.36, // a bit smaller on a phone
-  handSlide: 6, // furthest the hand shifts toward the aim, in pixels
-
-  nearDistance: 0.42, // closest a clay can be. Lower is closer to the shooter
-  farDistance: 1, // furthest a clay can be
-
-  shotTravelNear: 80, // how long a shot takes to reach a near clay, in milliseconds
-  shotTravelFar: 350, // how long a shot takes to reach a far clay, in milliseconds
-
-  // Share of the box width a clay can cover in one second, before distance slows it down.
-  // 0.75 crosses most of the box in a bit over a second.
-  speedMin: desktopClaySettings.speedMin,
-  speedMax: desktopClaySettings.speedMax,
-
-  sizeNear: 1.34, // nearest clays, compared with the base size. Bigger than 1
-  sizeFar: 0.62, // furthest clays, compared with the base size. Smaller than 1
-
-  fairVisible: 0.75, // share of the flight that must stay inside the box
-  fairMargin: 0.04, // keep this share of the box clear at the edges
-  fairTime: 1.2, // seconds a clay must be shootable
-  fairHand: 0.25, // most of the on-screen flight that can sit behind the hand
-  fairTries: 20, // new throws to try before using a safe one
-
-  perfectDuration: 5200, // full 5/5 celebration before the result settles
-  perfectSpinTime: 1800, // one full spin of the main hand
-  perfectSweepStart: 1800, // when the machine-gun sweep begins
-  perfectSweepTime: 2500, // left-to-right sweep time
-  perfectShotCount: 14, // fireworks fired during the sweep
-  perfectRecoilTime: 120, // how long each recoil photo stays up
-  perfectFireworkTravel: 260, // fingertip-to-burst firework time
-  perfectSparkTime: 450, // how long each firework burst lasts
-  winnerBannerStart: 4600, // when the winner quip begins dropping
-  winnerBannerDropTime: 400, // winner quip drop time
-  perfectFireworkSize: 4, // firework dot and spark size
-  perfectSparkCount: 10, // sparks in each firework burst
-};
+export { activeClayFeel, clayFeel, setClayFeel, touchClay, hardMode, settings };
 
 const pelletFade = 400;
 const shakeTime = 110;
 const floaterTime = 480;
-const minAirTime = 1.08;
 const farPattern = 0.78;
 
 const handPoses = [
@@ -118,34 +63,6 @@ function recoilPose(facing: HandFacing): HandPose {
   return "recoil-straight";
 }
 
-type ThrowKind = "crosser" | "away" | "incomer" | "high" | "rabbit" | "battue" | "teal";
-
-type Clay = {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  alive: boolean;
-  kind: ThrowKind;
-  distance: number;
-  age: number;
-  duration: number;
-  gravityScale: number;
-  roll: number;
-  x0: number;
-  y0: number;
-  x1: number;
-  y1: number;
-  cx: number;
-  cy: number;
-  distance0: number;
-  distance1: number;
-  sizeScale: number;
-  wind: number;
-  hang: number;
-  hangLimit: number;
-};
-
 type Pellet = {
   x: number;
   y: number;
@@ -168,6 +85,8 @@ type GameResult = {
   score: number;
   message: string;
   perfect: boolean;
+  invite?: boolean;
+  hardWin?: { banner: string; quip: string } | null;
 };
 
 type Colors = {
@@ -198,10 +117,6 @@ function clamp01(value: number) {
   return Math.max(0, Math.min(1, value));
 }
 
-function rand(min: number, max: number) {
-  return min + Math.random() * (max - min);
-}
-
 function distanceT(distance: number) {
   const span = settings.farDistance - settings.nearDistance;
   if (Math.abs(span) < 0.0001) {
@@ -210,51 +125,23 @@ function distanceT(distance: number) {
   return clamp01((distance - settings.nearDistance) / span);
 }
 
-function pickDistance(from: number, to: number) {
-  const start = lerp(settings.nearDistance, settings.farDistance, from);
-  const end = lerp(settings.nearDistance, settings.farDistance, to);
-  return rand(Math.min(start, end), Math.max(start, end));
-}
-
-function pickPace(from: number, to: number) {
-  return lerp(settings.speedMin, settings.speedMax, rand(from, to));
-}
-
-function pickThrow(): ThrowKind {
-  const options: { kind: ThrowKind; weight: number }[] = [
-    { kind: "crosser", weight: settings.throwCrosser },
-    { kind: "away", weight: settings.throwAway },
-    { kind: "incomer", weight: settings.throwIncomer },
-    { kind: "high", weight: settings.throwHigh },
-    { kind: "rabbit", weight: settings.throwRabbit },
-    { kind: "battue", weight: settings.throwBattue },
-    { kind: "teal", weight: settings.throwTeal },
-  ];
-  const total = options.reduce((sum, option) => sum + Math.max(0, option.weight), 0);
-  let roll = Math.random() * (total || 1);
-  for (const option of options) {
-    roll -= Math.max(0, option.weight);
-    if (roll <= 0) {
-      return option.kind;
-    }
-  }
-  return "crosser";
-}
-
-function parseColor(color: string) {
-  const value = color.trim();
-  if (value.startsWith("#")) {
-    const hex = value.slice(1);
-    const full = hex.length === 3 ? hex.split("").map((part) => part + part).join("") : hex;
+function parseColor(value: string): [number, number, number] {
+  const hex = value.trim();
+  if (hex.startsWith("#") && (hex.length === 7 || hex.length === 4)) {
+    const full =
+      hex.length === 4
+        ? `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`
+        : hex;
     return [
-      Number.parseInt(full.slice(0, 2), 16),
-      Number.parseInt(full.slice(2, 4), 16),
-      Number.parseInt(full.slice(4, 6), 16),
+      Number.parseInt(full.slice(1, 3), 16),
+      Number.parseInt(full.slice(3, 5), 16),
+      Number.parseInt(full.slice(5, 7), 16),
     ];
   }
-  const match = value.match(/(\d+),\s*(\d+),\s*(\d+)/);
-  if (match) {
-    return [Number(match[1]), Number(match[2]), Number(match[3])];
+  const rgb = hex.match(/rgba?\(([^)]+)\)/i);
+  if (rgb) {
+    const parts = rgb[1].split(",").map((part) => Number.parseFloat(part));
+    return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
   }
   return [232, 72, 12];
 }
@@ -266,177 +153,6 @@ function mixColor(from: string, to: string, amount: number) {
   const green = Math.round(lerp(ag, bg, amount));
   const blue = Math.round(lerp(ab, bb, amount));
   return `rgb(${red}, ${green}, ${blue})`;
-}
-
-function pickSize() {
-  const options = [
-    { scale: 1, weight: settings.sizeStandard },
-    { scale: 0.75, weight: settings.sizeMidi },
-    { scale: 0.5, weight: settings.sizeMini },
-  ];
-  const total = options.reduce((sum, option) => sum + Math.max(0, option.weight), 0);
-  let roll = Math.random() * (total || 1);
-  for (const option of options) {
-    roll -= Math.max(0, option.weight);
-    if (roll <= 0) {
-      return option.scale;
-    }
-  }
-  return 1;
-}
-
-function lookOf(clay: Clay, draw = activeClayFeel().draw) {
-  const t = distanceT(clay.distance);
-  const width =
-    settings.claySize *
-    lerp(settings.sizeNear, settings.sizeFar, t) *
-    clay.sizeScale *
-    draw;
-  const disc = width / 2;
-  const pale = t * 0.4;
-  if (clay.kind === "rabbit") {
-    return { rx: Math.max(disc * 0.38, 6), ry: disc, pale, disc };
-  }
-  if (clay.kind === "battue") {
-    const flip = Math.min(1, Math.abs(clay.roll) / 2.2);
-    return {
-      rx: disc * lerp(0.78, 1, flip),
-      ry: disc * (24 / 78) * lerp(0.28, 1.2, flip),
-      pale,
-      disc,
-    };
-  }
-  return { rx: disc, ry: disc * (24 / 78), pale, disc };
-}
-
-function placePath(target: Clay, amount: number, boxWidth: number) {
-  const u = Math.max(0, Math.min(1, amount));
-  if (target.kind === "away") {
-    const ease = 1 - (1 - u) * (1 - u);
-    target.x = lerp(target.x0, target.x1, ease) + Math.sin(ease * Math.PI) * target.cx;
-    target.y = lerp(target.y0, target.y1, ease);
-    target.distance = lerp(target.distance0, target.distance1, ease);
-    target.x += target.wind * boxWidth * 0.42 * Math.sin(u * Math.PI);
-    return;
-  }
-  const rest = 1 - u;
-  target.x = rest * rest * target.x0 + 2 * rest * u * target.cx + u * u * target.x1;
-  target.y = rest * rest * target.y0 + 2 * rest * u * target.cy + u * u * target.y1;
-  target.distance = lerp(target.distance0, target.distance1, u);
-  target.x += target.wind * boxWidth * 0.42 * Math.sin(u * Math.PI);
-}
-
-function stepClay(clay: Clay, dt: number, boxWidth: number, boxHeight: number) {
-  if (clay.kind === "away" || clay.kind === "incomer") {
-    const prevX = clay.x;
-    const prevY = clay.y;
-    clay.age += dt;
-    placePath(clay, clay.age / Math.max(clay.duration, 0.001), boxWidth);
-    clay.vx = (clay.x - prevX) / Math.max(dt, 0.001);
-    clay.vy = (clay.y - prevY) / Math.max(dt, 0.001);
-    return;
-  }
-  const bow = (age: number, span: number, wind: number) =>
-    Math.sin(Math.min(1, Math.max(0, age) / Math.max(span, 0.4)) * Math.PI) *
-    wind *
-    boxWidth *
-    0.42;
-  const sideways = clay.kind === "teal";
-  const before = bow(clay.age, clay.duration, clay.wind);
-  clay.age += dt;
-  let gravityScale = clay.gravityScale;
-  if (
-    clay.kind === "teal" &&
-    clay.y < boxHeight * 0.45 &&
-    Math.abs(clay.vy) < boxHeight * 0.22 &&
-    clay.hang < clay.hangLimit
-  ) {
-    clay.hang += dt;
-    gravityScale = 0.14;
-  }
-  if (clay.kind === "battue" && clay.age > clay.duration * 0.7) {
-    gravityScale += 1.2;
-    clay.roll += dt * 8;
-  }
-  clay.vy += settings.gravity * gravityScale * dt;
-  clay.x += clay.vx * dt;
-  clay.y += clay.vy * dt;
-  const after = bow(clay.age, clay.duration, clay.wind);
-  if (clay.kind === "rabbit") {
-    clay.vx += clay.wind * boxWidth * 0.25 * dt;
-  } else if (sideways) {
-    clay.x += after - before;
-  } else {
-    clay.y += after - before;
-  }
-  if (clay.kind === "teal") {
-    const look = lookOf(clay);
-    if (clay.y < look.ry + 8 && clay.vy < 0) {
-      clay.y = look.ry + 8;
-      clay.vy = 0;
-    }
-  }
-  if (clay.kind === "rabbit") {
-    const look = lookOf(clay);
-    const floor = boxHeight - look.ry;
-    if (clay.y >= floor && clay.vy >= 0) {
-      clay.y = floor;
-      const hop =
-        boxHeight * (0.05 + 0.1 * Math.abs(Math.sin(clay.age * 4.7 + clay.wind * 18)));
-      clay.vy = -Math.sqrt(2 * Math.max(settings.gravity, 1) * hop);
-    }
-    clay.roll += clay.vx * dt * 0.035;
-  }
-}
-
-function clayGone(clay: Clay, boxWidth: number, boxHeight: number) {
-  const look = lookOf(clay);
-  const left = clay.vx < 0 && clay.x < -look.rx * 1.6;
-  const right = clay.vx > 0 && clay.x > boxWidth + look.rx * 1.6;
-  const dropped = clay.y > boxHeight + look.ry * 1.6;
-  const climbed = clay.kind !== "rabbit" && clay.y < -look.ry * 2.4;
-  const finishedPath =
-    (clay.kind === "away" || clay.kind === "incomer") && clay.age >= clay.duration;
-  return finishedPath || left || right || dropped || climbed;
-}
-
-function flightIsFair(
-  source: Clay,
-  boxWidth: number,
-  boxHeight: number,
-  hidden: (x: number, y: number) => boolean,
-) {
-  const ghost: Clay = { ...source };
-  const dt = 1 / 60;
-  let total = 0;
-  let insideTime = 0;
-  let hiddenTime = 0;
-  const marginX = boxWidth * settings.fairMargin;
-  const marginY = boxHeight * settings.fairMargin;
-  while (total < 8 && !clayGone(ghost, boxWidth, boxHeight)) {
-    const inside =
-      ghost.x >= marginX &&
-      ghost.x <= boxWidth - marginX &&
-      ghost.y >= marginY &&
-      ghost.y <= boxHeight - marginY;
-    if (inside) {
-      insideTime += dt;
-      if (hidden(ghost.x, ghost.y)) {
-        hiddenTime += dt;
-      }
-    }
-    total += dt;
-    stepClay(ghost, dt, boxWidth, boxHeight);
-  }
-  if (total <= 0 || insideTime <= 0) {
-    return false;
-  }
-  const shootable = insideTime - hiddenTime;
-  return (
-    insideTime / total >= settings.fairVisible &&
-    shootable >= settings.fairTime &&
-    hiddenTime / insideTime <= settings.fairHand
-  );
 }
 
 function patternRadius(distance: number | null) {
@@ -452,7 +168,6 @@ function shotDelay(distance: number | null) {
 function scatterPellets(x: number, y: number, radius: number): Pellet[] {
   const pellets: Pellet[] = [];
   const count = Math.max(1, Math.round(settings.pelletCount));
-
   for (let index = 0; index < count; index += 1) {
     const angle = Math.random() * Math.PI * 2;
     const distance = Math.sqrt(Math.random()) * radius;
@@ -461,7 +176,6 @@ function scatterPellets(x: number, y: number, radius: number): Pellet[] {
       y: y + Math.sin(angle) * distance,
     });
   }
-
   return pellets;
 }
 
@@ -474,26 +188,6 @@ function pelletHitsClay(clay: Clay, pellet: Pellet) {
   const dy = (pellet.y - clay.y) / hitY;
   return dx * dx + dy * dy <= 1;
 }
-
-function applyTouchSpeed(clay: Clay) {
-  const speed = activeClayFeel().speed;
-  if (speed === 1) {
-    return clay;
-  }
-  clay.duration /= speed;
-  if (clay.kind === "away" || clay.kind === "incomer") {
-    return clay;
-  }
-  if (clay.kind === "rabbit") {
-    clay.vx *= speed;
-    return clay;
-  }
-  clay.vx *= speed;
-  clay.vy *= speed;
-  clay.gravityScale *= speed * speed;
-  return clay;
-}
-
 function drawClay(
   ctx: CanvasRenderingContext2D,
   clay: Clay,
@@ -553,12 +247,34 @@ export function ClayGame({
   liveLabel,
   hitMark,
   scoreMessages,
+  hardScoreMessages,
+  hardWins,
+  hardInvites,
+  hardInviteButton,
+  hardModeLabel,
+  normalModeLabel,
+  beatLine,
+  hard,
+  onHardChange,
+  onHardUnlock,
+  onHardPerfect,
   onFail,
 }: {
   replayLabel: string;
   liveLabel: string;
   hitMark: string;
   scoreMessages: string[][];
+  hardScoreMessages: string[][];
+  hardWins: { banner: string; quip: string }[];
+  hardInvites: string[];
+  hardInviteButton: string;
+  hardModeLabel: string;
+  normalModeLabel: string;
+  beatLine: string | null;
+  hard: boolean;
+  onHardChange: (hard: boolean) => void;
+  onHardUnlock: () => void;
+  onHardPerfect: () => void;
   onFail: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -568,6 +284,13 @@ export function ClayGame({
   const onFailRef = useRef(onFail);
   const hitMarkRef = useRef(hitMark);
   const scoreMessagesRef = useRef(scoreMessages);
+  const hardScoreMessagesRef = useRef(hardScoreMessages);
+  const hardWinsRef = useRef(hardWins);
+  const hardInvitesRef = useRef(hardInvites);
+  const hardRef = useRef(hard);
+  const onHardChangeRef = useRef(onHardChange);
+  const onHardUnlockRef = useRef(onHardUnlock);
+  const onHardPerfectRef = useRef(onHardPerfect);
   const [over, setOver] = useState(false);
   const [result, setResult] = useState<GameResult | null>(null);
 
@@ -584,6 +307,25 @@ export function ClayGame({
   }, [scoreMessages]);
 
   useEffect(() => {
+    hardScoreMessagesRef.current = hardScoreMessages;
+  }, [hardScoreMessages]);
+
+  useEffect(() => {
+    hardWinsRef.current = hardWins;
+  }, [hardWins]);
+
+  useEffect(() => {
+    hardInvitesRef.current = hardInvites;
+  }, [hardInvites]);
+
+  useEffect(() => {
+    hardRef.current = hard;
+    onHardChangeRef.current = onHardChange;
+    onHardUnlockRef.current = onHardUnlock;
+    onHardPerfectRef.current = onHardPerfect;
+  }, [hard, onHardChange, onHardUnlock, onHardPerfect]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     const box = canvas?.parentElement;
     if (!canvas || !box) {
@@ -597,9 +339,14 @@ export function ClayGame({
       return;
     }
 
+    let hardPlan: HardThrowKind[] = [];
     const coarsePointer = window.matchMedia("(pointer: coarse)");
-    setClayFeel(coarsePointer.matches);
-    const onPointerKind = () => setClayFeel(coarsePointer.matches);
+
+    const applyModeFeel = () => {
+      setClayFeel(coarsePointer.matches, hardRef.current);
+    };
+    applyModeFeel();
+    const onPointerKind = () => applyModeFeel();
     coarsePointer.addEventListener("change", onPointerKind);
 
     const colors = readColors(box);
@@ -642,7 +389,6 @@ export function ClayGame({
       "recoil-straight": 0,
       "recoil-right": 0,
     };
-    let nextSize = 1;
     const preloadHands = Promise.all(
       handPoses.map(
         (pose) =>
@@ -768,51 +514,96 @@ export function ClayGame({
       node.textContent = `${hits} / ${launched}`;
     };
 
-    const pickScoreMessage = (value: number) => {
-      const messages = scoreMessagesRef.current[value] ?? [];
+    const pickScoreMessage = (value: number, hardRound: boolean) => {
+      const messages = hardRound
+        ? hardScoreMessagesRef.current[value] ?? []
+        : scoreMessagesRef.current[value] ?? [];
       if (messages.length === 0) {
         return "";
       }
+      const key = hardRound ? STORAGE.lastHardMessage : "clay-last-score-message";
       let previous = lastMessage;
       try {
-        previous =
-          window.sessionStorage.getItem("clay-last-score-message") ?? previous;
+        previous = window.sessionStorage.getItem(key) ?? previous;
       } catch {
         // The in-memory value still prevents repeats for this page.
       }
-      const choices =
-        messages.length > 1
-          ? messages.filter((message) => message !== previous)
-          : messages;
-      const message =
-        choices[Math.floor(Math.random() * Math.max(1, choices.length))] ??
-        messages[0];
+      const message = pickAvoidingRepeat(messages, previous);
       lastMessage = message;
       try {
-        window.sessionStorage.setItem("clay-last-score-message", message);
+        window.sessionStorage.setItem(key, message);
       } catch {
         // Some privacy settings block storage; the game still works.
       }
       return message;
     };
 
+    const pickInvite = () => {
+      const invites = hardInvitesRef.current;
+      let previous = "";
+      try {
+        previous = window.localStorage.getItem(STORAGE.lastInvite) ?? "";
+      } catch {
+        previous = "";
+      }
+      const line = pickAvoidingRepeat(invites, previous);
+      try {
+        window.localStorage.setItem(STORAGE.lastInvite, line);
+      } catch {
+        // Ignore.
+      }
+      return line;
+    };
+
+    const pickHardWin = () => {
+      const wins = hardWinsRef.current;
+      if (wins.length === 0) {
+        return null;
+      }
+      let previous = "";
+      try {
+        previous = window.localStorage.getItem(STORAGE.lastHardWin) ?? "";
+      } catch {
+        previous = "";
+      }
+      const banners = wins.map((win) => win.banner);
+      const banner = pickAvoidingRepeat(banners, previous);
+      const win = wins.find((item) => item.banner === banner) ?? wins[0];
+      try {
+        window.localStorage.setItem(STORAGE.lastHardWin, win.banner);
+      } catch {
+        // Ignore.
+      }
+      return win;
+    };
+
     const finishRound = (now: number) => {
       finished = true;
+      const hardRound = hardRef.current;
       const perfect =
         hits >= Math.max(1, settings.claysPerRound) || forcePerfect;
       forcePerfect = false;
       pendingResult = {
         score: hits,
-        message: pickScoreMessage(
-          perfect ? 5 : Math.max(0, Math.min(4, hits)),
-        ),
+        message: perfect && hardRound
+          ? ""
+          : pickScoreMessage(
+              perfect ? 5 : Math.max(0, Math.min(4, hits)),
+              hardRound,
+            ),
         perfect,
+        invite: perfect && !hardRound,
+        hardWin: perfect && hardRound ? pickHardWin() : null,
       };
       publish();
       if (perfect && !reducedMotion) {
         celebrationAt = now;
         celebrationFinished = false;
         return;
+      }
+      if (perfect && !hardRound) {
+        pendingResult.invite = true;
+        pendingResult.message = pickInvite();
       }
       setResult(pendingResult);
       setOver(true);
@@ -837,243 +628,16 @@ export function ClayGame({
       }
     };
 
-    const freshClay = (kind: ThrowKind, distance: number): Clay => ({
-      x: 0,
-      y: 0,
-      vx: 0,
-      vy: 0,
-      alive: true,
-      kind,
-      distance,
-      age: 0,
-      duration: 0,
-      gravityScale: 0,
-      roll: Math.random() * Math.PI * 2,
-      x0: 0,
-      y0: 0,
-      x1: 0,
-      y1: 0,
-      cx: 0,
-      cy: 0,
-      distance0: distance,
-      distance1: distance,
-      sizeScale: nextSize,
-      wind: (Math.random() - 0.5) * 2 * settings.windStrength,
-      hang: 0,
-      hangLimit: nextSize <= 0.55 ? 0.16 : 0.28,
-    });
-
-    const visibleShare = (target: Clay) => {
-      const steps = 28;
-      let hits = 0;
-      for (let index = 0; index < steps; index += 1) {
-        const ghost = { ...target };
-        placePath(ghost, (index + 0.5) / steps, width);
-        const look = lookOf(ghost);
-        const on =
-          ghost.y > -look.ry &&
-          ghost.y < height + look.ry &&
-          ghost.x > -look.rx &&
-          ghost.x < width + look.rx;
-        if (on) {
-          hits += 1;
-        }
+    const restartPlan = () => {
+      try {
+        hardRef.current = window.localStorage.getItem(STORAGE.mode) === "hard";
+      } catch {
+        // Keep the in-memory mode.
       }
-      return hits / steps;
+      applyModeFeel();
+      hardPlan = hardRef.current ? planHardRound(settings.claysPerRound) : [];
     };
-
-    const holdLongEnough = (target: Clay) => {
-      const share = visibleShare(target);
-      if (share < 0.08) {
-        return;
-      }
-      const visible = target.duration * share;
-      if (visible < minAirTime) {
-        target.duration = Math.min(2.8, (target.duration * minAirTime) / visible);
-      }
-    };
-
-    const aimPath = (target: Clay) => {
-      placePath(target, 0, width);
-      const startX = target.x;
-      const startY = target.y;
-      placePath(target, 0.03, width);
-      const slice = Math.max(0.03 * target.duration, 0.001);
-      target.vx = (target.x - startX) / slice;
-      target.vy = (target.y - startY) / slice;
-      placePath(target, 0, width);
-    };
-
-    const paceTime = (distance: number, pace: number) => {
-      const scaled = pace * lerp(1.12, 0.78, distanceT(distance));
-      const widthsPerSecond = Math.min(0.95, Math.max(0.4, scaled));
-      return 1 / widthsPerSecond;
-    };
-
-    const flightTime = (distance: number, pace: number) => {
-      const boost = nextSize <= 0.55 ? 1.32 : 1;
-      return Math.max(minAirTime, paceTime(distance, pace) / boost);
-    };
-
-    const launchCrosser = (kind: "crosser" | "high") => {
-      const distance =
-        kind === "high" ? pickDistance(0.45, 1) : pickDistance(0, 1);
-      const target = freshClay(kind, distance);
-      const direction = Math.random() < 0.5 ? 1 : -1;
-      const time = flightTime(distance, kind === "high" ? pickPace(0.15, 0.55) : pickPace(0, 1));
-      const look = lookOf(target);
-      const riseLimit = kind === "high" ? 0.06 : 0.2;
-      const yMin = kind === "high" ? height * 0.14 : height * 0.32;
-      const yMax = kind === "high" ? height * 0.34 : height * 0.66;
-      target.y = rand(yMin, Math.max(yMin + 8, yMax));
-      const riseRoom = kind === "high" ? target.y - height * 0.08 : target.y - 14;
-      const rise = Math.min(height * rand(kind === "high" ? 0.02 : 0.07, riseLimit), Math.max(riseRoom, 8));
-      const duration = time;
-      const gravity = Math.max(rise, 12) / (0.125 * duration * duration);
-      const span = width + look.rx * 2;
-      target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
-      target.vx = (direction * span) / duration;
-      target.vy = -0.5 * gravity * duration;
-      target.gravityScale = gravity / Math.max(settings.gravity, 1);
-      target.duration = duration;
-      return target;
-    };
-
-    const launchAway = () => {
-      const side = Math.random() < 0.5 ? -1 : 1;
-      const target = freshClay("away", settings.nearDistance);
-      target.distance0 = rand(settings.nearDistance, lerp(settings.nearDistance, settings.farDistance, 0.28));
-      target.distance1 = rand(lerp(settings.nearDistance, settings.farDistance, 0.72), settings.farDistance);
-      target.distance = target.distance0;
-      target.x0 = width * 0.5 + side * width * rand(0.1, 0.2);
-      target.y0 = height * rand(0.66, 0.86);
-      target.x1 = width * rand(0.22, 0.78);
-      target.y1 = height * rand(0.1, 0.28);
-      target.cx = (Math.random() - 0.5) * width * 0.18;
-      target.duration = flightTime(
-        (target.distance0 + target.distance1) / 2,
-        pickPace(0.15, 0.9),
-      );
-      holdLongEnough(target);
-      aimPath(target);
-      return target;
-    };
-
-    const launchIncomer = () => {
-      const target = freshClay("incomer", settings.farDistance);
-      target.distance0 = rand(lerp(settings.nearDistance, settings.farDistance, 0.78), settings.farDistance);
-      target.distance1 = rand(settings.nearDistance, lerp(settings.nearDistance, settings.farDistance, 0.32));
-      target.distance = target.distance0;
-      target.x0 = width * rand(0.22, 0.78);
-      target.y0 = height * rand(0.16, 0.34);
-      target.x1 = Math.max(width * 0.18, Math.min(width * 0.82, target.x0 + width * rand(-0.24, 0.24)));
-      target.y1 = -height * rand(0.08, 0.16);
-      target.cx = Math.max(
-        width * 0.16,
-        Math.min(width * 0.84, lerp(target.x0, target.x1, 0.4) + width * rand(-0.1, 0.1)),
-      );
-      target.cy = height * rand(0.4, 0.62);
-      target.duration = flightTime(
-        (target.distance0 + target.distance1) / 2,
-        pickPace(0.1, 0.7),
-      );
-      holdLongEnough(target);
-      aimPath(target);
-      return target;
-    };
-
-    const launchRabbit = () => {
-      const distance = pickDistance(0, 0.5);
-      const target = freshClay("rabbit", distance);
-      const direction = Math.random() < 0.5 ? 1 : -1;
-      const time = flightTime(distance, lerp(0.48, 0.7, Math.random()));
-      const look = lookOf(target);
-      const span = width + look.rx * 2;
-      target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
-      target.y = height - look.ry;
-      target.vx = (direction * span) / time;
-      target.vy = -Math.sqrt(2 * Math.max(settings.gravity, 1) * height * rand(0.06, 0.14));
-      target.gravityScale = 1;
-      target.duration = time;
-      return target;
-    };
-
-    const launchBattue = () => {
-      const distance = pickDistance(0.1, 0.8);
-      const target = freshClay("battue", distance);
-      const direction = Math.random() < 0.5 ? 1 : -1;
-      const duration = Math.max(flightTime(distance, pickPace(0.4, 0.95)), 1.7);
-      target.roll = 0;
-      const look = lookOf(target);
-      target.y = rand(height * 0.28, height * 0.52);
-      const rise = Math.min(height * rand(0.02, 0.05), target.y - 14);
-      const gravity = Math.max(rise, 10) / (0.125 * duration * duration);
-      const span = width + look.rx * 2;
-      target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
-      target.vx = (direction * span) / duration;
-      target.vy = -0.5 * gravity * duration;
-      target.gravityScale = gravity / Math.max(settings.gravity, 1);
-      target.duration = duration;
-      return target;
-    };
-
-    const launchTeal = () => {
-      const distance = pickDistance(0.15, 0.7);
-      const target = freshClay("teal", distance);
-      const boost = nextSize <= 0.55 ? 1.28 : 1;
-      target.x = width * rand(0.3, 0.7);
-      target.y = height * rand(0.62, 0.8);
-      const peak = height * rand(0.12, 0.24);
-      const rise = Math.max(48, target.y - peak);
-      const gravity = settings.gravity * 0.62 * boost;
-      target.gravityScale = 0.62 * boost;
-      target.vy = -Math.sqrt(2 * gravity * rise);
-      target.vx = (Math.random() - 0.5) * width * 0.05;
-      target.duration = 1.7;
-      return target;
-    };
-
-    const makeThrow = (kind: ThrowKind) => {
-      if (kind === "crosser" || kind === "high") {
-        return applyTouchSpeed(launchCrosser(kind));
-      }
-      if (kind === "away") {
-        return applyTouchSpeed(launchAway());
-      }
-      if (kind === "incomer") {
-        return applyTouchSpeed(launchIncomer());
-      }
-      if (kind === "battue") {
-        return applyTouchSpeed(launchBattue());
-      }
-      if (kind === "teal") {
-        return applyTouchSpeed(launchTeal());
-      }
-      return applyTouchSpeed(launchRabbit());
-    };
-
-    const safeCrosser = (fast = false, extraTime = 0) => {
-      const target = freshClay(
-        "crosser",
-        lerp(settings.nearDistance, settings.farDistance, 0.45),
-      );
-      target.sizeScale = fast ? settings.fastClaySize : 1;
-      target.wind = 0;
-      const direction = Math.random() < 0.5 ? 1 : -1;
-      const duration =
-        Math.max(1.8, settings.fairTime + 0.55) + Math.max(0, extraTime);
-      const look = lookOf(target);
-      target.y = height * 0.42;
-      const rise = height * 0.05;
-      const gravity = rise / (0.125 * duration * duration);
-      const span = width + look.rx * 2;
-      target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
-      target.vx = (direction * span) / duration;
-      target.vy = -0.5 * gravity * duration;
-      target.gravityScale = gravity / Math.max(settings.gravity, 1);
-      target.duration = duration;
-      return applyTouchSpeed(target);
-    };
+    restartPlan();
 
     const launch = () => {
       if (width < 20 || height < 20) {
@@ -1085,23 +649,34 @@ export function ClayGame({
       const throwsLeft = roundLength - launched;
       const fastStillNeeded = Math.max(0, fastMinimum - fastClays);
       const forceFast =
+        !hardRef.current &&
         fastStillNeeded > 0 &&
         (launched + 1 >= fastClayDeadline || throwsLeft <= fastStillNeeded);
       const tries = Math.max(1, Math.round(settings.fairTries));
-      const kind = pickThrow();
+      const kind: ThrowKind = hardRef.current
+        ? hardPlan[launched] || pickNormalThrow()
+        : pickNormalThrow();
+      const box = { width, height };
       let chosen: Clay | null = null;
       for (let attempt = 0; attempt < tries; attempt += 1) {
-        nextSize = forceFast ? settings.fastClaySize : pickSize();
-        const candidate = makeThrow(kind);
+        const sizeScale = forceFast
+          ? settings.fastClaySize
+          : hardRef.current
+            ? pickSize()
+            : pickSize();
+        const candidate = launchThrow(kind, box, sizeScale);
         if (flightIsFair(candidate, width, height, behindHand)) {
           chosen = candidate;
           break;
         }
       }
       if (!chosen) {
-        nextSize = forceFast ? settings.fastClaySize : 1;
         for (let attempt = 0; attempt < tries; attempt += 1) {
-          const fallback = safeCrosser(forceFast, attempt * 0.04);
+          const fallback = safeCrosser(
+            box,
+            forceFast ? settings.fastClaySize : 1,
+            attempt * 0.04,
+          );
           if (flightIsFair(fallback, width, height, behindHand)) {
             chosen = fallback;
             break;
@@ -1229,6 +804,7 @@ export function ClayGame({
         handOpacity[pose] = pose === facingFor(aimX) ? 1 : 0;
       }
       clearShake();
+      restartPlan();
       nextLaunchAt = performance.now() + 280;
       publish();
       start();
@@ -1304,9 +880,16 @@ export function ClayGame({
       if (celebrationAt <= 0) {
         return;
       }
+      const cele = hardRef.current
+        ? hardCelebration(settings)
+        : {
+            perfectDuration: settings.perfectDuration,
+            perfectShotCount: settings.perfectShotCount,
+            perfectSweepTime: settings.perfectSweepTime,
+          };
       const elapsed = Math.min(
         Math.max(0, now - celebrationAt),
-        settings.perfectDuration,
+        cele.perfectDuration,
       );
       const straight = handImages.straight;
 
@@ -1337,15 +920,15 @@ export function ClayGame({
       ) {
         const shotCount = Math.max(
           1,
-          Math.round(settings.perfectShotCount),
+          Math.round(cele.perfectShotCount),
         );
         const interval =
           shotCount <= 1
-            ? settings.perfectSweepTime
-            : settings.perfectSweepTime / (shotCount - 1);
+            ? cele.perfectSweepTime
+            : cele.perfectSweepTime / (shotCount - 1);
         const sweep = clamp01(
           (elapsed - settings.perfectSweepStart) /
-            settings.perfectSweepTime,
+            cele.perfectSweepTime,
         );
         const facing = celebrationFacing(sweep);
         const latestShot = Math.min(
@@ -1374,7 +957,7 @@ export function ClayGame({
         );
         if (handImage && elapsed <= settings.winnerBannerStart) {
           const sweepEnd =
-            settings.perfectSweepStart + settings.perfectSweepTime;
+            settings.perfectSweepStart + cele.perfectSweepTime;
           const settleGap = Math.max(
             1,
             settings.winnerBannerStart - sweepEnd,
@@ -1677,10 +1260,20 @@ export function ClayGame({
       if (
         celebrationAt > 0 &&
         !celebrationFinished &&
-        now - celebrationAt >= settings.perfectDuration
+        now - celebrationAt >=
+          (hardRef.current
+            ? hardCelebration(settings).perfectDuration
+            : settings.perfectDuration)
       ) {
         celebrationFinished = true;
         if (pendingResult) {
+          if (pendingResult.invite) {
+            pendingResult.message = pickInvite();
+            onHardUnlockRef.current();
+          }
+          if (pendingResult.hardWin) {
+            onHardPerfectRef.current();
+          }
           setResult(pendingResult);
         }
         setOver(true);
@@ -1758,7 +1351,10 @@ export function ClayGame({
     canvas.addEventListener("pointerleave", onPointerLeave);
     canvas.addEventListener("pointercancel", onPointerCancel);
     canvas.addEventListener("replay", onReplay);
-    (window as Window & { __jonesTest?: { smash: () => boolean } }).__jonesTest = {
+    (window as Window & {
+      __jonesTest?: { smash: () => boolean };
+      __jonesHard?: { setHard: (on: boolean) => void; unlock: () => void };
+    }).__jonesTest = {
       smash: () => {
         if (!clay || finished) {
           return false;
@@ -1767,6 +1363,17 @@ export function ClayGame({
         return true;
       },
     };
+    (window as Window & {
+      __jonesHard?: { setHard: (on: boolean) => void; unlock: () => void };
+    }).__jonesHard = {
+      setHard: (on: boolean) => {
+        hardRef.current = on;
+        onHardChangeRef.current(on);
+        applyModeFeel();
+        restartPlan();
+      },
+      unlock: () => onHardUnlockRef.current(),
+    };
     start();
 
     return () => {
@@ -1774,6 +1381,7 @@ export function ClayGame({
       coarsePointer.removeEventListener("change", onPointerKind);
       setClayFeel(false);
       delete (window as Window & { __jonesTest?: { smash: () => boolean } }).__jonesTest;
+      delete (window as Window & { __jonesHard?: unknown }).__jonesHard;
       stop();
       box.style.transform = "";
       observer.disconnect();
@@ -1831,29 +1439,90 @@ export function ClayGame({
           className="absolute top-1/2 left-1/2 flex w-[min(88%,28rem)] -translate-x-1/2 -translate-y-1/2 flex-col items-center rounded-2xl border border-line bg-card px-5 py-5 text-center"
           aria-live="polite"
         >
-          <p className="text-sm font-medium text-muted">
-            {result.score} / {Math.max(1, settings.claysPerRound)}
-          </p>
-          <p
-            className={`mt-2 text-[20px] leading-snug font-semibold ${
-              result.perfect ? "text-clay" : "text-ink"
-            }`}
-          >
-            {result.message}
-          </p>
-          <button
-            ref={replayRef}
-            type="button"
-            className="mt-4 rounded-full border border-line bg-card px-5 py-2.5 text-base text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-            onClick={() => {
-              setResult(null);
-              setOver(false);
-              const canvas = canvasRef.current;
-              canvas?.dispatchEvent(new Event("replay"));
-            }}
-          >
-            {replayLabel}
-          </button>
+          {result.invite ? null : (
+            <p className="text-sm font-medium text-muted">
+              {result.score} / {Math.max(1, settings.claysPerRound)}
+            </p>
+          )}
+          {result.hardWin ? (
+            <>
+              <p className="text-[22px] leading-snug font-semibold text-clay">
+                {result.hardWin.banner}
+              </p>
+              <p className="mt-2 text-[17px] leading-snug text-ink">
+                {result.hardWin.quip}
+              </p>
+            </>
+          ) : (
+            <p
+              className={`mt-2 text-[20px] leading-snug font-semibold ${
+                result.perfect || result.invite ? "text-clay" : "text-ink"
+              }`}
+            >
+              {result.message}
+            </p>
+          )}
+          {beatLine ? (
+            <p className="mt-3 text-sm text-muted">{beatLine}</p>
+          ) : null}
+          {result.invite ? (
+            <button
+              type="button"
+              className="mt-4 rounded-full border border-clay bg-card px-5 py-2.5 text-base text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+              onClick={() => {
+                onHardUnlock();
+                onHardChange(true);
+                setResult(null);
+                setOver(false);
+                const canvas = canvasRef.current;
+                canvas?.dispatchEvent(new Event("replay"));
+              }}
+            >
+              {hardInviteButton}
+            </button>
+          ) : (
+            <button
+              ref={replayRef}
+              type="button"
+              className="mt-4 rounded-full border border-line bg-card px-5 py-2.5 text-base text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+              onClick={() => {
+                setResult(null);
+                setOver(false);
+                const canvas = canvasRef.current;
+                canvas?.dispatchEvent(new Event("replay"));
+              }}
+            >
+              {replayLabel}
+            </button>
+          )}
+          <div className="mt-3 flex gap-4 text-sm">
+            <button
+              type="button"
+              className={`underline underline-offset-4 ${hard ? "text-clay" : "text-muted"}`}
+              onClick={() => {
+                onHardChange(true);
+                setResult(null);
+                setOver(false);
+                const canvas = canvasRef.current;
+                canvas?.dispatchEvent(new Event("replay"));
+              }}
+            >
+              {hardModeLabel}
+            </button>
+            <button
+              type="button"
+              className={`underline underline-offset-4 ${!hard ? "text-clay" : "text-muted"}`}
+              onClick={() => {
+                onHardChange(false);
+                setResult(null);
+                setOver(false);
+                const canvas = canvasRef.current;
+                canvas?.dispatchEvent(new Event("replay"));
+              }}
+            >
+              {normalModeLabel}
+            </button>
+          </div>
         </div>
       ) : null}
     </div>

@@ -36,6 +36,15 @@ export default function Home() {
               liveLabel={home.gameLiveLabel}
               hitMark={home.hitMark}
               scoreMessages={game.scoreMessages}
+              hardScoreMessages={game.hardScoreMessages}
+              hardWins={game.hardWins}
+              hardInvites={game.hardInvites}
+              hardInviteButton={game.hardInviteButton}
+              hardModeLabel={game.hardModeLabel}
+              normalModeLabel={game.normalModeLabel}
+              beatNone={game.beatNone}
+              beatOne={game.beatOne}
+              beatMany={game.beatMany}
             />
           </div>
         </div>

@@ -20,6 +20,15 @@ export type GameContent = {
   draft: boolean;
   replayButton: string;
   scoreMessages: string[][];
+  hardScoreMessages: string[][];
+  hardWins: { banner: string; quip: string }[];
+  hardInvites: string[];
+  hardInviteButton: string;
+  hardModeLabel: string;
+  normalModeLabel: string;
+  beatNone: string;
+  beatOne: string;
+  beatMany: string;
 };
 
 export type PortraitContent = {
@@ -224,24 +233,73 @@ export function readGame(): GameContent {
     throw new Error(`${file} is missing scoreMessages`);
   }
 
-  const scoreMessages = Array.from({ length: 6 }, (_, score) => {
-    const value =
-      messages[String(score)] ?? messages[`"${String(score)}"`];
-    if (!Array.isArray(value) || value.length === 0) {
-      throw new Error(`${file} is missing messages for score ${score}`);
+  const readScoreList = (
+    source: FrontmatterValue | undefined,
+    label: string,
+    requiredScores: number[],
+  ) => {
+    if (!isRecord(source)) {
+      throw new Error(`${file} is missing ${label}`);
     }
-    return value.map((message) => {
-      if (typeof message !== "string") {
-        throw new Error(`${file} has a message that could not be read`);
+    return requiredScores.map((score) => {
+      const value = source[String(score)] ?? source[`"${String(score)}"`];
+      if (!Array.isArray(value) || value.length === 0) {
+        throw new Error(`${file} is missing ${label} for score ${score}`);
       }
-      return message;
+      return value.map((message) => {
+        if (typeof message !== "string") {
+          throw new Error(`${file} has a ${label} message that could not be read`);
+        }
+        return message;
+      });
     });
+  };
+
+  const scoreMessages = readScoreList(messages, "scoreMessages", [0, 1, 2, 3, 4, 5]);
+  const hardScoreMessages = readScoreList(
+    data.hardScoreMessages,
+    "hardScoreMessages",
+    [0, 1, 2, 3, 4],
+  );
+
+  const hardWinsRaw = data.hardWins;
+  if (!Array.isArray(hardWinsRaw) || hardWinsRaw.length === 0) {
+    throw new Error(`${file} is missing hardWins`);
+  }
+  const hardWins = hardWinsRaw.map((item, index) => {
+    if (!isRecord(item)) {
+      throw new Error(`${file} hard win ${index + 1} could not be read`);
+    }
+    return {
+      banner: requiredString(item, "banner", file),
+      quip: requiredString(item, "quip", file),
+    };
+  });
+
+  const hardInvitesRaw = data.hardInvites;
+  if (!Array.isArray(hardInvitesRaw) || hardInvitesRaw.length === 0) {
+    throw new Error(`${file} is missing hardInvites`);
+  }
+  const hardInvites = hardInvitesRaw.map((item) => {
+    if (typeof item !== "string") {
+      throw new Error(`${file} has a hard invite that could not be read`);
+    }
+    return item;
   });
 
   return {
     draft: data.draft === "true",
     replayButton: requiredString(data, "replayButton", file),
     scoreMessages,
+    hardScoreMessages,
+    hardWins,
+    hardInvites,
+    hardInviteButton: requiredString(data, "hardInviteButton", file),
+    hardModeLabel: requiredString(data, "hardModeLabel", file),
+    normalModeLabel: requiredString(data, "normalModeLabel", file),
+    beatNone: requiredString(data, "beatNone", file),
+    beatOne: requiredString(data, "beatOne", file),
+    beatMany: requiredString(data, "beatMany", file),
   };
 }
 

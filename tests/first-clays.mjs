@@ -238,7 +238,7 @@ async function readStats(page, smashStart) {
   }, smashStart);
 }
 
-async function runPass(browser, { throttle }) {
+async function runPass(browser, { throttle, hard = false }) {
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
     deviceScaleFactor: 2,
@@ -248,11 +248,25 @@ async function runPass(browser, { throttle }) {
   await session.send("Emulation.setCPUThrottlingRate", { rate: throttle });
   await session.send("Network.setCacheDisabled", { cacheDisabled: true });
   await page.addInitScript(init);
+  if (hard) {
+    await page.addInitScript(() => {
+      try {
+        window.localStorage.setItem("clay-hard-unlocked", "1");
+        window.localStorage.setItem("clay-mode", "hard");
+      } catch {
+        // Ignore.
+      }
+    });
+  }
   page.on("pageerror", (error) => {
     console.error("pageerror", error.message);
   });
   await page.goto(base, { waitUntil: "networkidle", timeout: 60000 });
   await page.getByRole("button", { name: "Pull", exact: true }).click({ timeout: 20000 });
+  if (hard) {
+    await page.waitForFunction(() => window.__jonesHard, null, { timeout: 20000 });
+    await page.evaluate(() => window.__jonesHard.setHard(true));
+  }
   if (!quick) {
     await session.send("Tracing.start", {
       transferMode: "ReturnAsStream",
@@ -273,7 +287,8 @@ async function runPass(browser, { throttle }) {
   if (check) {
     try {
       await page.waitForFunction(() => window.__jonesPerf?.asleep === true, null, {
-        timeout: 20000,
+        // A perfect round celebration needs more wall time when the CPU is slowed.
+        timeout: Math.max(20000, 15000 * throttle),
       });
       stats.asleep = true;
     } catch {
@@ -360,6 +375,8 @@ const browser = await chromium.launch({ headless: true });
 const passes = quick
   ? [await runPass(browser, { throttle: 1 })]
   : [await runPass(browser, { throttle: 4 }), await runPass(browser, { throttle: 1 })];
+const hardPass =
+  check && !quick ? await runPass(browser, { throttle: 1, hard: true }) : null;
 await browser.close();
 const throttled = quick ? null : passes[0];
 const desktop = quick ? passes[0] : passes[1];
@@ -378,6 +395,13 @@ const report = {
     longTasks: desktop.longTasks.map(summariseTask),
     loafs: desktop.loafs.map(summariseTask),
   },
+  hard: hardPass
+    ? {
+        ...hardPass,
+        longTasks: hardPass.longTasks.map(summariseTask),
+        loafs: hardPass.loafs.map(summariseTask),
+      }
+    : null,
 };
 fs.mkdirSync("perf", { recursive: true });
 fs.writeFileSync(path.join("perf", `${label}.json`), JSON.stringify(report, null, 2));
@@ -515,6 +539,17 @@ if (check && throttled) {
           `${name} redrew ${canvasName} at ${rec.pixels} pixels, bigger than the game and the tray (${allowed})`,
         );
       }
+    }
+  }
+  if (hardPass) {
+    if (hardPass.smashed !== 5) {
+      problems.push(`hard smashed ${hardPass.smashed}, expected 5`);
+    }
+    if (hardPass.longTasks.length) {
+      problems.push(`hard long tasks: ${hardPass.longTasks.length}`);
+    }
+    if (hardPass.loafs.length) {
+      problems.push(`hard long animation frames: ${hardPass.loafs.length}`);
     }
   }
   if (problems.length) {
