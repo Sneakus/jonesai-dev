@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { ClayScene } from "@/components/clay-scene";
 import { formatBeatCount, STORAGE } from "@/src/clay-feel";
+import {
+  type ClayTestShortcut,
+} from "@/src/clay-test-shortcuts";
 
 type ClayGameHostProps = {
   label: string;
@@ -46,6 +49,9 @@ export function ClayGameHost({
   >(null);
   const [failed, setFailed] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [testShortcut, setTestShortcut] = useState<ClayTestShortcut | null>(
+    null,
+  );
   const [unlocked, setUnlocked] = useState(() => {
     if (typeof window === "undefined") {
       return false;
@@ -67,6 +73,32 @@ export function ClayGameHost({
     }
   });
   const [beatCount, setBeatCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_CLAY_TEST_SHORTCUTS !== "1") {
+      return;
+    }
+    let cancelled = false;
+    void import("@/src/clay-test-shortcuts-live").then((mod) => {
+      if (cancelled) {
+        return;
+      }
+      const shortcut = mod.readClayTestShortcut();
+      if (!shortcut) {
+        return;
+      }
+      const next = mod.writeClayTestStorage(shortcut, STORAGE);
+      setUnlocked(next.unlocked);
+      setHard(next.mode === "hard");
+      setTestShortcut(shortcut);
+      if (mod.clayTestStartsPlaying(shortcut)) {
+        setPlaying(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -123,6 +155,10 @@ export function ClayGameHost({
   };
 
   const reportPerfect = () => {
+    if (testShortcut === "win" || testShortcut === "highgun") {
+      // Celebration shortcuts must never increase the public beat count.
+      return;
+    }
     try {
       if (window.localStorage.getItem(STORAGE.counted) === "1") {
         return;
@@ -168,6 +204,11 @@ export function ClayGameHost({
         beatLine={beatLine}
         highGunLabel={highGunLabel}
         hard={hard}
+        testShortcut={
+          testShortcut === "win" || testShortcut === "highgun"
+            ? testShortcut
+            : null
+        }
         onHardChange={setMode}
         onHardUnlock={unlock}
         onHardPerfect={reportPerfect}

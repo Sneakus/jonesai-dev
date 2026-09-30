@@ -1,6 +1,16 @@
 import type { NextConfig } from "next";
 
+// Preview and local development can use ?test= shortcuts. Production cannot.
+const clayTestShortcuts =
+  process.env.NODE_ENV !== "production" ||
+  process.env.VERCEL_ENV === "preview"
+    ? "1"
+    : "";
+
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_CLAY_TEST_SHORTCUTS: clayTestShortcuts,
+  },
   async headers() {
     return [
       {

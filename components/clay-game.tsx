@@ -24,6 +24,7 @@ import {
   perfectHandOpacity,
   perfectLastShotAt,
 } from "@/src/clay-celebration";
+import type { ClayTestShortcut } from "@/src/clay-test-shortcuts";
 import {
   settings,
   lookOf,
@@ -262,6 +263,7 @@ export function ClayGame({
   beatLine,
   highGunLabel,
   hard,
+  testShortcut = null,
   onHardChange,
   onHardUnlock,
   onHardPerfect,
@@ -280,6 +282,7 @@ export function ClayGame({
   beatLine: string | null;
   highGunLabel: string;
   hard: boolean;
+  testShortcut?: ClayTestShortcut | null;
   onHardChange: (hard: boolean) => void;
   onHardUnlock: () => void;
   onHardPerfect: () => void;
@@ -295,6 +298,7 @@ export function ClayGame({
   const hardScoreMessagesRef = useRef(hardScoreMessages);
   const hardWinsRef = useRef(hardWins);
   const highGunLabelRef = useRef(highGunLabel);
+  const testShortcutRef = useRef<ClayTestShortcut | null>(testShortcut);
   const hardInvitesRef = useRef(hardInvites);
   const hardRef = useRef(hard);
   const onHardChangeRef = useRef(onHardChange);
@@ -325,6 +329,9 @@ export function ClayGame({
   useEffect(() => {
     highGunLabelRef.current = highGunLabel;
   }, [highGunLabel]);
+  useEffect(() => {
+    testShortcutRef.current = testShortcut;
+  }, [testShortcut]);
 
   useEffect(() => {
     hardInvitesRef.current = hardInvites;
@@ -375,7 +382,7 @@ export function ClayGame({
     let fastClayDeadline =
       1 + Math.floor(Math.random() * Math.max(1, settings.claysPerRound));
     let lastMessage = "";
-    let forcePerfect = window.location.href.endsWith("?perfect");
+    let forcePerfect = false;
     let celebrationAt = 0;
     let celebrationFinished = false;
     let highGunActive = false;
@@ -424,10 +431,13 @@ export function ClayGame({
           }),
       ),
     );
+    let onHandsReady: (() => void) | null = null;
     preloadHands
       .then(() => {
         if (!stopped) {
           handsReady = true;
+          onHandsReady?.();
+          wake();
         }
       })
       .catch(() => {
@@ -633,6 +643,60 @@ export function ClayGame({
       setResult(pendingResult);
       setOver(true);
     };
+
+    const beginTestCelebration = (now: number) => {
+      const shortcut = testShortcutRef.current;
+      if (shortcut !== "win" && shortcut !== "highgun") {
+        return;
+      }
+      if (finished || celebrationAt > 0) {
+        return;
+      }
+      const high = shortcut === "highgun";
+      hardRef.current = high;
+      applyModeFeel();
+      finished = true;
+      hits = Math.max(1, settings.claysPerRound);
+      launched = hits;
+      clay = null;
+      nextLaunchAt = 0;
+      pendingResult = {
+        score: hits,
+        message: high ? "" : pickScoreMessage(5, false),
+        perfect: true,
+        invite: !high,
+        hardWin: high ? pickHardWin() : null,
+      };
+      publish();
+      if (high) {
+        celebrationAt = now;
+        celebrationFinished = false;
+        highGunActive = true;
+        if (!reducedMotion) {
+          slowMoUntil = now + highGunTiming.slowMoMs;
+        }
+        wake();
+        return;
+      }
+      if (!reducedMotion) {
+        celebrationAt = now;
+        celebrationFinished = false;
+        highGunActive = false;
+        wake();
+        return;
+      }
+      pendingResult.invite = true;
+      pendingResult.message = pickInvite();
+      setResult(pendingResult);
+      setOver(true);
+    };
+
+    onHandsReady = () => {
+      beginTestCelebration(performance.now());
+    };
+    if (handsReady) {
+      onHandsReady();
+    }
 
     const clearShake = () => {
       shakeAt = 0;
@@ -1389,7 +1453,11 @@ export function ClayGame({
             reveal.message = pickInvite();
             onHardUnlockRef.current();
           }
-          if (reveal.hardWin) {
+          if (
+            reveal.hardWin &&
+            testShortcutRef.current !== "win" &&
+            testShortcutRef.current !== "highgun"
+          ) {
             onHardPerfectRef.current();
           }
           setResult(reveal);

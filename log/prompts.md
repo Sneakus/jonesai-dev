@@ -2010,3 +2010,22 @@ Tell me in plain English the difficulty numbers before and after, the cause you 
 ```
 Changed: Hard mode fairness and difficulty, High gun celebration, and celebration hand timing fix.
 Files: src/clay-throws.ts, src/clay-feel.ts, src/clay-difficulty.ts, src/clay-difficulty.test.ts, src/clay-celebration.ts, src/clay-celebration.test.ts, components/clay-game.tsx, components/clay-game-host.tsx, content/game.md, lib/content.ts, app/page.tsx, log/prompts.md
+
+### 2026-09-30 22:44
+Prompt:
+```
+Make this easy for me to test, without touching the live site:
+
+1. Test-only shortcuts, available only in development and Vercel preview builds (never in production, and add a test proving they're absent from the production build). Adding these to the page address should work:
+   - ?test=hard  unlocks hard mode and switches to it
+   - ?test=normal  resets to normal mode, locked, as a new visitor would see it
+   - ?test=win  plays the normal 5/5 celebration straight away
+   - ?test=highgun  plays the High gun celebration straight away
+   The count must never increase from a shortcut.
+
+2. Push the current local commits to a new branch called hard-mode (not main), so Vercel builds a preview. Give me the preview link, and the full links with each shortcut added, ready to open on my computer and phone.
+
+3. Run all the tests and gitleaks git -v before pushing the branch.
+```
+Changed: Preview-only clay test shortcuts, then push hard-mode branch for a Vercel preview.
+Files: next.config.ts, src/clay-test-shortcuts.ts, src/clay-test-shortcuts-live.ts, src/clay-test-shortcuts.test.ts, tests/clay-test-shortcuts-absent.mjs, components/clay-game-host.tsx, components/clay-game.tsx, log/prompts.md
