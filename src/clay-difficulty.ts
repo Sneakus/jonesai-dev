@@ -73,16 +73,6 @@ function measureFlight(source: Clay, box: LaunchBox) {
     path += Math.hypot(ghost.x - beforeX, ghost.y - beforeY);
     total += dt;
     if (
-      ghost.age >= ghost.duration &&
-      (ghost.kind === "away" ||
-        ghost.kind === "incomer" ||
-        ghost.kind === "dropper" ||
-        ghost.kind === "curler" ||
-        ghost.kind === "looper")
-    ) {
-      break;
-    }
-    if (
       ghost.x < -200 ||
       ghost.x > box.width + 200 ||
       ghost.y < -200 ||

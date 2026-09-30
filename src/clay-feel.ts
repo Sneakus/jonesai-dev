@@ -10,9 +10,9 @@ export const touchClay = {
 export const hardMode = {
   draw: 0.8, // about 20% smaller than normal
   hit: 0.8, // hit area about 20% smaller than normal
-  speed: 1.2, // about 20% faster than normal
+  speed: 1.45, // about 45% faster than normal
   windMul: 1.5, // wind about 50% stronger
-  crosserSpeedMul: 1.4, // crossers about 40% faster in hard mode
+  crosserSpeedMul: 1.6, // crossers about 60% faster in hard mode
   midiWeightMul: 2, // midi clays about twice as common
   miniWeightMul: 2, // mini clays about twice as common
   minTricky: 3, // every hard round has at least this many tricky throws

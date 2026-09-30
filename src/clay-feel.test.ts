@@ -44,15 +44,15 @@ describe("clay feel on phones and hard mode", () => {
   it("applies hard settings only in hard mode, on top of phone settings", () => {
     expect(hardMode.draw).toBe(0.8);
     expect(hardMode.hit).toBe(0.8);
-    expect(hardMode.speed).toBe(1.2);
+    expect(hardMode.speed).toBe(1.45);
     expect(hardMode.windMul).toBe(1.5);
-    expect(hardMode.crosserSpeedMul).toBe(1.4);
+    expect(hardMode.crosserSpeedMul).toBe(1.6);
     expect(hardMode.minTricky).toBe(3);
     setClayFeel(false, true);
     expect(activeClayFeel()).toEqual({
       draw: 0.8,
       hit: 0.8,
-      speed: 1.2,
+      speed: 1.45,
     });
     setClayFeel(true, true);
     expect(activeClayFeel()).toEqual({

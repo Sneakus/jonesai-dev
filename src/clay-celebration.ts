@@ -12,15 +12,18 @@ export type PerfectCelebrationSettings = {
   handSettleTime?: number;
 };
 
+/** Bigger High gun: about 7 seconds, skippable. */
 export const highGunTiming = {
-  slowMoMs: 1000,
-  slowMoScale: 0.25,
-  smokeMs: 2000,
-  handLowerMs: 900,
-  rosetteDropMs: 650,
-  rosetteSwingMs: 1800,
-  bannerAfterRosetteMs: 280,
-  holdAfterBannerMs: 900,
+  slowMoMs: 1500,
+  slowMoScale: 0.22,
+  smokeMs: 2400,
+  handLowerMs: 1200,
+  shardAssembleMs: 1500,
+  rosetteDropMs: 750,
+  rosetteSwingMs: 2400,
+  shineMs: 1000,
+  bannerAfterRosetteMs: 350,
+  holdAfterBannerMs: 1400,
 };
 
 function clamp01(value: number) {
@@ -64,7 +67,6 @@ export function perfectHandOpacity(
   settings: PerfectCelebrationSettings,
 ) {
   const { recoilEnd, actionEnd } = perfectActionEnd(settings);
-  // Keep the hand solid through the last recoil at least.
   const solidUntil = Math.max(recoilEnd, actionEnd);
   if (elapsed <= solidUntil) {
     return 1;
@@ -88,15 +90,12 @@ export function perfectCelebrationDuration(settings: PerfectCelebrationSettings)
 
 export function highGunDuration(reducedMotion: boolean) {
   if (reducedMotion) {
-    return (
-      highGunTiming.handLowerMs * 0.45 +
-      highGunTiming.rosetteDropMs * 0.2 +
-      highGunTiming.holdAfterBannerMs
-    );
+    return highGunTiming.holdAfterBannerMs;
   }
   return (
     highGunTiming.slowMoMs +
     highGunTiming.handLowerMs +
+    highGunTiming.shardAssembleMs +
     highGunTiming.rosetteDropMs +
     highGunTiming.bannerAfterRosetteMs +
     highGunTiming.holdAfterBannerMs
@@ -105,34 +104,79 @@ export function highGunDuration(reducedMotion: boolean) {
 
 export function highGunPhases(elapsed: number, reducedMotion: boolean) {
   if (reducedMotion) {
-    const handLower = Math.min(
-      highGunTiming.handLowerMs * 0.45,
-      highGunTiming.handLowerMs,
-    );
-    const rosetteAt = handLower * 0.2;
     return {
       slowMo: false,
       smoke: false,
-      handLowerProgress: clamp01(elapsed / Math.max(1, handLower)),
-      rosetteProgress: clamp01((elapsed - rosetteAt) / Math.max(1, handLower * 0.5)),
-      showBanner: elapsed >= rosetteAt,
+      handLowerProgress: 1,
+      shardProgress: 1,
+      rosetteProgress: 1,
+      shineProgress: 1,
+      showBanner: true,
+      dim: 0.18,
       done: elapsed >= highGunDuration(true),
     };
   }
-  const afterSlow = Math.max(0, elapsed - highGunTiming.slowMoMs);
-  const handLowerProgress = clamp01(afterSlow / highGunTiming.handLowerMs);
-  const rosetteAt = highGunTiming.slowMoMs + highGunTiming.handLowerMs * 0.55;
+
+  const smokeEnd = highGunTiming.smokeMs;
+  const handStart = highGunTiming.slowMoMs * 0.55;
+  const handLowerProgress = clamp01(
+    (elapsed - handStart) / highGunTiming.handLowerMs,
+  );
+  const shardAt = highGunTiming.slowMoMs + highGunTiming.handLowerMs * 0.35;
+  const shardProgress = clamp01(
+    (elapsed - shardAt) / highGunTiming.shardAssembleMs,
+  );
+  const rosetteAt = shardAt + highGunTiming.shardAssembleMs * 0.72;
   const rosetteProgress = clamp01(
     (elapsed - rosetteAt) / highGunTiming.rosetteDropMs,
   );
+  const shineAt = rosetteAt + highGunTiming.rosetteDropMs * 0.55;
+  const shineProgress = clamp01((elapsed - shineAt) / highGunTiming.shineMs);
   const bannerAt =
-    rosetteAt + highGunTiming.rosetteDropMs + highGunTiming.bannerAfterRosetteMs;
+    rosetteAt +
+    highGunTiming.rosetteDropMs +
+    highGunTiming.bannerAfterRosetteMs;
+
   return {
     slowMo: elapsed < highGunTiming.slowMoMs,
-    smoke: elapsed < highGunTiming.smokeMs,
+    smoke: elapsed < smokeEnd,
     handLowerProgress,
+    shardProgress,
     rosetteProgress,
+    shineProgress,
     showBanner: elapsed >= bannerAt,
+    dim: 0.22,
     done: elapsed >= highGunDuration(false),
   };
+}
+
+/** 1 -> 1st, 2 -> 2nd, 3 -> 3rd, 11 -> 11th, 21 -> 21st, etc. */
+export function ordinalSuffix(n: number) {
+  const abs = Math.abs(Math.trunc(n));
+  const mod100 = abs % 100;
+  if (mod100 >= 11 && mod100 <= 13) {
+    return "th";
+  }
+  switch (abs % 10) {
+    case 1:
+      return "st";
+    case 2:
+      return "nd";
+    case 3:
+      return "rd";
+    default:
+      return "th";
+  }
+}
+
+export function formatOrdinal(n: number) {
+  return `${Math.trunc(n)}${ordinalSuffix(n)}`;
+}
+
+/** Fill {n} / {ordinal} in the draft beat-you line. */
+export function formatBeatYouLine(template: string, count: number) {
+  const ordinal = formatOrdinal(count);
+  return template
+    .replaceAll("{ordinal}", ordinal)
+    .replaceAll("{n}", String(Math.trunc(count)));
 }

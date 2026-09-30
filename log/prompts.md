@@ -2042,3 +2042,32 @@ Run all the tests, a clean production build, the code check and gitleaks git -v.
 ```
 Changed: Added Vercel Web Analytics, skipping development and clay test shortcuts.
 Files: app/layout.tsx, src/site-analytics.ts, src/site-analytics.test.ts, package.json, package-lock.json, log/prompts.md
+
+### 2026-09-30 23:02
+Prompt:
+```
+Two changes on the hard-mode branch. Stop and tell me if anything fails.
+
+1. Real flight physics for every throw (normal and hard):
+   - Make all throws fly under the same physical model: gravity; air drag that only ever slows the clay (proportional to speed squared); lift proportional to speed squared that fades as the clay slows; and a steady sideways curl from spin and tilt, constant in direction for the whole flight. No scripted or time-based changes to speed or direction anywhere.
+   - Each throw type differs only in its launch conditions (speed, angle, direction, spin, tilt, lift and drag for its clay size): the looper is launched high with plenty of lift, so it hangs as it slows and then falls away; the dropping incomer comes in high and drops as its lift fades; replace the "curler" with a curling crosser that bends one way only, like a real clay with spin. Battue keeps little lift, so it drops sharply at the end.
+   - If the normal throws already use a physical model, reuse it rather than writing a second one. Normal mode should look and feel the same; tell me if anything in normal mode changes.
+   - The fairness check may only change a throw's launch conditions, never its flight.
+   - Tests: for every throw type, over many samples, the horizontal speed never increases, the total speed only increases while falling, the curl never changes direction, and there are no discontinuities in speed or direction. Re-run the difficulty report and show me the numbers for both modes, before and after.
+
+2. A bigger High gun celebration, about 7 seconds, skippable with a click or Pull:
+   - The page dims slightly, with a soft spotlight on the game.
+   - The last break plays in slow motion for about 1.5 seconds.
+   - Smoke curls from the fingertip, then the hand lowers out of frame.
+   - The shards of all five broken clays fly back in and assemble into the clay-orange rosette.
+   - The rosette settles with a bounce and a gentle swing, and a shine sweeps across "High Gun".
+   - Then the banner and quip appear, followed by "You're the Nth person to beat it." (with the right ending: 1st, 2nd, 3rd, 11th, 12th, 13th, 21st and so on), using the count after this win. If the count isn't available, leave that line out. Add the line to content/game.md, marked draft.
+   - Reduced motion: no slow motion, smoke or flying shards; the rosette, banner, quip and count line appear straight away.
+   - The performance check must pass during the whole celebration.
+
+3. Run all the tests, a clean production build, the code check, the home page performance check (normal and hard) and gitleaks git -v. Push to the hard-mode branch only, and give me the new preview links with the shortcuts.
+
+Tell me in plain English what changed, whether normal mode changed at all, and the difficulty numbers.
+```
+Changed: Unified real flight physics for all throws; bigger skippable High gun with ordinal beat line; difficulty retuned.
+Files: src/clay-flight.ts, src/clay-flight.test.ts, src/clay-throws.ts, src/clay-difficulty.ts, src/clay-difficulty-before.test.ts, src/clay-difficulty.test.ts, src/clay-feel.ts, src/clay-feel.test.ts, src/clay-celebration.ts, src/clay-celebration.test.ts, components/clay-game.tsx, components/clay-game-host.tsx, content/game.md, lib/content.ts, app/page.tsx, log/prompts.md

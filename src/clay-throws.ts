@@ -7,6 +7,7 @@ import {
   isHardModeActive,
   type HardThrowKind,
 } from "./clay-feel";
+import { sizeAero, stepFlight } from "./clay-flight";
 
 export const settings = {
   gravity: 1000,
@@ -48,21 +49,21 @@ export const settings = {
   sizeFar: 0.62,
   fairVisible: 0.75,
   fairMargin: 0.04,
-  fairTime: 1.2,
+  fairTime: 1.05,
   fairHand: 0.25,
-  fairTries: 20,
+  fairTries: 28,
   perfectDuration: 5200,
   perfectSpinTime: 1800,
   perfectSweepStart: 1800,
   perfectSweepTime: 2500,
-  perfectShotCount: 14,
+  perfectShotCount: 12,
   perfectRecoilTime: 120,
   perfectFireworkTravel: 260,
   perfectSparkTime: 450,
   winnerBannerStart: 4600,
   winnerBannerDropTime: 400,
   perfectFireworkSize: 4,
-  perfectSparkCount: 10,
+  perfectSparkCount: 6,
   handSettleTime: 420,
 };
 
@@ -77,6 +78,7 @@ export type Clay = {
   kind: ThrowKind;
   distance: number;
   age: number;
+  /** Soft air-time hint used only when nudging launch speed for fairness. */
   duration: number;
   gravityScale: number;
   roll: number;
@@ -93,6 +95,12 @@ export type Clay = {
   hang: number;
   hangLimit: number;
   curl: number;
+  drag: number;
+  lift: number;
+  distanceVel: number;
+  launchDirX: number;
+  /** Rabbit floor bounce energy, set at launch. */
+  bounce: number;
 };
 
 function lerp(from: number, to: number, amount: number) {
@@ -172,141 +180,31 @@ export function lookOf(clay: Clay, draw = activeClayFeel().draw) {
 }
 
 export function placePath(target: Clay, amount: number, boxWidth: number) {
-  const u = Math.max(0, Math.min(1, amount));
-  if (target.kind === "away") {
-    const ease = 1 - (1 - u) * (1 - u);
-    target.x = lerp(target.x0, target.x1, ease) + Math.sin(ease * Math.PI) * target.cx;
-    target.y = lerp(target.y0, target.y1, ease);
-    target.distance = lerp(target.distance0, target.distance1, ease);
-    target.x += target.wind * boxWidth * 0.42 * Math.sin(u * Math.PI);
-    return;
-  }
-  if (target.kind === "dropper") {
-    const approach = Math.min(1, u / 0.72);
-    const drop = u > 0.72 ? ((u - 0.72) / 0.28) ** 2 : 0;
-    target.x =
-      lerp(target.x0, target.x1, approach) + Math.sin(approach * Math.PI) * target.cx;
-    target.y = lerp(target.y0, target.y1, approach) + drop * (target.cy || boxWidth * 0.22);
-    target.distance = lerp(
-      target.distance0,
-      target.distance1,
-      Math.min(1, approach + drop * 0.35),
-    );
-    target.x += target.wind * boxWidth * 0.42 * Math.sin(u * Math.PI);
-    return;
-  }
-  if (target.kind === "curler") {
-    const rest = 1 - u;
-    target.x = rest * rest * target.x0 + 2 * rest * u * target.cx + u * u * target.x1;
-    target.y = rest * rest * target.y0 + 2 * rest * u * target.cy + u * u * target.y1;
-    target.x += Math.sin(u * Math.PI * 2) * target.curl * boxWidth;
-    target.distance = lerp(target.distance0, target.distance1, u);
-    target.x += target.wind * boxWidth * 0.42 * Math.sin(u * Math.PI);
-    return;
-  }
-  const rest = 1 - u;
-  target.x = rest * rest * target.x0 + 2 * rest * u * target.cx + u * u * target.x1;
-  target.y = rest * rest * target.y0 + 2 * rest * u * target.cy + u * u * target.y1;
-  target.distance = lerp(target.distance0, target.distance1, u);
-  target.x += target.wind * boxWidth * 0.42 * Math.sin(u * Math.PI);
+  // Kept for older call sites; live flight uses stepClay physics only.
+  void amount;
+  void boxWidth;
+  void target;
 }
 
 export function stepClay(clay: Clay, dt: number, boxWidth: number, boxHeight: number) {
-  if (
-    clay.kind === "away" ||
-    clay.kind === "incomer" ||
-    clay.kind === "dropper" ||
-    clay.kind === "curler" ||
-    clay.kind === "looper"
-  ) {
-    const prevX = clay.x;
-    const prevY = clay.y;
-    clay.age += dt;
-    if (clay.kind === "looper") {
-      placeLooper(clay, clay.age / Math.max(clay.duration, 0.001), boxWidth, boxHeight);
-    } else if (clay.kind === "incomer") {
-      placePath(clay, clay.age / Math.max(clay.duration, 0.001), boxWidth);
-    } else {
-      placePath(clay, clay.age / Math.max(clay.duration, 0.001), boxWidth);
-    }
-    clay.vx = (clay.x - prevX) / Math.max(dt, 0.001);
-    clay.vy = (clay.y - prevY) / Math.max(dt, 0.001);
-    return;
+  void boxWidth;
+  stepFlight(clay, dt, settings.gravity);
+
+  if (clay.kind === "battue") {
+    clay.roll += Math.abs(clay.vx) * dt * 0.02;
   }
-  const bow = (age: number, span: number, wind: number) =>
-    Math.sin(Math.min(1, Math.max(0, age) / Math.max(span, 0.4)) * Math.PI) *
-    wind *
-    boxWidth *
-    0.42;
-  const sideways = clay.kind === "teal";
-  const before = bow(clay.age, clay.duration, clay.wind);
-  clay.age += dt;
-  let gravityScale = clay.gravityScale;
-  if (
-    clay.kind === "teal" &&
-    clay.y < boxHeight * 0.45 &&
-    Math.abs(clay.vy) < boxHeight * 0.22 &&
-    clay.hang < clay.hangLimit
-  ) {
-    clay.hang += dt;
-    gravityScale = 0.14;
-  }
-  if (clay.kind === "battue" && clay.age > clay.duration * 0.7) {
-    gravityScale += 1.2;
-    clay.roll += dt * 8;
-  }
-  clay.vy += settings.gravity * gravityScale * dt;
-  clay.x += clay.vx * dt;
-  clay.y += clay.vy * dt;
-  const after = bow(clay.age, clay.duration, clay.wind);
-  if (clay.kind === "rabbit") {
-    clay.vx += clay.wind * boxWidth * 0.25 * dt;
-  } else if (sideways) {
-    clay.x += after - before;
-  } else {
-    clay.y += after - before;
-  }
-  if (clay.kind === "teal") {
-    const look = lookOf(clay);
-    if (clay.y < look.ry + 8 && clay.vy < 0) {
-      clay.y = look.ry + 8;
-      clay.vy = 0;
-    }
-  }
+
   if (clay.kind === "rabbit") {
     const look = lookOf(clay);
     const floor = boxHeight - look.ry;
     if (clay.y >= floor && clay.vy >= 0) {
       clay.y = floor;
-      const hop =
-        boxHeight * (0.05 + 0.1 * Math.abs(Math.sin(clay.age * 4.7 + clay.wind * 18)));
-      clay.vy = -Math.sqrt(2 * Math.max(settings.gravity, 1) * hop);
+      // Physical bounce using energy set at launch - not a timed script.
+      clay.vy = -Math.abs(clay.bounce);
+      clay.bounce *= 0.72;
     }
     clay.roll += clay.vx * dt * 0.035;
   }
-}
-
-function placeLooper(
-  target: Clay,
-  amount: number,
-  boxWidth: number,
-  boxHeight: number,
-) {
-  const u = Math.max(0, Math.min(1, amount));
-  // Slow climb, brief hang near the top, then fall away fast.
-  // Hard mode hangs less so the clay is shootable for less time.
-  const hangEnd = isHardModeActive() ? 0.48 : 0.62;
-  const climb = Math.min(1, u / 0.45);
-  const hang = u > 0.45 && u < hangEnd ? (u - 0.45) / Math.max(0.01, hangEnd - 0.45) : 0;
-  const fall = u >= hangEnd ? ((u - hangEnd) / Math.max(0.01, 1 - hangEnd)) ** 2 : 0;
-  const peak = Math.min(target.y0, target.y1);
-  const startY = Math.max(target.y0, target.y1);
-  target.x = lerp(target.x0, target.x1, u) + Math.sin(u * Math.PI) * target.cx;
-  target.y =
-    lerp(startY, peak, climb * (1 - hang * 0.15)) +
-    fall * (boxHeight * 0.55 - peak);
-  target.distance = lerp(target.distance0, target.distance1, clamp01(climb * 0.7 + fall));
-  target.x += target.wind * boxWidth * 0.3 * Math.sin(u * Math.PI);
 }
 
 export function clayGone(clay: Clay, boxWidth: number, boxHeight: number) {
@@ -315,14 +213,7 @@ export function clayGone(clay: Clay, boxWidth: number, boxHeight: number) {
   const right = clay.vx > 0 && clay.x > boxWidth + look.rx * 1.6;
   const dropped = clay.y > boxHeight + look.ry * 1.6;
   const climbed = clay.kind !== "rabbit" && clay.y < -look.ry * 2.4;
-  const finishedPath =
-    (clay.kind === "away" ||
-      clay.kind === "incomer" ||
-      clay.kind === "dropper" ||
-      clay.kind === "curler" ||
-      clay.kind === "looper") &&
-    clay.age >= clay.duration;
-  return finishedPath || left || right || dropped || climbed;
+  return left || right || dropped || climbed;
 }
 
 export function flightIsFair(
@@ -369,23 +260,11 @@ export function applyTouchSpeed(clay: Clay) {
   if (speed === 1) {
     return clay;
   }
-  clay.duration /= speed;
-  if (
-    clay.kind === "away" ||
-    clay.kind === "incomer" ||
-    clay.kind === "dropper" ||
-    clay.kind === "curler" ||
-    clay.kind === "looper"
-  ) {
-    return clay;
-  }
-  if (clay.kind === "rabbit") {
-    clay.vx *= speed;
-    return clay;
-  }
   clay.vx *= speed;
   clay.vy *= speed;
-  clay.gravityScale *= speed * speed;
+  clay.distanceVel *= speed;
+  clay.bounce *= speed;
+  clay.duration /= speed;
   return clay;
 }
 
@@ -398,6 +277,7 @@ export function freshClay(
   distance: number,
   sizeScale: number,
 ): Clay {
+  const aero = sizeAero(sizeScale);
   return {
     x: 0,
     y: 0,
@@ -408,7 +288,7 @@ export function freshClay(
     distance,
     age: 0,
     duration: 0,
-    gravityScale: 0,
+    gravityScale: 1,
     roll: Math.random() * Math.PI * 2,
     x0: 0,
     y0: 0,
@@ -423,6 +303,11 @@ export function freshClay(
     hang: 0,
     hangLimit: sizeScale <= 0.55 ? 0.16 : 0.28,
     curl: 0,
+    drag: aero.drag,
+    lift: aero.lift,
+    distanceVel: 0,
+    launchDirX: 1,
+    bounce: 0,
   };
 }
 
@@ -439,45 +324,19 @@ function flightTime(distance: number, pace: number, sizeScale: number) {
   return Math.max(minAirTime, paceTime(distance, pace) / boost);
 }
 
-function aimPath(target: Clay, width: number) {
-  placePath(target, 0, width);
-  const startX = target.x;
-  const startY = target.y;
-  placePath(target, 0.03, width);
-  const slice = Math.max(0.03 * target.duration, 0.001);
-  target.vx = (target.x - startX) / slice;
-  target.vy = (target.y - startY) / slice;
-  placePath(target, 0, width);
-}
-
-function holdLongEnough(target: Clay, width: number, height: number) {
-  const steps = 28;
-  let hits = 0;
-  for (let index = 0; index < steps; index += 1) {
-    const ghost = { ...target };
-    if (ghost.kind === "looper") {
-      placeLooper(ghost, (index + 0.5) / steps, width, height);
-    } else {
-      placePath(ghost, (index + 0.5) / steps, width);
-    }
-    const look = lookOf(ghost);
-    const on =
-      ghost.y > -look.ry &&
-      ghost.y < height + look.ry &&
-      ghost.x > -look.rx &&
-      ghost.x < width + look.rx;
-    if (on) {
-      hits += 1;
-    }
+function finishLaunch(target: Clay) {
+  target.launchDirX = Math.sign(target.vx) || 1;
+  // Fold launch wind into a steady curl bias (launch condition only).
+  target.curl += target.wind * settings.gravity * 0.014;
+  if (isHardModeActive()) {
+    // Hard launches: less hang, a bit more pace (launch conditions only).
+    target.lift *= 0.78;
+    target.vx *= 1.1;
+    target.vy *= 1.04;
+    target.gravityScale = Math.min(1.08, target.gravityScale * 1.1);
+    target.distanceVel *= 1.08;
   }
-  const share = hits / steps;
-  if (share < 0.08) {
-    return;
-  }
-  const visible = target.duration * share;
-  if (visible < minAirTime) {
-    target.duration = Math.min(2.8, (target.duration * minAirTime) / visible);
-  }
+  return applyTouchSpeed(target);
 }
 
 export type LaunchBox = { width: number; height: number };
@@ -528,93 +387,74 @@ function launchCrosser(
     sizeScale,
   );
   time /= hardCrosserSpeedMul();
-  if (isHardModeActive()) {
-    // Keep a fair wall-clock window after applyTouchSpeed chops by feel.speed.
-    time = Math.max(settings.fairTime + 0.05, time) * Math.max(1, activeClayFeel().speed);
-  }
+  time = Math.max(settings.fairTime + (isHardModeActive() ? 0.08 : 0.22), time);
   const look = lookOf(target);
-  const riseLimit = kind === "high" ? 0.06 : 0.2;
-  const yMin = kind === "high" ? height * 0.14 : height * 0.32;
-  const yMax = kind === "high" ? height * 0.34 : height * 0.66;
+  const riseLimit = kind === "high" ? 0.06 : 0.18;
+  const yMin = kind === "high" ? height * 0.14 : height * 0.34;
+  const yMax = kind === "high" ? height * 0.34 : height * 0.62;
   target.y = rand(yMin, Math.max(yMin + 8, yMax));
   const riseRoom = kind === "high" ? target.y - height * 0.08 : target.y - 14;
   const rise = Math.min(
-    height * rand(kind === "high" ? 0.02 : 0.07, riseLimit),
+    height * rand(kind === "high" ? 0.02 : 0.06, riseLimit),
     Math.max(riseRoom, 8),
   );
-  const duration = time;
-  const gravity = Math.max(rise, 12) / (0.125 * duration * duration);
   const span = width + look.rx * 2;
   target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
-  target.vx = (direction * span) / duration;
-  target.vy = -0.5 * gravity * duration;
-  target.gravityScale = gravity / Math.max(settings.gravity, 1);
-  target.duration = duration;
-  return applyTouchSpeed(target);
+  target.vx = (direction * span) / time;
+  target.vy = -Math.sqrt(2 * settings.gravity * rise);
+  target.gravityScale = height < 480 ? 0.8 : 0.92;
+  if (isHardModeActive()) {
+    target.gravityScale = Math.min(1, target.gravityScale + 0.12);
+  }
+  target.lift =
+    sizeAero(sizeScale).lift *
+    (kind === "high" ? 0.7 : 1.05) *
+    (isHardModeActive() ? 0.82 : 1);
+  target.drag = sizeAero(sizeScale).drag * 0.85;
+  // Gentle spin curl (vertical accel), fixed for the flight.
+  target.curl = direction * rand(12, 30);
+  target.duration = time;
+  return finishLaunch(target);
 }
 
 function launchAway({ width, height }: LaunchBox, sizeScale: number) {
   const side = Math.random() < 0.5 ? -1 : 1;
   const target = freshClay("away", settings.nearDistance, sizeScale);
-  target.distance0 = rand(
+  target.distance = rand(
     settings.nearDistance,
     lerp(settings.nearDistance, settings.farDistance, 0.28),
   );
-  target.distance1 = rand(
-    lerp(settings.nearDistance, settings.farDistance, 0.72),
-    settings.farDistance,
-  );
-  target.distance = target.distance0;
-  target.x0 = width * 0.5 + side * width * rand(0.1, 0.2);
-  target.y0 = height * rand(0.66, 0.86);
-  target.x1 = width * rand(0.22, 0.78);
-  target.y1 = height * rand(0.1, 0.28);
-  target.cx = (Math.random() - 0.5) * width * 0.18;
-  target.duration = pathDuration(
-    flightTime(
-      (target.distance0 + target.distance1) / 2,
-      pickPace(0.15, 0.9),
-      sizeScale,
-    ) * (isHardModeActive() ? 0.7 : 1),
-  );
-  holdLongEnough(target, width, height);
-  aimPath(target, width);
-  return applyTouchSpeed(target);
+  target.x = width * 0.5 + side * width * rand(0.08, 0.18);
+  target.y = height * rand(0.66, 0.84);
+  const peak = height * rand(0.12, 0.28);
+  target.vx = side * width * rand(0.12, 0.28);
+  target.vy = -Math.sqrt(2 * settings.gravity * Math.max(40, target.y - peak));
+  target.gravityScale = 1;
+  target.lift = sizeAero(sizeScale).lift * 1.05;
+  target.drag = sizeAero(sizeScale).drag * 1.05;
+  target.curl = side * rand(22, 48);
+  target.distanceVel = rand(0.18, 0.32);
+  target.duration = flightTime(target.distance, pickPace(0.15, 0.9), sizeScale);
+  return finishLaunch(target);
 }
 
 function launchIncomer({ width, height }: LaunchBox, sizeScale: number) {
   const target = freshClay("incomer", settings.farDistance, sizeScale);
-  target.distance0 = rand(
+  target.distance = rand(
     lerp(settings.nearDistance, settings.farDistance, 0.78),
     settings.farDistance,
   );
-  target.distance1 = rand(
-    settings.nearDistance,
-    lerp(settings.nearDistance, settings.farDistance, 0.32),
-  );
-  target.distance = target.distance0;
-  target.x0 = width * rand(0.22, 0.78);
-  target.y0 = height * rand(0.16, 0.34);
-  target.x1 = Math.max(
-    width * 0.18,
-    Math.min(width * 0.82, target.x0 + width * rand(-0.24, 0.24)),
-  );
-  target.y1 = -height * rand(0.08, 0.16);
-  target.cx = Math.max(
-    width * 0.16,
-    Math.min(width * 0.84, lerp(target.x0, target.x1, 0.4) + width * rand(-0.1, 0.1)),
-  );
-  target.cy = height * rand(0.4, 0.62);
-  target.duration = pathDuration(
-    flightTime(
-      (target.distance0 + target.distance1) / 2,
-      pickPace(0.1, 0.7),
-      sizeScale,
-    ) * (isHardModeActive() ? 0.7 : 1),
-  );
-  holdLongEnough(target, width, height);
-  aimPath(target, width);
-  return applyTouchSpeed(target);
+  target.x = width * rand(0.28, 0.72);
+  target.y = height * rand(0.18, 0.34);
+  target.vx = width * rand(-0.12, 0.12);
+  target.vy = -height * rand(0.08, 0.18);
+  target.gravityScale = 1;
+  target.lift = sizeAero(sizeScale).lift * 1.15;
+  target.drag = sizeAero(sizeScale).drag * 0.95;
+  target.curl = (Math.random() < 0.5 ? -1 : 1) * rand(20, 44);
+  target.distanceVel = -rand(0.22, 0.38);
+  target.duration = flightTime(target.distance, pickPace(0.1, 0.7), sizeScale);
+  return finishLaunch(target);
 }
 
 function launchRabbit({ width, height }: LaunchBox, sizeScale: number) {
@@ -623,116 +463,170 @@ function launchRabbit({ width, height }: LaunchBox, sizeScale: number) {
   const direction = Math.random() < 0.5 ? 1 : -1;
   let time = flightTime(distance, lerp(0.48, 0.7, Math.random()), sizeScale);
   if (isHardModeActive()) {
-    time =
-      Math.max(settings.fairTime + 0.05, time * 0.88) *
-      Math.max(1, activeClayFeel().speed);
+    time = Math.max(settings.fairTime + 0.05, time * 0.88);
   }
   const look = lookOf(target);
   const span = width + look.rx * 2;
   target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
   target.y = height - look.ry;
   target.vx = (direction * span) / time;
-  target.vy = -Math.sqrt(2 * Math.max(settings.gravity, 1) * height * rand(0.06, 0.14));
+  target.vy = -Math.sqrt(2 * settings.gravity * height * rand(0.06, 0.14));
   target.gravityScale = 1;
+  target.lift = sizeAero(sizeScale).lift * 0.25;
+  target.drag = sizeAero(sizeScale).drag * 1.1;
+  target.curl = direction * rand(10, 28);
+  target.bounce = Math.sqrt(2 * settings.gravity * height * rand(0.05, 0.12));
   target.duration = time;
-  return applyTouchSpeed(target);
+  return finishLaunch(target);
 }
 
 function launchBattue({ width, height }: LaunchBox, sizeScale: number) {
   const distance = pickDistance(0.1, 0.8);
   const target = freshClay("battue", distance, sizeScale);
   const direction = Math.random() < 0.5 ? 1 : -1;
-  let duration = Math.max(flightTime(distance, pickPace(0.4, 0.95), sizeScale), 1.7);
+  let time = Math.max(flightTime(distance, pickPace(0.35, 0.85), sizeScale), 1.7);
   if (isHardModeActive()) {
-    duration =
-      Math.max(settings.fairTime + 0.05, duration * 0.82) *
-      Math.max(1, activeClayFeel().speed);
+    time = Math.max(settings.fairTime + 0.1, time * 0.88);
+  } else {
+    time = Math.max(settings.fairTime + 0.25, time);
   }
   target.roll = 0;
   const look = lookOf(target);
-  target.y = rand(height * 0.28, height * 0.52);
-  const rise = Math.min(height * rand(0.02, 0.05), target.y - 14);
-  const gravity = Math.max(rise, 10) / (0.125 * duration * duration);
+  target.y = rand(height * 0.3, height * 0.48);
+  const rise = Math.min(height * rand(0.02, 0.045), Math.max(8, target.y - 14));
   const span = width + look.rx * 2;
   target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
-  target.vx = (direction * span) / duration;
-  target.vy = -0.5 * gravity * duration;
-  target.gravityScale = gravity / Math.max(settings.gravity, 1);
-  target.duration = duration;
-  return applyTouchSpeed(target);
+  target.vx = (direction * span) / time;
+  target.vy = -Math.sqrt(2 * settings.gravity * rise);
+  target.gravityScale = height < 480 ? 0.75 : 0.9;
+  // Little lift so it drops sharply once it slows.
+  target.lift = sizeAero(sizeScale).lift * 0.18;
+  target.drag = sizeAero(sizeScale).drag * 1.1;
+  target.curl = direction * rand(10, 28);
+  target.duration = time;
+  return finishLaunch(target);
 }
 
 function launchTeal({ width, height }: LaunchBox, sizeScale: number) {
-  const distance = pickDistance(0.15, 0.7);
-  const target = freshClay("teal", distance, sizeScale);
-  const boost = sizeScale <= 0.55 ? 1.28 : 1;
+  const target = freshClay("teal", pickDistance(0.15, 0.7), sizeScale);
   target.x = width * rand(0.3, 0.7);
   target.y = height * rand(0.62, 0.8);
   const peak = height * rand(0.12, 0.24);
   const rise = Math.max(48, target.y - peak);
-  const gravity = settings.gravity * 0.62 * boost;
-  target.gravityScale = 0.62 * boost;
-  target.vy = -Math.sqrt(2 * gravity * rise);
-  target.vx = (Math.random() - 0.5) * width * 0.05;
-  let time = 1.7;
+  target.vy = -Math.sqrt(2 * settings.gravity * rise);
+  target.vx = (Math.random() - 0.5) * width * 0.08;
+  target.gravityScale = 0.85;
+  target.lift = sizeAero(sizeScale).lift * 1.55;
+  target.drag = sizeAero(sizeScale).drag * 1.2;
+  target.curl = (Math.random() < 0.5 ? -1 : 1) * rand(16, 38);
+  target.duration = 1.7;
+  return finishLaunch(target);
+}
+
+function launchLooper({ width, height }: LaunchBox, sizeScale: number) {
+  const distance = pickDistance(0.2, 0.7);
+  const target = freshClay("looper", distance, sizeScale);
+  const direction = Math.random() < 0.5 ? 1 : -1;
+  target.x = direction > 0 ? width * 0.08 : width * 0.92;
+  target.y = height * rand(0.52, 0.68);
+  const peak = height * rand(0.14, 0.26);
+  // Slow crossing so it stays shootable while it hangs.
+  target.vx = direction * width * rand(0.14, 0.24);
+  target.vy = -Math.sqrt(2 * settings.gravity * Math.max(60, target.y - peak));
+  target.gravityScale = 0.88;
+  // Plenty of lift so it hangs as it slows, then falls away.
+  target.lift = sizeAero(sizeScale).lift * (isHardModeActive() ? 1.4 : 2.25);
+  target.drag = sizeAero(sizeScale).drag * (isHardModeActive() ? 1.15 : 1.4);
+  target.curl = direction * rand(16, 36);
+  target.distanceVel = rand(0.04, 0.12);
   if (isHardModeActive()) {
-    time =
-      Math.max(settings.fairTime + 0.05, 1.35) * Math.max(1, activeClayFeel().speed);
+    target.vx *= height < 480 ? 1.55 : 1.22;
+    target.gravityScale = Math.min(1, target.gravityScale + (height < 480 ? 0.2 : 0.12));
+    target.lift *= height < 480 ? 0.85 : 1;
   }
-  target.duration = time;
-  return applyTouchSpeed(target);
-}
-
-function pathDuration(base: number) {
-  // Hard mode pre-scales by feel speed so applyTouchSpeed leaves a fair window.
-  // Soft mode leaves duration raw so phone speed still shortens the flight.
-  const pad = isHardModeActive() ? 0.05 : 0.55;
-  const wall = Math.max(settings.fairTime + pad, base);
-  if (!isHardModeActive()) {
-    return wall;
-  }
-  return wall * Math.max(1, activeClayFeel().speed);
-}
-
-function isPathKind(kind: ThrowKind) {
-  return (
-    kind === "away" ||
-    kind === "incomer" ||
-    kind === "dropper" ||
-    kind === "curler" ||
-    kind === "looper"
+  target.duration = Math.max(
+    settings.fairTime + (isHardModeActive() ? 0.2 : 0.35),
+    flightTime(distance, pickPace(0.05, 0.25), sizeScale),
   );
+  return finishLaunch(target);
 }
 
-/** Nudge an almost-fair throw until it passes, without turning it into an easy clay. */
+function launchDropper({ width, height }: LaunchBox, sizeScale: number) {
+  const target = freshClay("dropper", settings.farDistance, sizeScale);
+  target.distance = rand(
+    lerp(settings.nearDistance, settings.farDistance, 0.65),
+    settings.farDistance,
+  );
+  // High dropping incomer: hangs, then falls as lift fades.
+  target.x = width * rand(0.4, 0.6);
+  target.y = height * rand(0.18, 0.32);
+  target.vx = width * rand(-0.025, 0.025);
+  target.vy = -height * rand(0, 0.02);
+  target.gravityScale = height < 480 ? 0.55 : 0.78;
+  target.lift = sizeAero(sizeScale).lift * (height < 480 ? 2.4 : 1.85);
+  target.drag = sizeAero(sizeScale).drag * 1.25;
+  target.curl = (Math.random() < 0.5 ? -1 : 1) * rand(6, 18);
+  target.distanceVel = -rand(0.14, 0.26);
+  if (isHardModeActive()) {
+    target.lift *= height < 480 ? 0.55 : 0.7;
+    target.gravityScale = Math.min(1, target.gravityScale + (height < 480 ? 0.32 : 0.2));
+    target.distanceVel *= 1.35;
+    target.vx *= height < 480 ? 1.55 : 1.3;
+  }
+  target.duration = Math.max(
+    settings.fairTime + (isHardModeActive() ? 0.35 : 0.85),
+    flightTime(target.distance, pickPace(0.05, 0.3), sizeScale),
+  );
+  return finishLaunch(target);
+}
+
+function launchCurler({ width, height }: LaunchBox, sizeScale: number) {
+  // Curling crosser: bends one way only from steady spin curl.
+  const distance = pickDistance(0.15, 0.75);
+  const target = freshClay("curler", distance, sizeScale);
+  const direction = Math.random() < 0.5 ? 1 : -1;
+  let time = flightTime(distance, pickPace(0.1, 0.45), sizeScale);
+  time = Math.max(
+    settings.fairTime + (height < 480 ? 0.55 : 0.3),
+    time * (isHardModeActive() ? 0.92 : 1),
+  );
+  const look = lookOf(target);
+  const span = width + look.rx * 2;
+  target.y = height * rand(0.28, 0.46);
+  const rise = height * rand(0.04, 0.1);
+  target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
+  target.vx = (direction * span) / time;
+  target.vy = -Math.sqrt(2 * settings.gravity * rise);
+  target.gravityScale = height < 480 ? 0.7 : 0.92;
+  target.lift = sizeAero(sizeScale).lift * 0.9;
+  target.drag = sizeAero(sizeScale).drag * 0.95;
+  // Stronger steady curl so the path bends one way like a spinning clay.
+  target.curl = direction * rand(55, 100);
+  target.duration = time;
+  return finishLaunch(target);
+}
+
+/** Nudge launch conditions only until the flight is fair. Never rewrite flight mid-air. */
 export function nudgeTowardFair(
   source: Clay,
   box: LaunchBox,
   hidden: (x: number, y: number) => boolean = () => false,
 ): Clay | null {
   const candidate: Clay = { ...source };
-  // Duration is already in wall-clock time (after applyTouchSpeed).
-  const startDuration = Math.max(0.01, candidate.duration);
-  const maxDuration = Math.max(
-    startDuration * (isHardModeActive() ? 1.2 : 1.18),
-    settings.fairTime + (isHardModeActive() ? 0.08 : 0.45),
-  );
-  for (let step = 0; step < 16; step += 1) {
+  for (let step = 0; step < 28; step += 1) {
     if (flightIsFair(candidate, box.width, box.height, hidden)) {
       return candidate;
     }
-    candidate.wind *= 0.5;
-    if (isPathKind(candidate.kind)) {
-      candidate.duration = Math.min(candidate.duration * 1.04, maxDuration);
-      aimPath(candidate, box.width);
-    } else if (candidate.kind === "rabbit") {
-      candidate.vx *= 0.97;
-      candidate.duration = Math.min(candidate.duration * 1.03, maxDuration);
-    } else {
-      candidate.vx *= 0.97;
-      candidate.vy *= 0.97;
-      candidate.gravityScale *= 0.97 * 0.97;
-      candidate.duration = Math.min(candidate.duration * 1.03, maxDuration);
+    // Launch-only tweaks: slower, more hang, milder curl.
+    candidate.vx *= 0.94;
+    candidate.vy *= 0.96;
+    candidate.drag *= 0.94;
+    candidate.lift *= 1.05;
+    candidate.curl *= 0.88;
+    candidate.bounce *= 0.95;
+    candidate.gravityScale = Math.max(0.55, candidate.gravityScale * 0.96);
+    if (candidate.y > box.height * 0.15 && candidate.y < box.height * 0.7) {
+      candidate.y *= 0.995;
     }
   }
   return flightIsFair(candidate, box.width, box.height, hidden)
@@ -747,7 +641,6 @@ export function hardFallbackThrow(
   extraTime = 0,
 ) {
   const { width, height } = box;
-  const feel = activeClayFeel();
   const target = freshClay(
     "battue",
     lerp(settings.nearDistance, settings.farDistance, 0.4),
@@ -756,20 +649,20 @@ export function hardFallbackThrow(
   target.wind = 0;
   target.roll = 0;
   const direction = Math.random() < 0.5 ? 1 : -1;
-  const duration =
-    (settings.fairTime + 0.08 + Math.max(0, extraTime)) *
-    Math.max(1, feel.speed);
+  const time = settings.fairTime + 0.35 + Math.max(0, extraTime);
   const look = lookOf(target);
-  target.y = height * 0.4;
-  const rise = height * 0.035;
-  const gravity = rise / (0.125 * duration * duration);
+  target.y = height * 0.36;
+  const rise = Math.min(height * 0.03, 14);
   const span = width + look.rx * 2;
   target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
-  target.vx = (direction * span) / duration;
-  target.vy = -0.5 * gravity * duration;
-  target.gravityScale = gravity / Math.max(settings.gravity, 1);
-  target.duration = duration;
-  return applyTouchSpeed(target);
+  target.vx = (direction * span) / time;
+  target.vy = -Math.sqrt(2 * settings.gravity * rise);
+  target.gravityScale = height < 480 ? 0.55 : 0.75;
+  target.lift = sizeAero(target.sizeScale).lift * 0.55;
+  target.drag = sizeAero(target.sizeScale).drag * 1.0;
+  target.curl = direction * 12;
+  target.duration = time;
+  return finishLaunch(target);
 }
 
 export function chooseFairThrow(
@@ -824,89 +717,6 @@ export function chooseFairThrow(
   return { clay: null, fallback: true };
 }
 
-function launchLooper({ width, height }: LaunchBox, sizeScale: number) {
-  const distance = pickDistance(0.2, 0.7);
-  const target = freshClay("looper", distance, sizeScale);
-  const direction = Math.random() < 0.5 ? 1 : -1;
-  target.distance0 = distance;
-  target.distance1 = Math.min(settings.farDistance, distance + 0.25);
-  target.x0 = direction > 0 ? width * 0.08 : width * 0.92;
-  target.x1 = direction > 0 ? width * 0.78 : width * 0.22;
-  target.y0 = height * rand(0.55, 0.7);
-  target.y1 = height * rand(0.12, 0.22);
-  target.cx = direction * width * rand(0.04, 0.1);
-  target.duration = pathDuration(
-    Math.max(
-      isHardModeActive() ? 1.28 : 2.2,
-      flightTime(distance, pickPace(0.05, 0.25), sizeScale) *
-        (isHardModeActive() ? 0.62 : 1),
-    ),
-  );
-  holdLongEnough(target, width, height);
-  placeLooper(target, 0, width, height);
-  return applyTouchSpeed(target);
-}
-
-function launchDropper({ width, height }: LaunchBox, sizeScale: number) {
-  const target = freshClay("dropper", settings.farDistance, sizeScale);
-  target.distance0 = rand(
-    lerp(settings.nearDistance, settings.farDistance, 0.7),
-    settings.farDistance,
-  );
-  target.distance1 = rand(
-    settings.nearDistance,
-    lerp(settings.nearDistance, settings.farDistance, 0.35),
-  );
-  target.distance = target.distance0;
-  target.x0 = width * rand(0.28, 0.72);
-  target.y0 = height * rand(0.18, 0.32);
-  target.x1 = Math.max(
-    width * 0.2,
-    Math.min(width * 0.8, target.x0 + width * rand(-0.18, 0.18)),
-  );
-  target.y1 = height * rand(0.34, 0.48);
-  target.cx = width * rand(-0.08, 0.08);
-  target.cy = height * rand(0.28, 0.4);
-  target.duration = pathDuration(
-    Math.max(
-      isHardModeActive() ? 1.28 : 1.9,
-      flightTime(
-        (target.distance0 + target.distance1) / 2,
-        pickPace(0.15, 0.55),
-        sizeScale,
-      ) * (isHardModeActive() ? 0.68 : 1),
-    ),
-  );
-  holdLongEnough(target, width, height);
-  aimPath(target, width);
-  return applyTouchSpeed(target);
-}
-
-function launchCurler({ width, height }: LaunchBox, sizeScale: number) {
-  const distance = pickDistance(0.15, 0.75);
-  const target = freshClay("curler", distance, sizeScale);
-  const direction = Math.random() < 0.5 ? 1 : -1;
-  target.distance0 = distance;
-  target.distance1 = distance;
-  target.x0 = direction > 0 ? -width * 0.05 : width * 1.05;
-  target.x1 = direction > 0 ? width * 1.05 : -width * 0.05;
-  target.y0 = height * rand(0.36, 0.58);
-  target.y1 = height * rand(0.28, 0.52);
-  target.cx = width * 0.5 + direction * width * rand(0.05, 0.18);
-  target.cy = height * rand(0.22, 0.4);
-  target.curl = direction * rand(0.1, 0.18);
-  target.duration = pathDuration(
-    Math.max(
-      isHardModeActive() ? 1.28 : 1.9,
-      flightTime(distance, pickPace(0.2, 0.7), sizeScale) *
-        (isHardModeActive() ? 0.68 : 1),
-    ),
-  );
-  holdLongEnough(target, width, height);
-  aimPath(target, width);
-  return applyTouchSpeed(target);
-}
-
 export function safeCrosser(
   box: LaunchBox,
   sizeScale: number,
@@ -920,19 +730,20 @@ export function safeCrosser(
   );
   target.wind = 0;
   const direction = Math.random() < 0.5 ? 1 : -1;
-  const duration =
-    Math.max(1.8, settings.fairTime + 0.55) + Math.max(0, extraTime);
+  const time = Math.max(2.4, settings.fairTime + 1) + Math.max(0, extraTime);
   const look = lookOf(target);
-  target.y = height * 0.42;
-  const rise = height * 0.05;
-  const gravity = rise / (0.125 * duration * duration);
+  target.y = height * 0.34;
+  const rise = Math.min(height * 0.03, 14);
   const span = width + look.rx * 2;
   target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
-  target.vx = (direction * span) / duration;
-  target.vy = -0.5 * gravity * duration;
-  target.gravityScale = gravity / Math.max(settings.gravity, 1);
-  target.duration = duration;
-  return applyTouchSpeed(target);
+  target.vx = (direction * span) / time;
+  target.vy = -Math.sqrt(2 * settings.gravity * rise);
+  target.gravityScale = 0.48;
+  target.lift = sizeAero(sizeScale).lift * 2.0;
+  target.drag = sizeAero(sizeScale).drag * 0.7;
+  target.curl = direction * 6;
+  target.duration = time;
+  return finishLaunch(target);
 }
 
 export function pickNormalThrow(): ThrowKind {
@@ -967,7 +778,7 @@ export function fairSample(
     const sizeScale = hard || isHardModeActive() ? pickSize() : 1;
     const chosen = chooseFairThrow(kind, box, sizeScale, {
       hard: hard || isHardModeActive(),
-      tries: 1,
+      tries: 3,
     });
     if (chosen.clay) {
       return chosen.clay;

@@ -45,6 +45,7 @@ export default function Home() {
               beatNone={game.beatNone}
               beatOne={game.beatOne}
               beatMany={game.beatMany}
+              beatYou={game.beatYou}
               highGunLabel={game.highGunLabel}
             />
           </div>

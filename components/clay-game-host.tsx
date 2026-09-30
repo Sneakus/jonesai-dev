@@ -23,6 +23,7 @@ type ClayGameHostProps = {
   beatNone: string;
   beatOne: string;
   beatMany: string;
+  beatYou: string;
   highGunLabel: string;
 };
 
@@ -42,6 +43,7 @@ export function ClayGameHost({
   beatNone,
   beatOne,
   beatMany,
+  beatYou,
   highGunLabel,
 }: ClayGameHostProps) {
   const [Game, setGame] = useState<
@@ -167,6 +169,8 @@ export function ClayGameHost({
     } catch {
       // Still try once if storage is blocked.
     }
+    // Show the count after this win straight away; confirm with the server.
+    setBeatCount((prev) => (prev == null ? 1 : prev + 1));
     fetch("/api/hard-beats", { method: "POST" })
       .then((response) => (response.ok ? response.json() : null))
       .then((body: { count?: number | null } | null) => {
@@ -202,6 +206,8 @@ export function ClayGameHost({
         hardModeLabel={hardModeLabel}
         normalModeLabel={normalModeLabel}
         beatLine={beatLine}
+        beatYou={beatYou}
+        beatCount={beatCount}
         highGunLabel={highGunLabel}
         hard={hard}
         testShortcut={

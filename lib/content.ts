@@ -29,6 +29,7 @@ export type GameContent = {
   beatNone: string;
   beatOne: string;
   beatMany: string;
+  beatYou: string;
   highGunLabel: string;
 };
 
@@ -301,6 +302,7 @@ export function readGame(): GameContent {
     beatNone: requiredString(data, "beatNone", file),
     beatOne: requiredString(data, "beatOne", file),
     beatMany: requiredString(data, "beatMany", file),
+    beatYou: requiredString(data, "beatYou", file),
     highGunLabel: requiredString(data, "highGunLabel", file),
   };
 }
