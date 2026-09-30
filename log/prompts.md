@@ -1713,3 +1713,139 @@ Keep all tests passing. Don't use the built-in browser. Run all the tests, a cle
 ```
 Changed: Noted the small hitch, then made the resting face follow the video, play the line once, ask for a click, and fill from 18 clays.
 Files: PERF_BUDGET.md, app/globals.css, components/clay-game.tsx, components/portrait-slot.tsx, content/portrait.md, lib/content.ts, log/prompts.md, public/portrait/portrait.bin, public/portrait/portrait.json, public/portrait/unpack.js, scripts/pack-portrait.mjs, src/portrait/sim.test.ts, src/portrait/sim.ts, tests/first-clays.mjs
+
+### 2026-09-30 01:25
+Prompt:
+```
+Add a new build page for the puzzle box, porting reference/puzzle-box-prototype.html (signed off) faithfully. Keep every number and behaviour; don't redesign anything. Stop and tell me if anything fails.
+
+1. The page: a new build at /builds/puzzle-box, following the same short format as the other build pages: the brief, the box itself, one line of why, links. Don't write the words: put clearly marked placeholders ("AJ to write: the brief", "AJ to write: the why line") in content/puzzle-box.md, marked draft: true. Add it at the top of the builds list.
+
+2. The 3D: add three (version 0.160) as a dependency, loaded only on this page (dynamic import), never on the home page or other pages. Port the scene, lighting, studio environment, contact shadow, post-processing (4x anti-aliasing, faint bloom, ACES tone mapping), render-on-demand loop and the 2x sharpness cap exactly. Extract the baked textures embedded in the reference (walnut colour, roughness and relief, and brass polish) into public/puzzle-box/ as JPEG files and load them from there.
+
+3. Port the whole box and every mechanism exactly: the hollow box with baize lining, grain wrapped as one board, the back strip that frees the end panel, the thin end panel over the real cut groove (stencil-cut opening and cavity), the brass pin tool, the pinhole release, the drawer and key, the knurled foot and the linkage that swings the keyhole cover open by itself, the key turn that lifts the levers, draws the bolt and springs the lid, the lid opening on its hinge, and the Newton's cradle with its physics. Also port: the feel (every surface yields and knocks with its own material sound, grabbed parts stay grabbed until release, the most specific part's label wins), the held-item view (fits the screen, drag to turn, scroll or pinch to zoom, X to put down, corner disc to reopen), the camera (glide and settle, look underneath, double-tap zoom to a spot, scroll zoom towards the pointer), two-finger turning and the turntable button on touch screens, and all the live-made sounds.
+
+4. Tests, matching the reference's own checks:
+   - it loads in headless Chrome with WebGL and draws without errors
+   - every mesh answers to the right part (pinhole, key, tool, key in lock, cover, foot, panel, strip, drawer, lid, each ball)
+   - the full solve in order: the end panel refuses before the strip moves; the drawer refuses before the pin; strip, panel, tool, pinhole, drawer, key, foot (the cover opens by itself), keyhole and key turn leave the lid unlocked
+   - the cradle: one ball released from 0.60 sends the far ball to about 0.57 with the middle ball nearly still; two balls send two out; a hard throw stays stable
+   Expose test hooks only in test builds, not in production.
+
+5. Performance: check it against PERF_BUDGET.md with the headless test (long tasks on load and while solving, frame times while dragging and while the cradle swings, the loop sleeping when nothing moves), and tell me the numbers. Heavy set-up (texture decoding, the environment) must not block the page for more than 50ms at a time.
+
+6. Don't use the built-in browser. Run all the tests, a clean production build, the code check and gitleaks git -v, commit with "Builds: the puzzle box" and push to main.
+
+Tell me in plain English what changed, the test results and the performance numbers.
+```
+Changed: Added the puzzle box page, but did not commit because the first setup still blocks the page for more than 50ms.
+Files: app/builds/puzzle-box/page.tsx, app/globals.css, app/[slug]/page.tsx, components/build-article.tsx, components/puzzle-stage.tsx, content/puzzle-box.md, lib/content.ts, log/prompts.md, package.json, package-lock.json, public/puzzle-box/wood.jpg, public/puzzle-box/woodRough.jpg, public/puzzle-box/woodBump.jpg, public/puzzle-box/brassRough.jpg, src/puzzle-box/mount.js, tests/puzzle-box.mjs
+
+### 2026-09-30 01:59
+Prompt:
+```
+Finish the puzzle box page, and one change to the home page. Stop and tell me if anything fails.
+
+1. The words, in content/puzzle-box.md (these are my final words, so remove draft: true):
+   - The brief: "I've always liked puzzle games, and I've done a few puzzle boxes myself. So I made one."
+   - The why line: "It's functional art, and that's always something I've vibed with."
+   - One link, "The code", to this page's source folder in github.com/Sneakus/jonesai-dev.
+
+2. The 640ms freeze mid-solve: find what causes it with the trace. I expect it's the held-item light switching on, which changes the number of lights and makes every material recompile. If so, keep that light in the scene at all times at zero intensity, and only change its intensity. Check nothing else changes the light count or material set-up during play.
+
+3. Warm-up: once the textures have loaded, compile every material before the box can be touched, using renderer.compileAsync (parallel shader compiling), with everything that appears later temporarily included: the key and tool (in hand and in place), the key in the lock, the tool in the pinhole, the held view and the cradle. Build the studio lighting and do the first draw behind the "Unpacking the box" line, which stays up until the box is ready to touch.
+
+4. Update PERF_BUDGET.md for this page: set-up may take up to about a second while the loading line shows; from the moment the box can be touched, no task over 50ms and no frame over 50ms, including picking things up, opening the held view, the linkage, the key turn and the lid opening. Add that to the headless test and report the numbers.
+
+5. The home page portrait: remove the "I can't code" words easter egg, and reorder the rest (reference/portrait-prototype.html, just replaced, has the change). Clicking the face now plays, in order: the starling swarm, decode, the balloon pop. Update the easter egg test to match.
+
+6. Keep all tests passing. Don't use the built-in browser. Run all the tests, a clean production build, the code check and gitleaks git -v, commit with "Builds: the puzzle box" and push to main.
+
+Tell me in plain English what caused the freeze, what changed, and the numbers.
+```
+Changed: Finished the puzzle box words, warmup and light, and took the words easter egg off the portrait.
+Files: PERF_BUDGET.md, app/builds/puzzle-box/page.tsx, app/globals.css, app/[slug]/page.tsx, components/build-article.tsx, components/puzzle-stage.tsx, content/puzzle-box.md, lib/content.ts, log/prompts.md, package.json, package-lock.json, public/puzzle-box/wood.jpg, public/puzzle-box/woodRough.jpg, public/puzzle-box/woodBump.jpg, public/puzzle-box/brassRough.jpg, src/portrait/sim.test.ts, src/portrait/sim.ts, src/puzzle-box/mount.js, tests/puzzle-box.mjs
+
+### 2026-09-30 02:31
+Prompt:
+```
+Thanks. Before committing, sort out the home page check:
+
+1. The known first-clays hitch is accepted (it's recorded in PERF_BUDGET.md). Make the check allow that one hitch explicitly, with a ceiling: up to 10ms on a normal run and up to 45ms with the processor slowed. Anything over those limits still fails.
+
+2. The slowed frame at 51 to 60ms: find out from the trace whether it's the same hitch or something else. If it's the same hitch, see if a longer warm-up of the heap physics after page load (more pieces or more steps, in idle time) brings it under 45ms. If it's something else, tell me what it is before changing anything.
+
+3. The loop not going to sleep on one pass: find out why. If the portrait was on screen (it's meant to stay awake then, for blinks and breathing), make the check scroll the portrait out of view before testing for sleep. If something else kept it awake, tell me what.
+
+4. Then run everything again. If all checks pass, run gitleaks git -v, commit with "Builds: the puzzle box" and push to main. If anything still fails, don't commit, and tell me plainly what it is.
+```
+Changed: Let the home page check allow one known hitch, and warmed the heap longer, but did not commit because the slowed frame is still over 45ms.
+Files: PERF_BUDGET.md, src/portrait/sim.ts, tests/first-clays.mjs, log/prompts.md
+
+### 2026-09-30 02:48
+Prompt:
+```
+Agreed: it's the same known hitch. Unblock the release:
+
+1. Update the home page check and PERF_BUDGET.md: during the first 3 seconds after the first clay breaks, on slowed runs, allow up to two frames over budget, none over 65ms. Normal runs keep the 10ms limit for the known hitch. Everything else keeps the normal budget.
+
+2. Run all the checks. If they pass, run gitleaks git -v, commit with "Builds: the puzzle box" and push to main.
+
+3. Then, separately and without committing anything else: tell me what's inside that 42ms chunk, by function, from the trace. In particular, is it the tray canvas being set up the first time pieces land on it, or garbage collection from the heap physics creating new objects every step (for example a new Map for the neighbour grid each step)? Just report; don't change it yet.
+```
+Changed: Allowed two slowed frames in the first 3 seconds, up to 65ms, but the check still saw three, so nothing was committed.
+Files: PERF_BUDGET.md, tests/first-clays.mjs, log/prompts.md
+
+### 2026-09-30 03:01
+Prompt:
+```
+Great find. Fix it at the source:
+
+1. The tray hint: build the percentage as a plain whole number plus "%" (Math.floor(share * 100) + '%'), with no Intl.NumberFormat or toLocaleString anywhere in the home page's animation or hint code. If other on-page numbers need formatting with commas, create one formatter once during idle time after load, never on first use during play.
+
+2. Put the home page check back to the normal budget (undo the 3-second allowance), keeping only the known hitch rule if it's still needed. Update PERF_BUDGET.md: if the hitch is gone, remove it from the known items.
+
+3. Run everything: the home page check (normal and slowed), the unit tests, the code check, and the full puzzle solve check in its test build. Tell me the slowed-run numbers for the first 3 seconds after the first clay breaks.
+
+4. If all checks pass, run gitleaks git -v, commit with "Builds: the puzzle box" and push to main. If anything fails, don't commit, and tell me plainly what it is.
+```
+Changed: The tray hint now uses a plain percentage, and the old hitch is out of the budget, but the slowed run still peaks at 10.7ms so nothing was committed.
+Files: components/portrait-slot.tsx, PERF_BUDGET.md, tests/first-clays.mjs, log/prompts.md
+
+### 2026-09-30 03:12
+Prompt:
+```
+Good. The remaining overs are within a smooth frame, so adjust the budget and ship:
+
+1. In PERF_BUDGET.md and the home page check, set the slowed-run limits to 12ms of code per frame and 12ms per task. Keep everything else as it is (no long tasks, no long animation frames, normal-run limits unchanged).
+
+2. Run all the checks again. If they pass, run gitleaks git -v, commit with "Builds: the puzzle box" and push to main. If anything fails, don't commit, and tell me plainly what it is.
+```
+Changed: Slowed runs may now use 12ms of code per frame and 12ms per task, but one slowed frame was 13.2ms so nothing was committed.
+Files: PERF_BUDGET.md, tests/first-clays.mjs, log/prompts.md
+
+### 2026-09-30 03:16
+Prompt:
+```
+The slowed per-frame numbers vary a few milliseconds between runs (10.7ms, then 13.2ms, with nothing changed), so they can't be a hard gate. Change the check:
+
+1. Release-blocking: any long task (over 50ms), any long animation frame, or any normal-run limit being exceeded.
+2. Report only (printed as warnings, never failing the check): the slowed-run per-frame and per-task numbers, against a soft target of 12ms. Update PERF_BUDGET.md to say this.
+3. Run all the checks, including the full puzzle solve in its test build. If they pass, run gitleaks git -v, commit with "Builds: the puzzle box" and push to main. If a release-blocking check fails, don't commit, and tell me plainly what it is.
+```
+Changed: Slowed frame and task times are now a printed warning against 12ms, but the puzzle check saw a 50ms task after the box could be touched, so nothing was committed.
+Files: PERF_BUDGET.md, tests/first-clays.mjs, log/prompts.md
+
+### 2026-09-30 03:21
+Prompt:
+```
+One last fix before release:
+
+1. The 50ms styling task right after the puzzle box becomes touchable is most likely the "Unpacking the box" line being removed from the page. Instead: fade it out using opacity only (a CSS transition on opacity, with pointer-events: none), and remove the element later in idle time. Confirm in the trace that the styling task is gone or well under 50ms.
+
+2. Count the box as touchable once the fade has started and the next frame has painted, and start the test's measuring window from there.
+
+3. Run all the checks again, including the full puzzle solve in its test build. If they pass, run gitleaks git -v, commit with "Builds: the puzzle box" and push to main. If a release-blocking check fails, don't commit, and tell me plainly what it is.
+```
+Changed: The unpacking line now fades out, and the release checks passed.
+Files: app/globals.css, src/puzzle-box/mount.js, tests/puzzle-box.mjs, log/prompts.md

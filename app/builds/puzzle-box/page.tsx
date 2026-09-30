@@ -1,37 +1,24 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { BuildArticle } from "@/components/build-article";
+import { PuzzleStage } from "@/components/puzzle-stage";
 import { PageFrame } from "@/components/site-header";
-import { readBuild, readBuilds, readHome, readSite } from "@/lib/content";
+import { readBuild, readHome, readSite } from "@/lib/content";
 import { DEFAULT_SHARE_IMAGE } from "@/lib/site-config";
+import { notFound } from "next/navigation";
 
-export function generateStaticParams() {
-  return readBuilds()
-    .filter((build) => !build.slug.includes("/"))
-    .map((build) => ({ slug: build.slug }));
-}
-
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}): Promise<Metadata> {
-  const { slug } = await params;
-  const build = readBuild(slug);
+export async function generateMetadata(): Promise<Metadata> {
+  const build = readBuild("builds/puzzle-box");
   const home = readHome();
-
   if (!build) {
     return {};
   }
-
   const title = `${build.title} - ${home.name}`;
-
   return {
     title,
     description: build.summary,
     openGraph: {
       type: "article",
-      url: `/${build.slug}`,
+      url: "/builds/puzzle-box",
       title,
       description: build.summary,
       images: [DEFAULT_SHARE_IMAGE],
@@ -45,22 +32,19 @@ export async function generateMetadata({
   };
 }
 
-export default async function BuildPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const { slug } = await params;
-  const build = readBuild(slug);
-
+export default function PuzzleBoxPage() {
+  const build = readBuild("builds/puzzle-box");
   if (!build) {
     notFound();
   }
-
   return (
     <PageFrame>
       <main>
-        <BuildArticle build={build} site={readSite()} />
+        <BuildArticle
+          build={build}
+          site={readSite()}
+          feature={<PuzzleStage />}
+        />
       </main>
     </PageFrame>
   );

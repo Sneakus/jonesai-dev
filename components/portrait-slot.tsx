@@ -6,10 +6,6 @@ import { attach, wake } from "@/src/motion/loop";
 import { PORTRAIT_HIT, type PortraitHit } from "@/src/portrait/bridge";
 import { PortraitSim, startHeapWarmup, PILE_H, type FallingPiece, type PackedPortrait } from "@/src/portrait/sim";
 
-function fmt(n: number) {
-  return n.toLocaleString("en-GB");
-}
-
 function playThunk(
   ctx: AudioContext,
   big: boolean,
@@ -104,7 +100,10 @@ export function PortraitSlot({ copy }: { copy: PortraitContent }) {
         return;
       }
       if (mode === "progress") {
-        hint.textContent = words.progress.replace("{pct}", fmt(tank.pct));
+        hint.textContent = words.progress.replace(
+          "{pct}",
+          String(Math.floor(tank.share * 100)),
+        );
         return;
       }
       hint.textContent = words.full;

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { JobFunnel } from "@/components/job-funnel";
@@ -134,9 +135,11 @@ function ExamplePanel({ build }: { build: Build }) {
 export function BuildArticle({
   build,
   site,
+  feature,
 }: {
   build: Build;
   site: SiteContent;
+  feature?: ReactNode;
 }) {
   const links =
     build.links.length > 0
@@ -175,6 +178,7 @@ export function BuildArticle({
           className="mt-8 h-auto w-full rounded-2xl"
         />
       ) : null}
+      {feature}
       {build.slug === "golf-agent" ? <GolfAgentSlot copy={readGolfRange()} /> : null}
       <div className="mt-10">
         {build.blocks.map((block, index) => {

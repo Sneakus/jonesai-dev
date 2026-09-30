@@ -673,3 +673,146 @@ a:hover {
   z-index: 1;
 }
 
+.puzzle-stage {
+  position: relative;
+  width: 100%;
+  height: min(74vh, 660px);
+  border-radius: 20px;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  background: #efe8dc;
+}
+
+.puzzle-stage.grabbing {
+  cursor: grabbing;
+}
+
+.puzzle-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.puzzle-help {
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+  color: var(--color-muted);
+}
+
+.puzzle-stage .turntable {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: none;
+  place-items: center;
+  color: #5d5348;
+  background: rgba(255, 252, 246, 0.72);
+  border: 1px solid rgba(120, 100, 80, 0.25);
+  box-shadow: 0 2px 8px rgba(40, 30, 20, 0.12);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  touch-action: none;
+  cursor: grab;
+  z-index: 2;
+}
+
+.puzzle-stage .turntable svg {
+  width: 30px;
+  height: 30px;
+}
+
+@media (pointer: coarse) {
+  .puzzle-stage .turntable {
+    display: grid;
+  }
+}
+
+.puzzle-stage .hand {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #7a5a24;
+  background: radial-gradient(circle at 35% 30%, #f3dfae, #c9a35c 70%);
+  box-shadow: 0 3px 10px rgba(40, 30, 20, 0.25);
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.25s, transform 0.25s;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.puzzle-stage .hand.on {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.puzzle-stage .hand.open {
+  box-shadow: 0 0 0 3px rgba(255, 248, 230, 0.8), 0 3px 10px rgba(40, 30, 20, 0.25);
+}
+
+.puzzle-stage .hand svg {
+  width: 30px;
+  height: 30px;
+}
+
+.puzzle-stage .closeInspect {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(30, 22, 16, 0.5);
+  color: #fff6e8;
+  display: none;
+  place-items: center;
+  cursor: pointer;
+  z-index: 3;
+  padding: 0;
+}
+
+.puzzle-stage .closeInspect.on {
+  display: grid;
+}
+
+.puzzle-stage .closeInspect svg {
+  width: 20px;
+  height: 20px;
+}
+
+.puzzle-stage .loading {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  background: #efe8dc;
+  color: var(--color-muted);
+  font-size: 0.95rem;
+  opacity: 1;
+  transition: opacity 0.4s linear;
+}
+
+.puzzle-stage .loading.out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .puzzle-stage .loading {
+    transition: none;
+  }
+}
+

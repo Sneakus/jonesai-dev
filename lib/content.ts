@@ -586,10 +586,17 @@ export function readBuilds(): Build[] {
     return [];
   }
 
-  return fs
+  const files = fs
     .readdirSync(directory)
     .filter((name) => name.endsWith(".md"))
-    .map((name) => readBuildFile(path.join(directory, name)))
+    .map((name) => path.join(directory, name));
+  const puzzle = path.join(process.cwd(), "content", "puzzle-box.md");
+  if (fs.existsSync(puzzle)) {
+    files.push(puzzle);
+  }
+
+  return files
+    .map((filePath) => readBuildFile(filePath))
     .sort((a, b) => a.order - b.order || a.slug.localeCompare(b.slug));
 }
 

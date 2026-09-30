@@ -456,14 +456,12 @@ describe("clay portrait", () => {
     let now = until(sim, () => sim.pileAudit().falling === 0, 12);
     now = pullAndBuild(sim, now);
     sim.tryClick(0, 10);
-    now = until(sim, () => sim.lastEffect === "words" && sim.effect === null, 8, now);
-    sim.tryClick(0, 10);
-    now = until(sim, () => sim.lastEffect === "decode" && sim.effect === null, 8, now);
-    sim.tryClick(0, 10);
     expect(sim.effect?.type).toBe("swarm");
     now = run(sim, 0.5, now);
     sim.pressFace();
     now = until(sim, () => sim.lastEffect === "swarm" && sim.effect === null, 12, now);
+    sim.tryClick(0, 10);
+    now = until(sim, () => sim.lastEffect === "decode" && sim.effect === null, 8, now);
     sim.tryClick(0, 10);
     now = until(sim, () => sim.lastEffect === "balloon" && sim.effect === null, 8, now);
     expect(sim.faceAudit().missing).toBe(2605);

@@ -153,7 +153,7 @@ type BurstBit = {
   vr: number;
 };
 
-type EffectName = "words" | "decode" | "swarm" | "balloon";
+type EffectName = "decode" | "swarm" | "balloon";
 
 const CLAY = ["#E8480C", "#E8480C", "#E8480C", "#C93F0B", "#F06A33"];
 const TIERS = ["#E8480C", "#B8390A", "#782608"];
@@ -163,9 +163,8 @@ const CHUNKS_FULL = 18 * CHUNKS_PER_CLAY;
 const HEAP_G = 1500;
 const HEAP_CELL = 14;
 const HEAP_H = 1 / 120;
-const EFFECTS: EffectName[] = ["words", "decode", "swarm", "balloon"];
+const EFFECTS: EffectName[] = ["swarm", "decode", "balloon"];
 const DUR: Record<EffectName, number> = {
-  words: 3.6,
   decode: 2.6,
   balloon: 1.7,
   swarm: 9,
@@ -320,7 +319,6 @@ export class PortraitSim {
   private lastClient = { x: 0, y: 0, t: 0 };
   private crossEyes = false;
   private effIdx = 0;
-  private wordPts: number[][] = [];
   private headCol: number;
   private headRow = 45;
   private swarmX: Float32Array;
@@ -781,9 +779,6 @@ export class PortraitSim {
       : EFFECTS[this.effIdx % EFFECTS.length];
     if (!this.reduce) {
       this.effIdx += 1;
-    }
-    if (type === "words") {
-      this.makeWords();
     }
     this.effect = { type, t: 0 };
     if (type === "swarm") {
@@ -1864,42 +1859,6 @@ export class PortraitSim {
     return g;
   }
 
-  private makeWords() {
-    if (this.wordPts.length) {
-      return;
-    }
-    if (typeof document !== "undefined") {
-      const canvas = document.createElement("canvas");
-      const w = 400;
-      const h = 120;
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d");
-      if (ctx?.getImageData) {
-        ctx.fillStyle = "#000";
-        ctx.font = "700 64px system-ui, sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("I can't code", w / 2, h / 2);
-        const img = ctx.getImageData(0, 0, w, h);
-        const d = img.data;
-        for (let yy = 0; yy < h; yy += 2) {
-          for (let xx = 0; xx < w; xx += 2) {
-            if (d[(yy * w + xx) * 4 + 3] > 128) {
-              this.wordPts.push([xx / w, yy / h]);
-            }
-          }
-        }
-      }
-    }
-    if (this.wordPts.length) {
-      return;
-    }
-    for (let i = 0; i < 48; i += 1) {
-      this.wordPts.push([(i % 12) / 12, Math.floor(i / 12) / 4]);
-    }
-  }
-
   private sendHome() {
     if (this.swarmHome) {
       return;
@@ -2143,19 +2102,7 @@ export class PortraitSim {
     const t = this.effect.t;
     const hcx = (this.headCol + 0.5) * this.cw;
     const hcy = this.headRow * this.ch;
-    if (this.effect.type === "words") {
-      if (!this.wordPts.length) {
-        return out;
-      }
-      const p =
-        t < 1.1 ? ease(t / 1.1) : t < 2.3 ? 1 : 1 - ease((t - 2.3) / 1.3);
-      const wp = this.wordPts[Math.floor(this.rnd1[i] * this.wordPts.length)];
-      const tx = this.pw * 0.05 + wp[0] * this.pw * 0.9;
-      const ty = this.ph * 0.3 + wp[1] * this.ph * 0.3;
-      out[0] = x + (tx - x) * p + Math.sin(p * Math.PI) * (this.rnd2[i] - 0.5) * 60;
-      out[1] = y + (ty - y) * p - Math.sin(p * Math.PI) * 40 * this.rnd2[i];
-      out[2] = 1 - 0.35 * p;
-    } else if (this.effect.type === "decode") {
+    if (this.effect.type === "decode") {
       const on = 0.05 + this.rnd1[i] * 0.5;
       const off = DUR.decode - 0.6 + this.rnd2[i] * 0.5;
       if (t > on && t < off) {
@@ -2419,8 +2366,8 @@ export function startHeapWarmup() {
     portrait: { left: 10, top: 10, width: 80, height: 80 },
     looks: [],
   });
-  sim.seedWarmHeap(100);
-  let left = 200;
+  sim.seedWarmHeap(160);
+  let left = 480;
   const pump = () => {
     const start = performance.now();
     while (left > 0 && performance.now() - start < 6) {
