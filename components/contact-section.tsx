@@ -183,7 +183,11 @@ export function ContactSection({ contact }: { contact: ContactContent }) {
           </a>
         </li>
         <li>
-          <a href={contact.cvUrl} download className="look underline underline-offset-4">
+          <a
+            href={contact.cvUrl}
+            download="Alex_Jones_CV.pdf"
+            className="look underline underline-offset-4"
+          >
             {contact.cvLabel}
           </a>
         </li>

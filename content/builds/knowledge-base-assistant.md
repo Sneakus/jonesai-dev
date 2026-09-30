@@ -22,7 +22,7 @@ fixes:
 
 ## Where it came from
 
-At my last company (a gaming startup) half our knowledge base had quietly filled up with contradictions as we fleshed our design documentation out, so I built an assistant to fix it.
+At my last company (a gaming startup) most of our knowledge base had quietly filled up with contradictions as we fleshed our design documentation out, so I built an assistant to fix it.
 
 ## An example (made up, so I can show it - the real documents were confidential)
 

@@ -4,13 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import { attach, wake } from "@/src/motion/loop";
 import { clayBoxClass } from "@/components/clay-scene";
 import { reportClayBreak } from "@/src/portrait/bridge";
+import {
+  activeClayFeel,
+  clayFeel,
+  desktopClaySettings,
+  setClayFeel,
+  touchClay,
+} from "@/src/clay-feel";
+
+export { activeClayFeel, clayFeel, setClayFeel, touchClay };
 
 // Feel settings. Change these numbers to tune the game.
 export const settings = {
   gravity: 1000, // how quickly a rabbit drops back down
   pauseBetweenClays: 560, // wait after one clay before the next, in milliseconds
-  claySize: 51, // base width of a clay, before distance makes it bigger or smaller
-  hitAreaSize: 8, // extra pixels around a clay that still count when a pellet is close
+  claySize: desktopClaySettings.claySize, // base width of a clay, before distance makes it bigger or smaller
+  hitAreaSize: desktopClaySettings.hitAreaSize, // extra pixels around a clay that still count when a pellet is close
   reloadTime: 350, // wait after a shot before the next one counts, in milliseconds
   patternSize: 28, // how far pellets scatter around the aim point for a near clay
   pelletCount: 12, // dots in each shot
@@ -51,8 +60,8 @@ export const settings = {
 
   // Share of the box width a clay can cover in one second, before distance slows it down.
   // 0.75 crosses most of the box in a bit over a second.
-  speedMin: 0.64,
-  speedMax: 0.96,
+  speedMin: desktopClaySettings.speedMin,
+  speedMax: desktopClaySettings.speedMax,
 
   sizeNear: 1.34, // nearest clays, compared with the base size. Bigger than 1
   sizeFar: 0.62, // furthest clays, compared with the base size. Smaller than 1
@@ -276,10 +285,13 @@ function pickSize() {
   return 1;
 }
 
-function lookOf(clay: Clay) {
+function lookOf(clay: Clay, draw = activeClayFeel().draw) {
   const t = distanceT(clay.distance);
   const width =
-    settings.claySize * lerp(settings.sizeNear, settings.sizeFar, t) * clay.sizeScale;
+    settings.claySize *
+    lerp(settings.sizeNear, settings.sizeFar, t) *
+    clay.sizeScale *
+    draw;
   const disc = width / 2;
   const pale = t * 0.4;
   if (clay.kind === "rabbit") {
@@ -454,12 +466,32 @@ function scatterPellets(x: number, y: number, radius: number): Pellet[] {
 }
 
 function pelletHitsClay(clay: Clay, pellet: Pellet) {
-  const { rx, ry } = lookOf(clay);
-  const hitX = rx + settings.hitAreaSize;
-  const hitY = ry + settings.hitAreaSize;
+  const { rx, ry } = lookOf(clay, 1);
+  const hit = activeClayFeel().hit;
+  const hitX = (rx + settings.hitAreaSize) * hit;
+  const hitY = (ry + settings.hitAreaSize) * hit;
   const dx = (pellet.x - clay.x) / hitX;
   const dy = (pellet.y - clay.y) / hitY;
   return dx * dx + dy * dy <= 1;
+}
+
+function applyTouchSpeed(clay: Clay) {
+  const speed = activeClayFeel().speed;
+  if (speed === 1) {
+    return clay;
+  }
+  clay.duration /= speed;
+  if (clay.kind === "away" || clay.kind === "incomer") {
+    return clay;
+  }
+  if (clay.kind === "rabbit") {
+    clay.vx *= speed;
+    return clay;
+  }
+  clay.vx *= speed;
+  clay.vy *= speed;
+  clay.gravityScale *= speed * speed;
+  return clay;
 }
 
 function drawClay(
@@ -564,6 +596,11 @@ export function ClayGame({
       onFailRef.current();
       return;
     }
+
+    const coarsePointer = window.matchMedia("(pointer: coarse)");
+    setClayFeel(coarsePointer.matches);
+    const onPointerKind = () => setClayFeel(coarsePointer.matches);
+    coarsePointer.addEventListener("change", onPointerKind);
 
     const colors = readColors(box);
     const uiFont = getComputedStyle(box).fontFamily || "Instrument Sans, sans-serif";
@@ -998,21 +1035,21 @@ export function ClayGame({
 
     const makeThrow = (kind: ThrowKind) => {
       if (kind === "crosser" || kind === "high") {
-        return launchCrosser(kind);
+        return applyTouchSpeed(launchCrosser(kind));
       }
       if (kind === "away") {
-        return launchAway();
+        return applyTouchSpeed(launchAway());
       }
       if (kind === "incomer") {
-        return launchIncomer();
+        return applyTouchSpeed(launchIncomer());
       }
       if (kind === "battue") {
-        return launchBattue();
+        return applyTouchSpeed(launchBattue());
       }
       if (kind === "teal") {
-        return launchTeal();
+        return applyTouchSpeed(launchTeal());
       }
-      return launchRabbit();
+      return applyTouchSpeed(launchRabbit());
     };
 
     const safeCrosser = (fast = false, extraTime = 0) => {
@@ -1035,7 +1072,7 @@ export function ClayGame({
       target.vy = -0.5 * gravity * duration;
       target.gravityScale = gravity / Math.max(settings.gravity, 1);
       target.duration = duration;
-      return target;
+      return applyTouchSpeed(target);
     };
 
     const launch = () => {
@@ -1734,6 +1771,8 @@ export function ClayGame({
 
     return () => {
       stopped = true;
+      coarsePointer.removeEventListener("change", onPointerKind);
+      setClayFeel(false);
       delete (window as Window & { __jonesTest?: { smash: () => boolean } }).__jonesTest;
       stop();
       box.style.transform = "";

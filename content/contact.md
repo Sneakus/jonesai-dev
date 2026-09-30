@@ -10,5 +10,5 @@ linkedInUrl: https://www.linkedin.com/in/jonesai
 githubLabel: GitHub
 githubUrl: https://github.com/Sneakus
 cvLabel: CV (PDF)
-cvUrl: /Alex_Jones_CV.pdf
+cvUrl: /Alex_Jones_CV.pdf?v=2026-09-30
 ---

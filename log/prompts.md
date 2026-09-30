@@ -1903,3 +1903,30 @@ Tell me in plain English what changed and the check results.
 ```
 Changed: Homepage line, builds order, AJob, Golf, worldcupmap and Meeting plan copy, plus a new Knowledge base assistant page.
 Files: content/contact.md, content/puzzle-box.md, content/builds/ajob.md, content/builds/golf-agent.md, content/builds/worldcupmap.md, content/builds/meeting-plan-agent.md, content/builds/knowledge-base-assistant.md, components/contact-section.tsx, components/builds-section.tsx, components/build-article.tsx, components/job-funnel.tsx, components/kb-fixes.tsx, app/builds/knowledge-base-assistant/page.tsx, app/globals.css, lib/content.ts, tests/knowledge-base.mjs, reference/portrait-prototype.html, reference/puzzle-box-prototype.html, log/prompts.md
+
+### 2026-09-30 13:01
+Prompt:
+```
+Three changes. Stop and tell me if anything fails.
+
+1. The CV: I've replaced public/Alex_Jones_CV.pdf with my updated CV.
+   - Keep the same filename so every existing link still works.
+   - Make sure nobody gets the old copy from a cache: add a version to every link to it on the site (for example ?v=2026-09-30), and check how Vercel caches files in public/ so an old copy isn't served for long.
+   - Check the PDF opens, has no phone number, and its header links jonesai.dev.
+
+2. Knowledge base assistant page: in "Where it came from", change "half our knowledge base" to "most of our knowledge base". The line becomes: "At my last company (a gaming startup) most of our knowledge base had quietly filled up with contradictions as we fleshed our design documentation out, so I built an assistant to fix it."
+
+3. The clay game on touch screens only (pointer: coarse): the PC version must stay exactly as it is.
+   - Draw the clays about 15% smaller, and make the area that counts as a hit about 20% smaller.
+   - Make the clays about 15% faster, keeping fast clays proportionally faster than normal ones.
+   - Keep these three numbers together in one clearly named settings object so I can tune them later.
+   - The fairness check that tests every throw before launch must use the phone settings on phones, so no throw is impossible.
+   - Add a test that the PC settings are unchanged and that the touch settings apply only on touch screens.
+
+4. Checks: run all the tests, the home page performance check, a clean production build, the code check and gitleaks git -v. Commit with "CV update, KB wording, harder clays on phones" and push to main.
+
+Tell me when it's live.
+```
+Changed: Updated CV with a cache-busting link, KB wording, and harder clays on touch screens only.
+Files: public/Alex_Jones_CV.pdf, content/contact.md, content/builds/knowledge-base-assistant.md, components/contact-section.tsx, next.config.ts, components/clay-game.tsx, src/clay-feel.ts, src/clay-feel.test.ts, log/prompts.md
+
