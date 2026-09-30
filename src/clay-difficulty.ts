@@ -61,16 +61,19 @@ function measureFlight(source: Clay, box: LaunchBox) {
       ghost.x <= box.width - marginX &&
       ghost.y >= marginY &&
       ghost.y <= box.height - marginY;
+    const beforeX = ghost.x;
+    const beforeY = ghost.y;
     if (inside) {
       insideTime += dt;
       sizeSum += Math.max(look.rx, look.ry) * 2;
       hitSum += Math.max(hitX, hitY) * 2;
       samples += 1;
     }
-    const beforeX = ghost.x;
-    const beforeY = ghost.y;
     stepClay(ghost, dt, box.width, box.height);
-    path += Math.hypot(ghost.x - beforeX, ghost.y - beforeY);
+    if (inside) {
+      // Speed on screen: only the path while the clay is shootable.
+      path += Math.hypot(ghost.x - beforeX, ghost.y - beforeY);
+    }
     total += dt;
     if (
       ghost.x < -200 ||
@@ -85,7 +88,7 @@ function measureFlight(source: Clay, box: LaunchBox) {
     shootable: insideTime,
     size: samples ? sizeSum / samples : 0,
     hit: samples ? hitSum / samples : 0,
-    speed: total > 0 ? path / total : 0,
+    speed: insideTime > 0 ? path / insideTime : 0,
   };
 }
 

@@ -4,6 +4,7 @@ import { startTransition, useEffect, useRef, useState } from "react";
 import { attach, wake } from "@/src/motion/loop";
 import { clayBoxClass } from "@/components/clay-scene";
 import { reportClayBreak } from "@/src/portrait/bridge";
+import { clayBreakDocumentPoint, clayHandShouldShow } from "@/src/clay-hand";
 import {
   activeClayFeel,
   clayFeel,
@@ -546,7 +547,8 @@ export function ClayGame({
         return;
       }
       celebrationFinished = true;
-      handHolstered = true;
+      // Hand returns for the next round (same as after a normal win once replay runs).
+      handHolstered = false;
       celebrationAt = 0;
       highGunActive = false;
       slowMoUntil = 0;
@@ -838,10 +840,12 @@ export function ClayGame({
       }
       floaters.push({ x: clay.x, y: clay.y, born: now });
       const rect = canvas.getBoundingClientRect();
-      reportClayBreak(
-        rect.left + window.scrollX + clay.x,
-        rect.top + window.scrollY + clay.y,
+      const point = clayBreakDocumentPoint(
+        rect,
+        clay,
+        { x: window.scrollX, y: window.scrollY },
       );
+      reportClayBreak(point.x, point.y);
       hits += 1;
       if (settings.shakeStrength > 0) {
         shakeAt = now;
@@ -1141,25 +1145,38 @@ export function ClayGame({
 
       if (phases.smoke && straight) {
         const smokeLife = highGunTiming.smokeMs;
-        for (let puff = 0; puff < 7; puff += 1) {
-          const born = puff * 90;
+        // Thicker plume: staggered soft puffs that billow, swirl and expand.
+        for (let puff = 0; puff < 16; puff += 1) {
+          const born = puff * 110;
           const age = (elapsed - born) / smokeLife;
           if (age < 0 || age > 1) {
             continue;
           }
-          const drift = Math.sin(elapsed * 0.003 + puff) * 10;
-          const x = tipX + drift + puff * 1.4;
-          const y = tipY - age * height * 0.28 - puff * 4;
+          const swell = 1 - Math.pow(1 - age, 1.35);
+          const swirl = Math.sin(elapsed * 0.0042 + puff * 0.9) * (18 + age * 28);
+          const drift = Math.cos(elapsed * 0.0028 + puff * 1.3) * (10 + age * 22);
+          const side = puff % 2 === 0 ? 1 : -1;
+          const x =
+            tipX +
+            swirl * 0.55 +
+            drift * side * 0.4 +
+            side * puff * 1.1;
+          const y =
+            tipY -
+            swell * height * (0.22 + (puff % 5) * 0.035) -
+            puff * 2.2;
+          const rx = 5 + swell * (16 + (puff % 4) * 5);
+          const ry = 8 + swell * (22 + (puff % 3) * 7);
           ctx.save();
-          ctx.globalAlpha = (1 - age) * 0.35;
-          ctx.fillStyle = "#8a8680";
+          ctx.globalAlpha = (1 - age) * (0.22 + (puff % 3) * 0.06);
+          ctx.fillStyle = puff % 3 === 0 ? "#9a9590" : "#8a8680";
           ctx.beginPath();
           ctx.ellipse(
             x,
             y,
-            3 + age * 10,
-            5 + age * 14,
-            drift * 0.02,
+            rx,
+            ry,
+            swirl * 0.012 + side * age * 0.25,
             0,
             Math.PI * 2,
           );
@@ -1487,8 +1504,13 @@ export function ClayGame({
           -slideLimit,
           Math.min(slideLimit, (aimX / width - 0.5) * 2 * slideLimit),
         );
-        hand.style.visibility =
-          handsReady && !celebrating && !handHolstered ? "visible" : "hidden";
+        hand.style.visibility = clayHandShouldShow({
+          handsReady,
+          celebrating,
+          handHolstered,
+        })
+          ? "visible"
+          : "hidden";
         hand.style.height = `${Math.round(reach)}px`;
         hand.style.width = `${Math.round(reach * photoRatio)}px`;
         hand.style.transform = handHolstered
@@ -1754,7 +1776,7 @@ export function ClayGame({
       {highGunDim ? (
         <div
           aria-hidden="true"
-          className="pointer-events-none fixed inset-0 z-[4]"
+          className="pointer-events-none fixed inset-0 z-[1]"
           style={{
             background:
               "radial-gradient(ellipse 42% 38% at 50% 32%, transparent 0%, transparent 42%, color-mix(in srgb, var(--color-ink) 28%, transparent) 100%)",
@@ -1763,14 +1785,14 @@ export function ClayGame({
       ) : null}
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 z-[5] h-full w-full select-none"
+        className="absolute inset-0 h-full w-full select-none"
         data-canvas="clay-canvas"
         style={{ touchAction: "pan-y" }}
         aria-hidden="true"
       />
       <div
         ref={handRef}
-        className="pointer-events-none absolute bottom-0 left-1/2"
+        className="pointer-events-none absolute bottom-0 left-1/2 z-[2]"
         style={{ visibility: "hidden" }}
         aria-hidden="true"
       >

@@ -34,11 +34,21 @@ describe("clay feel on phones and hard mode", () => {
       hit: 0.6,
       speed: 1.38,
     });
-    expect(clayFeel(true, false)).toEqual(touchClay);
+    // Phone normal launch feel is tuned down so measured difficulty matches
+    // the pre-physics numbers (still based on touchClay).
+    expect(clayFeel(true, false)).toEqual({
+      draw: touchClay.draw * 0.985,
+      hit: touchClay.hit * 0.985,
+      speed: touchClay.speed * 0.52,
+    });
     setClayFeel(false, false);
     expect(activeClayFeel()).toEqual({ draw: 1, hit: 1, speed: 1 });
     setClayFeel(true, false);
-    expect(activeClayFeel()).toEqual(touchClay);
+    expect(activeClayFeel()).toEqual({
+      draw: touchClay.draw * 0.985,
+      hit: touchClay.hit * 0.985,
+      speed: touchClay.speed * 0.52,
+    });
   });
 
   it("applies hard settings only in hard mode, on top of phone settings", () => {

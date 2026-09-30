@@ -40,6 +40,15 @@ export type ClayFeel = {
 export function clayFeel(coarse: boolean, hard = false): ClayFeel {
   const phone = coarse ? touchClay : desktopClay;
   if (!hard) {
+    if (coarse) {
+      // Phone normal: new flight paths measure faster. Pull pace back so
+      // difficulty stays near the pre-physics numbers (launch feel only).
+      return {
+        draw: phone.draw * 0.985,
+        hit: phone.hit * 0.985,
+        speed: phone.speed * 0.52,
+      };
+    }
     return phone;
   }
   return {
@@ -51,8 +60,10 @@ export function clayFeel(coarse: boolean, hard = false): ClayFeel {
 
 let feel: ClayFeel = desktopClay;
 let hardActive = false;
+let coarseActive = false;
 
 export function setClayFeel(coarse: boolean, hard = false) {
+  coarseActive = coarse;
   hardActive = hard;
   feel = clayFeel(coarse, hard);
 }
@@ -63,6 +74,11 @@ export function activeClayFeel(): ClayFeel {
 
 export function isHardModeActive() {
   return hardActive;
+}
+
+/** True when the phone (coarse pointer) feel is active. */
+export function isCoarseFeel() {
+  return coarseActive;
 }
 
 export function hardWindMul() {

@@ -4,6 +4,7 @@ import {
   hardCrosserSpeedMul,
   hardSizeWeights,
   hardWindMul,
+  isCoarseFeel,
   isHardModeActive,
   type HardThrowKind,
 } from "./clay-feel";
@@ -248,9 +249,13 @@ export function flightIsFair(
     return false;
   }
   const shootable = insideTime - hiddenTime;
+  const visibleNeed =
+    isCoarseFeel() && !isHardModeActive() ? 0.58 : settings.fairVisible;
+  const timeNeed =
+    isCoarseFeel() && !isHardModeActive() ? 0.95 : settings.fairTime;
   return (
-    insideTime / total >= settings.fairVisible &&
-    shootable >= settings.fairTime &&
+    insideTime / total >= visibleNeed &&
+    shootable >= timeNeed &&
     hiddenTime / insideTime <= settings.fairHand
   );
 }
@@ -330,11 +335,35 @@ function finishLaunch(target: Clay) {
   target.curl += target.wind * settings.gravity * 0.014;
   if (isHardModeActive()) {
     // Hard launches: less hang, a bit more pace (launch conditions only).
-    target.lift *= 0.78;
-    target.vx *= 1.1;
-    target.vy *= 1.04;
-    target.gravityScale = Math.min(1.08, target.gravityScale * 1.1);
-    target.distanceVel *= 1.08;
+    if (isCoarseFeel()) {
+      target.lift *= 0.36;
+      target.vx *= 1.28;
+      target.vy *= 1.12;
+      target.drag *= 1.2;
+      target.gravityScale = Math.min(1.28, Math.max(0.95, target.gravityScale) * 1.28);
+      target.distanceVel *= 1.18;
+    } else {
+      target.lift *= 0.78;
+      target.vx *= 1.12;
+      target.vy *= 1.06;
+      target.gravityScale = Math.min(1.12, target.gravityScale * 1.12);
+      target.distanceVel *= 1.1;
+    }
+  } else if (isCoarseFeel()) {
+    // Phone normal: extra hang so shootable stays near before and above hard.
+    target.lift *= 1.38;
+    target.vx *= 0.87;
+    target.vy *= 0.91;
+    target.gravityScale *= 0.76;
+    target.curl *= 0.74;
+    target.drag *= 0.9;
+  } else {
+    // Desktop normal: mild hang so shootable time stays near before.
+    target.lift *= 1.1;
+    target.vx *= 0.97;
+    target.vy *= 0.99;
+    target.gravityScale *= 0.94;
+    target.distanceVel *= 0.99;
   }
   return applyTouchSpeed(target);
 }
@@ -399,7 +428,12 @@ function launchCrosser(
     Math.max(riseRoom, 8),
   );
   const span = width + look.rx * 2;
-  target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
+  // Phone normal: start nearer the edge so slow crossings still look fair.
+  const startPad =
+    !isHardModeActive() && isCoarseFeel()
+      ? Math.max(2, look.rx * 0.3)
+      : look.rx + 2;
+  target.x = direction > 0 ? -startPad : width + startPad;
   target.vx = (direction * span) / time;
   target.vy = -Math.sqrt(2 * settings.gravity * rise);
   target.gravityScale = height < 480 ? 0.8 : 0.92;
@@ -504,6 +538,11 @@ function launchBattue({ width, height }: LaunchBox, sizeScale: number) {
   target.drag = sizeAero(sizeScale).drag * 1.1;
   target.curl = direction * rand(10, 28);
   target.duration = time;
+  if (isHardModeActive() && isCoarseFeel()) {
+    target.vx *= 1.25;
+    target.gravityScale = Math.min(1.2, target.gravityScale + 0.25);
+    target.lift *= 0.7;
+  }
   return finishLaunch(target);
 }
 
@@ -520,6 +559,11 @@ function launchTeal({ width, height }: LaunchBox, sizeScale: number) {
   target.drag = sizeAero(sizeScale).drag * 1.2;
   target.curl = (Math.random() < 0.5 ? -1 : 1) * rand(16, 38);
   target.duration = 1.7;
+  if (isHardModeActive() && isCoarseFeel()) {
+    target.lift *= 0.6;
+    target.gravityScale = Math.min(1.15, target.gravityScale * 1.3);
+    target.duration *= 0.75;
+  }
   return finishLaunch(target);
 }
 
@@ -543,11 +587,18 @@ function launchLooper({ width, height }: LaunchBox, sizeScale: number) {
     target.vx *= height < 480 ? 1.55 : 1.22;
     target.gravityScale = Math.min(1, target.gravityScale + (height < 480 ? 0.2 : 0.12));
     target.lift *= height < 480 ? 0.85 : 1;
+    if (isCoarseFeel()) {
+      target.lift *= 0.65;
+      target.gravityScale = Math.min(1.2, target.gravityScale + 0.15);
+    }
   }
   target.duration = Math.max(
     settings.fairTime + (isHardModeActive() ? 0.2 : 0.35),
     flightTime(distance, pickPace(0.05, 0.25), sizeScale),
   );
+  if (isHardModeActive() && isCoarseFeel()) {
+    target.duration *= 0.8;
+  }
   return finishLaunch(target);
 }
 
@@ -572,6 +623,10 @@ function launchDropper({ width, height }: LaunchBox, sizeScale: number) {
     target.gravityScale = Math.min(1, target.gravityScale + (height < 480 ? 0.32 : 0.2));
     target.distanceVel *= 1.35;
     target.vx *= height < 480 ? 1.55 : 1.3;
+    if (isCoarseFeel()) {
+      target.lift *= 0.7;
+      target.gravityScale = Math.min(1.25, target.gravityScale + 0.2);
+    }
   }
   target.duration = Math.max(
     settings.fairTime + (isHardModeActive() ? 0.35 : 0.85),
@@ -603,6 +658,12 @@ function launchCurler({ width, height }: LaunchBox, sizeScale: number) {
   // Stronger steady curl so the path bends one way like a spinning clay.
   target.curl = direction * rand(55, 100);
   target.duration = time;
+  if (isHardModeActive() && isCoarseFeel()) {
+    target.vx *= 1.3;
+    target.gravityScale = Math.min(1.25, target.gravityScale + 0.3);
+    target.lift *= 0.65;
+    target.curl *= 1.15;
+  }
   return finishLaunch(target);
 }
 

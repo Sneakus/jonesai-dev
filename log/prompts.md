@@ -2071,3 +2071,32 @@ Tell me in plain English what changed, whether normal mode changed at all, and t
 ```
 Changed: Unified real flight physics for all throws; bigger skippable High gun with ordinal beat line; difficulty retuned.
 Files: src/clay-flight.ts, src/clay-flight.test.ts, src/clay-throws.ts, src/clay-difficulty.ts, src/clay-difficulty-before.test.ts, src/clay-difficulty.test.ts, src/clay-feel.ts, src/clay-feel.test.ts, src/clay-celebration.ts, src/clay-celebration.test.ts, components/clay-game.tsx, components/clay-game-host.tsx, content/game.md, lib/content.ts, app/page.tsx, log/prompts.md
+
+### 2026-09-30 23:41
+Prompt:
+```
+Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.
+```
+Changed: none - those background shell exits were leftovers from the earlier physics/High gun checks
+Files: none
+
+### 2026-09-30 23:48
+Prompt:
+```
+Three fixes on the hard-mode branch. Stop and tell me if anything fails.
+
+1. Regression, both modes: on the preview, the hand doesn't load properly, and clay shards fall straight out of the bottom instead of drifting down the page into the tray below the contact links (as they do on main).
+   - Compare with main to find what broke it (for example the flight model change, the High gun shard-gathering, the test shortcuts, or the hand's lowered state), and tell me the cause.
+   - Fix it so the hand and the shards behave exactly as on main, in normal and hard mode, including after a High gun celebration.
+   - Add tests that would have caught this: the hand is visible at rest after load and after every round in both modes, and shards from every break reach the tray.
+
+2. Normal mode's difficulty: keep the new physics, but tune normal mode's launch settings (not the physics) so its difficulty numbers match what they were before this change, within about 5%, on desktop and phone: size, hit area, speed on screen and shootable time. Hard mode must stay harder than normal on every measure. Show me the difficulty table again.
+
+3. High gun smoke, more dramatic and longer: a thicker plume made of several soft puffs that billow, swirl and expand as they rise and drift, lasting about 4 seconds and carrying on while the shards gather into the rosette. Keep it grey and soft, in the site's look. Reduced motion: no smoke.
+
+4. Run all the tests, a clean production build, the code check, the home page performance check (normal and hard) and gitleaks git -v. Push to the hard-mode branch only, and give me the preview links with the shortcuts.
+
+Tell me in plain English what caused the regression, what changed, and the difficulty numbers.
+```
+Changed: Fixed hand/shard stacking, retuned normal launches, and made High gun smoke thicker for about 4 seconds.
+Files: app/globals.css, components/clay-game.tsx, src/clay-celebration.ts, src/clay-difficulty.ts, src/clay-difficulty-before.test.ts, src/clay-difficulty.test.ts, src/clay-feel.ts, src/clay-feel.test.ts, src/clay-flight.test.ts, src/clay-throws.ts, src/clay-hand.ts, src/clay-hand.test.ts, log/prompts.md

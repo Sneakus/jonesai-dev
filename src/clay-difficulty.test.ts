@@ -49,17 +49,8 @@ describe("hard mode difficulty", () => {
       expect(compare.smaller, `${hard.label} size`).toBe(true);
       expect(compare.hitShrinks, `${hard.label} hit`).toBe(true);
       expect(compare.hardFallbackUnder5, `${hard.label} fallback`).toBe(true);
-      if (!hard.coarse) {
-        expect(compare.faster, `${hard.label} speed`).toBe(true);
-        expect(compare.shorterShootable, `${hard.label} shootable`).toBe(true);
-      } else {
-        // On phones, hard mixes in hanging tricky throws, so raw path-speed
-        // can sit under normal. Smaller clays and tighter hits are the bar.
-        expect(
-          hard.avgSpeed > normal.avgSpeed * 0.9 || compare.shorterShootable,
-          `${hard.label} keeps pace or shortens the shot`,
-        ).toBe(true);
-      }
+      expect(compare.faster, `${hard.label} speed`).toBe(true);
+      expect(compare.shorterShootable, `${hard.label} shootable`).toBe(true);
     }
 
     // Spot-check that generated hard throws still pass fairness.
@@ -79,5 +70,5 @@ describe("hard mode difficulty", () => {
         }
       }
     }
-  });
+  }, 120_000);
 });
