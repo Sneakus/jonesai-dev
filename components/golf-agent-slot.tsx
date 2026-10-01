@@ -12,7 +12,10 @@ export function GolfAgentSlot({ copy }: { copy: GolfRangeCopy }) {
     armed: boolean;
     onDone: () => void;
   }> | null>(null);
-  const [touch, setTouch] = useState(false);
+  const [touch, setTouch] = useState(() =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(pointer: coarse)").matches,
+  );
   const [armed, setArmed] = useState(false);
 
   useEffect(() => {
@@ -46,8 +49,17 @@ export function GolfAgentSlot({ copy }: { copy: GolfRangeCopy }) {
   return (
     <div ref={spot}>
       <p className="mt-8 max-w-[640px]">{copy.words.intro}</p>
+      {copy.words.howTo.length > 0 ? (
+        <div className="mt-4 max-w-[640px] space-y-1 text-sm text-muted">
+          {copy.words.howTo.map((line) => (
+            <p key={line}>
+              {touch ? line.replace(/\bPress\b/g, "Tap") : line}
+            </p>
+          ))}
+        </div>
+      ) : null}
       {Game ? (
-        <div className="relative">
+        <div className="relative mt-4">
           <Game copy={copy} touch={touch} armed={armed} onDone={() => setArmed(false)} />
           {touch && !armed ? (
             <button

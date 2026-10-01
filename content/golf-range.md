@@ -1,4 +1,5 @@
 ---
+draft: true
 # Driving range outcomes for the Golf Agent page.
 # "cause" says what happened in the swing, in plain words (drafted by Claude).
 # "tip" is a plain-English version of a fix from AJ's Golf Agent notes (golf-fault-corpus-v3.md), same meaning, simpler words.
@@ -93,6 +94,11 @@ faults:
         - "Gentle. Too gentle. Commit to it."
         - "The ball will wait, but it won't move itself. Swing through it."
 hint: "Press when the balance marker crosses the gold bullseye, drag down into the gold band, then swipe up through the ball."
+howTo:
+  - "1. Press when the marker's in the gold to set your balance."
+  - "2. Drag down into the gold band for your backswing."
+  - "3. Swipe up through the dotted line to swing."
+  - "Gold is good. Red costs you."
 play: "Tap to play"
 done: "Done"
 perfect: "Perfect"

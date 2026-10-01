@@ -27,6 +27,7 @@ export type AirShot = {
 
 export type RangeWords = {
   hint: string;
+  howTo: string[];
   play: string;
   done: string;
   perfect: string;
@@ -122,6 +123,7 @@ export function readGolfRange(): GolfRangeCopy {
   }
   const words: RangeWords = {
     hint: asString(data.hint),
+    howTo: stringList(data.howTo),
     play: asString(data.play),
     done: asString(data.done),
     perfect: asString(data.perfect),

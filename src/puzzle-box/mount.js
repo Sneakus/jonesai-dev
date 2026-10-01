@@ -13,6 +13,8 @@ export async function mountPuzzleBox(stage) {
   const setupStarted = performance.now();
   let contactDirty = true;
   let touchable = false;
+  let disposed = false;
+  let pageHidden = false;
 
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const coarse = matchMedia('(pointer: coarse)').matches;
@@ -241,6 +243,7 @@ composer.addPass(new OutputPass());
 // ---------------- sound: every material sounds like itself (made live for now; recorded sounds come in the site version) ----------------
 let actx = null, noiseBuf = null;
 function audio() {
+  if (disposed || pageHidden) return null;
   if (!actx) {
     actx = new (window.AudioContext || window.webkitAudioContext)();
     noiseBuf = actx.createBuffer(1, actx.sampleRate * 0.5, actx.sampleRate);
@@ -250,13 +253,15 @@ function audio() {
   return actx;
 }
 function burst(freq, q, gain, decay, type) {   // a filtered noise hit: the body of a knock
-  const a = audio(), t = a.currentTime, s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  const a = audio(); if (!a) return;
+  const t = a.currentTime, s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
   s.buffer = noiseBuf; f.type = type || 'bandpass'; f.frequency.value = freq; f.Q.value = q;
   g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
   s.connect(f).connect(g).connect(a.destination); s.start(t, Math.random() * 0.3); s.stop(t + decay + 0.02);
 }
 function tone(freq, gain, decay, type, bend) {   // a ringing partial: the voice of metal
-  const a = audio(), t = a.currentTime, o = a.createOscillator(), g = a.createGain();
+  const a = audio(); if (!a) return;
+  const t = a.currentTime, o = a.createOscillator(), g = a.createGain();
   o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t); if (bend) o.frequency.exponentialRampToValueAtTime(freq * bend, t + decay);
   g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
   o.connect(g).connect(a.destination); o.start(t); o.stop(t + decay + 0.02);
@@ -769,9 +774,13 @@ function zoomAt(clientX, clientY, factor) {
 stage.addEventListener('wheel', e => { e.preventDefault(); if (!touchable) return; if (inspecting) { heldZoom = Math.max(0.8, Math.min(3.2, heldZoom * (1 - e.deltaY * 0.0012))); wake(); return; } zoomAt(e.clientX, e.clientY, 1 + e.deltaY * 0.001); }, { passive: false });
 
 // ---------------- loop: only runs while something is moving ----------------
-let running = false, last = 0;
-function wake() { if (!running) { running = true; last = performance.now(); requestAnimationFrame(tick); } }
+let running = false, last = 0, raf = 0;
+function wake() {
+  if (pageHidden || disposed) return;
+  if (!running) { running = true; last = performance.now(); raf = requestAnimationFrame(tick); }
+}
 function tick(now) {
+  if (disposed || pageHidden) { running = false; raf = 0; return; }
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   let moving = false;
   if (introT < 1) { introT = Math.min(1, introT + dt / 2.8); const e = 1 - Math.pow(1 - introT, 3); camT.az = 0.05 + 0.5 * e; moving = true; }
@@ -811,7 +820,7 @@ function tick(now) {
   const below = camera.position.y < 0.03; contact.visible = floor.visible = !below;   // looking up from underneath: no table in the way
   if (contactDirty) renderContact();
   composer.render();
-  if (moving || drag) requestAnimationFrame(tick); else running = false;
+  if (moving || drag) raf = requestAnimationFrame(tick); else { running = false; raf = 0; }
 }
 function resize() {
   const w = stage.clientWidth, h = stage.clientHeight;
@@ -856,24 +865,50 @@ if (loading) {
 }
 touchable = true;
 const stageObserver = new ResizeObserver(resize); stageObserver.observe(stage);
+function onVisibility() {
+  pageHidden = document.hidden;
+  if (pageHidden) {
+    running = false;
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    if (actx && actx.state === 'running') actx.suspend().catch(() => {});
+  } else if (!disposed) {
+    if (actx && actx.state === 'suspended') actx.resume().catch(() => {});
+    wake();
+  }
+}
+document.addEventListener('visibilitychange', onVisibility);
 wake();
 if (process.env.NEXT_PUBLIC_PUZZLE_TEST === "1") {
   window.__puzzleReady = { t: performance.now(), setupMs: performance.now() - setupStarted, shaders: window.__shaderCompiles || 0, lights: litCount(), programs: renderer.info.programs.length };
   window.__test = { beginPart, movePart, endPart, wake, get holding() { return holding; }, set holding(v) { holding = v; }, checkDials, lidState, balls, stepCradle, lights: litCount, programs: () => renderer.info.programs.length };
   window.__box = { P, rings, value: () => rings.map(ringValue).join(''), state: () => ({ panel: P.panel.value, drawer: P.drawer.value, holding, toolUsed, footTurned, strip: P.strip.value, keyUsed, cover: P.cover.angle, keyTurned: P.keyTurn.done, dialsEngaged, unlocked: lidState.unlocked, lid: lidState.angle }) };
+  window.__puzzleBusy = () => Boolean(running || raf || (actx && actx.state === 'running'));
 }
 return function disposePuzzle() {
+  if (disposed) return;
+  disposed = true;
+  pageHidden = true;
   running = false;
+  touchable = false;
+  if (raf) { cancelAnimationFrame(raf); raf = 0; }
+  document.removeEventListener('visibilitychange', onVisibility);
   removeEventListener('keydown', onKey);
   stageObserver.disconnect();
+  if (actx) {
+    try { actx.close(); } catch (e) {}
+    actx = null;
+    noiseBuf = null;
+  }
   renderer.dispose();
   composer.dispose();
   pmrem.dispose();
   if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
-  if (process.env.NEXT_PUBLIC_PUZZLE_TEST === "1" && !stage.querySelector("canvas")) {
+  if (process.env.NEXT_PUBLIC_PUZZLE_TEST === "1") {
     delete window.__test;
     delete window.__tags;
     delete window.__box;
+    delete window.__puzzleReady;
+    delete window.__puzzleBusy;
   }
 };
 

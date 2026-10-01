@@ -1,4 +1,4 @@
-﻿### 2026-09-22 21:35
+### 2026-09-22 21:35
 Prompt:
 ```
 Set up this folder as my personal website. Work through these steps in order, and stop and tell me if any step fails.
@@ -2424,3 +2424,34 @@ Fix the worldcupmap share cards:
 ```
 Changed: Fixed share-card generation so worldcupmap.io is not drawn twice overlapping, regenerated all three cards.
 Files: public/worldcupmap-share.png, public/worldcupmap-share-alt-1.png, public/worldcupmap-share-alt-2.png, log/prompts.md
+
+### 2026-10-01 17:13
+Prompt:
+```
+Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.
+```
+Changed: none - leftover check shell from the share card footer fix push finishing after the work shipped
+Files: none
+
+### 2026-10-01 18:18
+Prompt:
+```
+Four changes. Stop and tell me if anything fails.
+
+1. Golf Agent page: add short instructions just above the driving range game, small and in the site's style (words in content, marked draft: true):
+   "1. Press when the marker's in the gold to set your balance.
+   2. Drag down into the gold band for your backswing.
+   3. Swipe up through the dotted line to swing.
+   Gold is good. Red costs you."
+   On touch screens, "Press" becomes "Tap". Don't change the game itself.
+
+2. Build pages: wherever a build page has links (worldcupmap, Golf Agent, AJob if any, the puzzle box's code link, Meeting plan agent), show them at the top, just under the intro line, instead of at the bottom. Keep the same link text. The Knowledge base assistant page keeps its closing note at the bottom.
+
+3. Puzzle box page: when someone leaves the page (including navigating to another page within the site), stop everything: all sounds (close or suspend the audio), the physics including the Newton's cradle, and the animation loop, and release the 3D renderer properly. Also pause sound and motion when the tab is hidden, and resume when it's visible again. Add a test that no sound or animation continues after leaving the page.
+
+4. The portrait tray: make it fill to 100% at about 12 clays instead of about 18 (the lever unlocks then). Keep the fragments per clay and the face's 5,295 pieces the same. Update the tests and the hint percentages to match.
+
+5. Run all the tests, a clean production build, the code check, the home page performance check (normal and hard) and gitleaks git -v. Commit with "Golf instructions, links at the top, quiet cradle, 12-clay tray" and push to main.
+```
+Changed: Golf how-to, build links at the top, quiet puzzle cradle, tray fills at 12 clays.
+Files: content/golf-range.md, lib/golf-range.ts, components/golf-agent-slot.tsx, components/build-article.tsx, src/puzzle-box/mount.js, src/puzzle-box/leave-quiet.test.ts, tests/puzzle-box.mjs, src/portrait/sim.ts, src/portrait/sim.test.ts, log/prompts.md

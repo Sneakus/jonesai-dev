@@ -447,4 +447,34 @@ if (afterSleep - beforeSleep > 2) {
   console.error("the loop did not sleep");
   process.exit(1);
 }
+
+// Leaving the page must stop sound and animation (including the cradle).
+await page.evaluate(() => {
+  window.__test.balls[0].th = -0.8;
+  window.__test.balls[0].w = 0;
+  window.__test.wake();
+});
+await page.waitForTimeout(80);
+const busyBeforeLeave = await page.evaluate(() => window.__puzzleBusy());
+if (!busyBeforeLeave) {
+  console.error("expected the cradle loop to be busy before leaving");
+  process.exit(1);
+}
+await page.goto(`http://localhost:${port}/`, { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(100);
+const leftQuiet = await page.evaluate(() => ({
+  test: typeof window.__test,
+  ready: typeof window.__puzzleReady,
+  busy: typeof window.__puzzleBusy,
+  canvas: Boolean(document.querySelector(".puzzle-stage canvas")),
+}));
+if (leftQuiet.test !== "undefined" || leftQuiet.ready !== "undefined" || leftQuiet.busy !== "undefined") {
+  console.error("puzzle hooks were still present after leaving", leftQuiet);
+  process.exit(1);
+}
+if (leftQuiet.canvas) {
+  console.error("puzzle canvas was still on the page after leaving");
+  process.exit(1);
+}
+
 console.log("puzzle box checks passed");

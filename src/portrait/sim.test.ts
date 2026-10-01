@@ -302,17 +302,25 @@ describe("clay portrait", () => {
     expect(sim.awake()).toBe(false);
   });
 
-  it("fills the reservoir from 18 clays", () => {
+  it("fills the reservoir from 12 clays", () => {
     const sim = mount(true, () => 0.5);
-    smashClays(sim, 18);
+    smashClays(sim, 12);
     expect(sim.pileAudit().falling).toBe(0);
     expect(sim.isFull()).toBe(true);
     expect(sim.reservoir().pct).toBe(100);
   });
 
+  it("shows about 50% full after 6 clays", () => {
+    const sim = mount(true, () => 0.5);
+    smashClays(sim, 6);
+    expect(sim.pileAudit().falling).toBe(0);
+    expect(sim.reservoir().pct).toBe(50);
+    expect(sim.isFull()).toBe(false);
+  });
+
   it("does not change the picture when the line ends", () => {
     const sim = mount(true, () => 0.5);
-    smashClays(sim, 18);
+    smashClays(sim, 12);
     sim.leverKey();
     let now = until(sim, () => sim.faceAudit().missing === 0, 2);
     for (let i = 0; i < 20; i += 1) {
@@ -326,7 +334,7 @@ describe("clay portrait", () => {
 
   it("asks for a click 8 seconds after the line, and never after a click", () => {
     const quiet = mount(true, () => 0.5);
-    smashClays(quiet, 18);
+    smashClays(quiet, 12);
     quiet.leverKey();
     let now = until(quiet, () => quiet.faceAudit().missing === 0, 2);
     now += 16;
@@ -340,7 +348,7 @@ describe("clay portrait", () => {
     expect(quiet.wantsNudge()).toBe(true);
 
     const clicked = mount(true, () => 0.5);
-    smashClays(clicked, 18);
+    smashClays(clicked, 12);
     clicked.leverKey();
     now = until(clicked, () => clicked.faceAudit().missing === 0, 2);
     now += 16;
@@ -473,7 +481,7 @@ describe("clay portrait", () => {
     let now = until(sim, () => sim.pileAudit().falling === 0, 12);
     now = pullAndBuild(sim, now);
     expect(sim.popHeadPieces()).toBe(2605);
-    expect(sim.pileAudit().falling).toBe(195);
+    expect(sim.pileAudit().falling).toBe(130);
     expect(sim.faceAudit().missing).toBe(2605);
     now = until(sim, () => sim.pileAudit().falling === 0, 12, now);
     expect(sim.isFull()).toBe(true);
@@ -499,7 +507,7 @@ describe("clay portrait", () => {
     sim.tryClick(0, 10);
     now = until(sim, () => sim.lastEffect === "balloon" && sim.effect === null, 8, now);
     expect(sim.faceAudit().missing).toBe(2605);
-    expect(sim.pileAudit().falling).toBe(195);
+    expect(sim.pileAudit().falling).toBe(130);
     void now;
   }, 180000);
 

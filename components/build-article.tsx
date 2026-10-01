@@ -151,10 +151,29 @@ export function BuildArticle({
           { href: build.repo, label: site.repoLink },
         ].filter((link) => link.href);
 
+  const linkList =
+    links.length > 0 ? (
+      <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+        {links.map((link) => (
+          <li key={link.href}>
+            <a
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-4"
+            >
+              {link.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    ) : null;
+
   return (
     <article className="max-w-[640px] pt-8 pb-20">
       <h1 className="build-title">{build.title}</h1>
       <p className="mt-4 text-base text-muted">{build.summary}</p>
+      {linkList}
       {build.slug === "worldcupmap" ? (
         <WorldcupGlobe
           caption={build.globeCaption}
@@ -238,22 +257,6 @@ export function BuildArticle({
           );
         })}
       </div>
-      {links.length > 0 ? (
-        <ul className="mt-12 flex flex-wrap gap-x-6 gap-y-2">
-          {links.map((link) => (
-            <li key={link.href}>
-              <a
-                href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-4"
-              >
-                {link.label}
-              </a>
-            </li>
-          ))}
-        </ul>
-      ) : null}
     </article>
   );
 }
