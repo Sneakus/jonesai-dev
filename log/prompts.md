@@ -2400,3 +2400,27 @@ Two changes to the worldcupmap page. Stop and tell me if anything fails.
 ```
 Changed: Swapped in Italy backs France as the share image, kept two alt cards, and trimmed the What happened line.
 Files: content/builds/worldcupmap.md, public/worldcupmap-share.png, public/worldcupmap-share-alt-1.png, public/worldcupmap-share-alt-2.png, log/prompts.md
+
+### 2026-10-01 16:54
+Prompt:
+```
+Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.
+```
+Changed: none - leftover check shell from the contrarian share image push finishing after the work shipped
+Files: none
+
+### 2026-10-01 16:57
+Prompt:
+```
+Fix the worldcupmap share cards:
+
+1. On the card, "worldcupmap.io" appears twice at the bottom, overlapping. Find out why (for example the footer drawn twice, or a font drawn before and after loading) and fix how the cards are generated, without changing the design. Compare with how the live tool draws its cards.
+
+2. Regenerate all three (Italy backs France, Ireland backs France, Venezuela backs Argentina) and check each one properly: the footer appears once, all text is crisp and nothing overlaps. Tell me how you checked.
+
+3. Alt text accuracy: France was Italy's most-picked team (16 of 88 picks), not a majority. Make sure the alt text doesn't say "majority" or "most Italians".
+
+4. Run all the tests, a clean production build, the code check and gitleaks git -v. Commit with "worldcupmap: share card footer fix" and push to main.
+```
+Changed: Fixed share-card generation so worldcupmap.io is not drawn twice overlapping, regenerated all three cards.
+Files: public/worldcupmap-share.png, public/worldcupmap-share-alt-1.png, public/worldcupmap-share-alt-2.png, log/prompts.md
