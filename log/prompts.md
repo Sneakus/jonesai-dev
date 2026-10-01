@@ -2334,3 +2334,19 @@ Tell me in plain English what changed in each step.
 ```
 Changed: STEP1 reverted heap sleep on main and reset hard-beats to 0; STEP2 fixed support-based heap sleep, High gun smoke tip and rosette on heap-fix.
 Files: src/portrait/sim.ts, src/portrait/sim.test.ts, components/clay-game.tsx, log/prompts.md
+
+### 2026-10-01 02:53
+Prompt:
+```
+Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.
+```
+Changed: none - leftover check shells from the heap-fix push finishing after the work shipped
+Files: none
+
+### 2026-10-01 02:56
+Prompt:
+```
+The heap-fix branch is approved. Merge it into main, run all the tests, a clean production build, the code check, the home page performance check (normal and hard) and gitleaks git -v. If everything passes, push main. Then confirm on the live site that the test shortcuts do nothing and the count API still returns {"count":0}. Tell me when it's live.
+```
+Changed: Merged heap-fix into main and pushed after all checks passed.
+Files: (merge of heap-fix) log/prompts.md
