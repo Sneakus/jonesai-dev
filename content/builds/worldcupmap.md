@@ -7,6 +7,10 @@ image:
   src: /builds/worldcupmap.webp
   alt: The worldcupmap.io world map, with each country coloured by the team its fans picked to win
 globeCaption: Each country is coloured by the team its people voted for most to win the World Cup. Each dot is one vote.
+shareShot:
+  src: /worldcupmap-share.png
+  alt: A tall dark share card from worldcupmap showing the outline of France filled with glowing vote dots, French flags, the line France backs France, and a big 68 percent
+  caption: Most of the growth came from people sharing these in their group chats.
 links:
   - label: Visit worldcupmap.io
     url: https://worldcupmap.io

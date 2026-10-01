@@ -179,6 +179,23 @@ export function BuildArticle({
           className="mt-8 h-auto w-full rounded-2xl"
         />
       ) : null}
+      {build.shareShot ? (
+        <figure className="mt-8 w-full min-[900px]:w-1/2">
+          <Image
+            src={build.shareShot.src}
+            alt={build.shareShot.alt}
+            width={build.shareShot.width}
+            height={build.shareShot.height}
+            quality={90}
+            sizes="(max-width: 899px) calc(100vw - 40px), 320px"
+            unoptimized
+            className="h-auto w-full rounded-2xl"
+          />
+          <figcaption className="mt-3 text-[15px] leading-[1.55] text-muted">
+            {build.shareShot.caption}
+          </figcaption>
+        </figure>
+      ) : null}
       {feature}
       {build.slug === "golf-agent" ? <GolfAgentSlot copy={readGolfRange()} /> : null}
       <div className="mt-10">

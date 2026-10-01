@@ -2350,3 +2350,27 @@ The heap-fix branch is approved. Merge it into main, run all the tests, a clean 
 ```
 Changed: Merged heap-fix into main and pushed after all checks passed.
 Files: (merge of heap-fix) log/prompts.md
+
+### 2026-10-01 02:59
+Prompt:
+```
+Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.
+```
+Changed: none - leftover check shells from the heap-fix merge finishing after it went live
+Files: none
+
+### 2026-10-01 16:03
+Prompt:
+```
+Two changes. Stop and tell me if anything fails.
+
+1. The intro line under "I can't code." becomes: "Founding operator in London, making a bunch of stuff with AI". Leave the link preview title unchanged.
+
+2. worldcupmap's share image on its build page:
+   - Clone github.com/Sneakus/wcpredict and use its own share-image code to generate one exactly as the live tool made them during the tournament, using the most-picked team in the real vote data. Check it contains nothing personal. Save it to public/worldcupmap-share.png, optimised for the web.
+   - On the worldcupmap page, show it after the spinning globe, at a comfortable size (full width on phones, about half the page width on desktop), with this caption underneath: "Most of the growth came from people sharing these in their group chats." Give it alt text that describes what's on it.
+
+3. Run all the tests, a clean production build, the code check and gitleaks git -v. Commit with "London, and worldcupmap's share image" and push to main. Tell me which team the image shows and how many picks it had.
+```
+Changed: London intro wording, and a France share card on the worldcupmap build page after the globe.
+Files: content/home.md, content/builds/worldcupmap.md, public/worldcupmap-share.png, components/build-article.tsx, lib/content.ts, log/prompts.md

@@ -124,6 +124,10 @@ export type BuildImage = {
   height: number;
 };
 
+export type BuildShareShot = BuildImage & {
+  caption: string;
+};
+
 export type BuildExample = {
   label: string;
   question: string;
@@ -160,6 +164,7 @@ export type Build = {
   plan: string;
   image: BuildImage | null;
   globeCaption: string;
+  shareShot: BuildShareShot | null;
   callPlan: CallPlan | null;
   example: BuildExample | null;
   funnel: BuildFunnel | null;
@@ -484,6 +489,20 @@ function readImageSize(src: string, file: string): { width: number; height: numb
   }
 
   const data = fs.readFileSync(filePath);
+
+  if (
+    data.length >= 24 &&
+    data[0] === 0x89 &&
+    data[1] === 0x50 &&
+    data[2] === 0x4e &&
+    data[3] === 0x47
+  ) {
+    return {
+      width: data.readUInt32BE(16),
+      height: data.readUInt32BE(20),
+    };
+  }
+
   const kind = data.toString("ascii", 12, 16);
   if (data.toString("ascii", 0, 4) !== "RIFF" || data.toString("ascii", 8, 12) !== "WEBP") {
     throw new Error(`${file} image ${src} could not be read`);
@@ -531,6 +550,26 @@ function parseImage(
   const alt = requiredString(value, "alt", file);
   const size = readImageSize(src, file);
   return { src, alt, width: size.width, height: size.height };
+}
+
+function parseShareShot(
+  value: FrontmatterValue | undefined,
+  file: string,
+): BuildShareShot | null {
+  if (value === undefined) {
+    return null;
+  }
+  if (!isRecord(value)) {
+    throw new Error(`${file} shareShot could not be read`);
+  }
+  const image = parseImage(value, file);
+  if (!image) {
+    return null;
+  }
+  return {
+    ...image,
+    caption: requiredString(value, "caption", file),
+  };
 }
 
 function parseStringList(
@@ -688,6 +727,7 @@ function readBuildFile(filePath: string): Build {
     plan: optionalString(data, "plan"),
     image: parseImage(data.image, filename),
     globeCaption: optionalString(data, "globeCaption"),
+    shareShot: parseShareShot(data.shareShot, filename),
     callPlan: parseCallPlan(data.callPlan, filename),
     example: parseExample(data.example, filename),
     funnel: parseFunnel(data.funnel, filename),
