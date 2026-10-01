@@ -339,6 +339,8 @@ export class PortraitSim {
   private heapPast = 0;
   private heapLeft = 0;
   private heapAwake = 0;
+  /** Sim-seconds spent trying to settle while not feeding. */
+  private heapSettleAge = 0;
 
   constructor(
     data: PortraitData | PackedPortrait,
@@ -1348,6 +1350,7 @@ export class PortraitSim {
       this.heapLeft = 0;
       this.furthestRight = 0;
       this.heapAwake = 0;
+      this.heapSettleAge = 0;
       return;
     }
     this.heapClock += Math.min(dt, 0.05);
@@ -1362,7 +1365,8 @@ export class PortraitSim {
         const gapX = body.x - body.px;
         const gapY = body.y - body.py;
         const speed = Math.abs(gapX) + Math.abs(gapY);
-        const damp = !this.feeding && speed < 1.5 ? 0.9 : 0.985;
+        // Settle faster when the crusher is idle so the pile can sleep.
+        const damp = !this.feeding && speed < 1.5 ? 0.78 : 0.985;
         const vx = gapX * damp;
         const vy = gapY * damp;
         body.flow = Math.abs(vx) + Math.abs(vy);
@@ -1415,12 +1419,12 @@ export class PortraitSim {
                 const nx = dx / d;
                 const ny = dy / d;
                 const over = rr - d;
-                const hit =
+                const hardHit =
                   (!body.asleep &&
-                    Math.abs(body.x - body.px) + Math.abs(body.y - body.py) > 1) ||
+                    Math.abs(body.x - body.px) + Math.abs(body.y - body.py) > 3) ||
                   (!other.asleep &&
-                    Math.abs(other.x - other.px) + Math.abs(other.y - other.py) > 1);
-                if (over > 4 && hit && (body.asleep || other.asleep)) {
+                    Math.abs(other.x - other.px) + Math.abs(other.y - other.py) > 3);
+                if (over > 4 && hardHit && (body.asleep || other.asleep)) {
                   body.asleep = false;
                   other.asleep = false;
                   body.still = 0;
@@ -1458,7 +1462,7 @@ export class PortraitSim {
             const overlap = this.trayLeftX + body.r - body.x;
             body.x = this.trayLeftX + body.r;
             body.px = body.x;
-            if (body.asleep && overlap > 0.5) {
+            if (body.asleep && overlap > 1.5 && this.feeding) {
               body.asleep = false;
               body.still = 0;
             }
@@ -1467,8 +1471,8 @@ export class PortraitSim {
             const overlap = body.x - (this.wallX - body.r);
             body.x = this.wallX - body.r;
             body.px = body.x;
-            // The sliding wall still shoves a piece that has already gone to sleep.
-            if (body.asleep && overlap > 0.5) {
+            // Only the sliding feed wall should wake sleepers.
+            if (body.asleep && overlap > 1.5 && this.feeding) {
               body.asleep = false;
               body.still = 0;
             }
@@ -1480,9 +1484,9 @@ export class PortraitSim {
           continue;
         }
         const mv = body.flow;
-        if (mv < 0.35 && !this.feeding) {
+        if (mv < 0.55 && !this.feeding) {
           body.still += HEAP_H;
-          if (body.still > 0.12) {
+          if (body.still > 0.08) {
             body.asleep = true;
             body.px = body.x;
             body.py = body.y;
@@ -1492,6 +1496,25 @@ export class PortraitSim {
           body.still = 0;
         }
       }
+    }
+    if (this.feeding) {
+      this.heapSettleAge = 0;
+    } else if (this.heapMoving()) {
+      this.heapSettleAge += Math.max(1, guard) * HEAP_H;
+      // Failsafe: after a couple of seconds idle, put the whole pile to bed.
+      if (this.heapSettleAge > 2) {
+        for (const body of this.settled) {
+          body.asleep = true;
+          body.flow = 0;
+          body.still = 1;
+          body.px = body.x;
+          body.py = body.y;
+          body.vr = 0;
+        }
+        this.heapSettleAge = 0;
+      }
+    } else {
+      this.heapSettleAge = 0;
     }
     if (this.feeding) {
       let took = 0;

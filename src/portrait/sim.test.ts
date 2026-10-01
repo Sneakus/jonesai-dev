@@ -268,6 +268,20 @@ describe("clay portrait", () => {
     expect(sim.overlayActive()).toBe(false);
   });
 
+  it("never leaves a big idle heap jittering forever", () => {
+    // A dense tray pile used to keep the shared animation loop awake forever.
+    for (const seed of [3, 7, 11, 42, 99]) {
+      const sim = mount(false, mulberry(seed));
+      smashClays(sim, 10, 100, 180);
+      smashClays(sim, 10, 220, 160);
+      const landed = until(sim, () => sim.pileAudit().falling === 0, 12);
+      expect(sim.pileAudit().pieces).toBeGreaterThan(50);
+      until(sim, () => !sim.awake() && sim.pileAudit().awake === 0, 4, landed);
+      expect(sim.awake(), `seed ${seed}`).toBe(false);
+      expect(sim.pileAudit().awake, `seed ${seed}`).toBe(0);
+    }
+  });
+
   it("fills the reservoir from 18 clays", () => {
     const sim = mount(true, () => 0.5);
     smashClays(sim, 18);

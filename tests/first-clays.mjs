@@ -10,6 +10,7 @@ const label = process.argv.includes("--label")
   : "run";
 const check = process.argv.includes("--check");
 const quick = process.argv.includes("--quick");
+const slowedOnly = process.argv.includes("--slowed-only");
 const port = Number(process.env.PORT || 3456);
 const base = `http://127.0.0.1:${port}/`;
 
@@ -267,7 +268,7 @@ async function runPass(browser, { throttle, hard = false }) {
     await page.waitForFunction(() => window.__jonesHard, null, { timeout: 20000 });
     await page.evaluate(() => window.__jonesHard.setHard(true));
   }
-  if (!quick) {
+  if (!quick && !slowedOnly) {
     await session.send("Tracing.start", {
       transferMode: "ReturnAsStream",
       traceConfig: {
@@ -295,7 +296,7 @@ async function runPass(browser, { throttle, hard = false }) {
       stats.asleep = await page.evaluate(() => Boolean(window.__jonesPerf?.asleep));
     }
   }
-  if (!quick) {
+  if (!quick && !slowedOnly) {
     fs.mkdirSync("perf", { recursive: true });
     const traceName = throttle === 1 ? `${label}-desktop.trace.json` : `${label}-4x.trace.json`;
     await saveTrace(session, path.join("perf", traceName));
@@ -374,12 +375,16 @@ function summariseTask(task) {
 const browser = await chromium.launch({ headless: true });
 const passes = quick
   ? [await runPass(browser, { throttle: 1 })]
-  : [await runPass(browser, { throttle: 4 }), await runPass(browser, { throttle: 1 })];
+  : slowedOnly
+    ? [await runPass(browser, { throttle: 4 })]
+    : [await runPass(browser, { throttle: 4 }), await runPass(browser, { throttle: 1 })];
 const hardPass =
-  check && !quick ? await runPass(browser, { throttle: 1, hard: true }) : null;
+  check && !quick && !slowedOnly
+    ? await runPass(browser, { throttle: 1, hard: true })
+    : null;
 await browser.close();
 const throttled = quick ? null : passes[0];
-const desktop = quick ? passes[0] : passes[1];
+const desktop = quick || slowedOnly ? null : passes[1];
 
 const report = {
   label,
@@ -390,11 +395,13 @@ const report = {
         loafs: throttled.loafs.map(summariseTask),
       }
     : null,
-  desktop: {
-    ...desktop,
-    longTasks: desktop.longTasks.map(summariseTask),
-    loafs: desktop.loafs.map(summariseTask),
-  },
+  desktop: desktop
+    ? {
+        ...desktop,
+        longTasks: desktop.longTasks.map(summariseTask),
+        loafs: desktop.loafs.map(summariseTask),
+      }
+    : null,
   hard: hardPass
     ? {
         ...hardPass,
@@ -471,7 +478,19 @@ function worstTraceCall(file) {
   return Math.round(worst / 1000);
 }
 
-if (check && throttled) {
+if (check && throttled && slowedOnly) {
+  const problems = [];
+  if (throttled.smashed !== 5) {
+    problems.push(`smashed ${throttled.smashed}, expected 5`);
+  }
+  if (!throttled.asleep) {
+    problems.push("animation loop was still running when nothing was moving");
+  }
+  if (problems.length) {
+    console.error(problems.join("\n"));
+    process.exit(1);
+  }
+} else if (check && throttled && desktop) {
   const problems = [];
   if (throttled.smashed !== 5 || desktop.smashed !== 5) {
     problems.push(`smashed ${throttled.smashed}/${desktop.smashed}, expected 5`);

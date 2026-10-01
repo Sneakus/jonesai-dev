@@ -43,8 +43,18 @@ function tick(now: number) {
 
 export function wake() {
   const perf = state();
+  // Never leave the shared loop marked awake when nothing is attached.
+  if (jobs.size === 0) {
+    if (raf) {
+      window.cancelAnimationFrame(raf);
+    }
+    running = false;
+    raf = 0;
+    perf.asleep = true;
+    return;
+  }
   perf.asleep = false;
-  if (running || jobs.size === 0) {
+  if (running) {
     return;
   }
   running = true;

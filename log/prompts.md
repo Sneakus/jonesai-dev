@@ -1,4 +1,4 @@
-### 2026-09-22 21:35
+﻿### 2026-09-22 21:35
 Prompt:
 ```
 Set up this folder as my personal website. Work through these steps in order, and stop and tell me if any step fails.
@@ -2214,3 +2214,57 @@ Tell me in plain English what was wrong with each, and what changed.
 ```
 Changed: Hard far throws stay level; normal matches main on every difficulty measure; ?test=normal fully clears unlock in dirty browsers.
 Files: src/clay-feel.ts, src/clay-throws.ts, src/clay-hard-frame.test.ts, src/clay-normal-parity.test.ts, src/clay-feel.test.ts, src/clay-test-shortcuts-live.ts, src/clay-test-shortcuts.test.ts, components/clay-game-host.tsx, components/clay-game.tsx, tests/clay-reset-dirty.mjs, log/prompts.md
+
+### 2026-10-01 01:19
+Prompt:
+```
+Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.
+```
+Changed: none - first-clays re-check passed; local check server was stopped after the run
+Files: none
+
+### 2026-10-01 01:30
+Prompt:
+```
+Hard mode is approved, and I've connected a Redis store (Upstash) to the project in Vercel for all environments. Put it live:
+
+1. Check the environment variable names Vercel created for the store (for example with vercel env ls) match what the count API reads. If they don't, update the code to read the names Vercel uses. Never put the values in the code.
+2. Merge the hard-mode branch into main.
+3. On main, run all the tests (including the normal mode parity test and the shortcut-absence test), a clean production build, the code check, the home page performance check (normal and hard) and gitleaks git -v. If anything fails, stop and tell me.
+4. Push main. Once Vercel has deployed, check on the live site: the test shortcuts do nothing; the page loads Vercel Web Analytics; and the count API returns a number (it should be 0).
+
+Tell me in plain English when it's live and what you found.
+```
+Changed: (in progress)
+Files: (in progress)
+
+### 2026-10-01 01:34
+Prompt:
+```
+(follow-up status for put-hard-mode-live)
+```
+Changed: Stopped before pushing main - home page performance check failed (slowed run animation loop still awake)
+Files: none pushed; main merged locally only
+
+### 2026-10-01 01:34
+Prompt:
+```
+Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.
+```
+Changed: none - local check server was stopped after the failed first-clays run
+Files: none
+
+### 2026-10-01 02:16
+Prompt:
+```
+Don't push yet. Find out why the animation loop sometimes doesn't sleep on the slowed home page check:
+
+1. Add temporary logging that records which part of the page asked for each frame (for example the clay heap still settling, the celebration, the hand, the Pull button swirl, the game itself, the portrait), so a failing run shows what's still awake.
+2. Run the slowed check 5 times on the merged local main, and 5 times on the current live main (origin/main), and tell me how often each fails and which part is still awake when it does.
+3. If it's a real cause (something that never settles, or keeps asking for frames when nothing visible is changing), fix it, and add a test for that part. If the check is simply waiting too short a time for the heap to settle on a 4x slowed processor, tell me how long settling actually takes there before changing the check.
+4. Remove the temporary logging. Run the full checks again; if everything passes, push main and verify the live site as in the previous prompt (shortcuts do nothing, analytics loads, the count API returns 0).
+
+Tell me in plain English what was keeping it awake, whether the live site already had it, and what changed.
+```
+Changed: Portrait clay heap can now settle and sleep; empty wake no longer leaves the loop marked awake; temporary frame logging removed.
+Files: src/portrait/sim.ts, src/portrait/sim.test.ts, src/motion/loop.ts, src/motion/loop.test.ts, tests/first-clays.mjs, .gitignore, log/prompts.md

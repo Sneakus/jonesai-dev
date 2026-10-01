@@ -46,3 +46,5 @@ next-env.d.ts
 
 # source models stay outside the repo
 *.fbx
+
+.vercel
