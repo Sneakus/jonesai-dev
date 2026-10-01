@@ -1,5 +1,5 @@
 ---
-order: 2
+order: 1
 title: worldcupmap
 slug: worldcupmap
 summary: A live World Cup prediction map. You pick a winner and the map shows how fans in each country are voting, in real time.

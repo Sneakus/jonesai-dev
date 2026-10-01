@@ -1,5 +1,5 @@
 ---
-order: 3
+order: 0
 title: Golf Agent
 slug: golf-agent
 summary: You describe a bad golf shot in your own words, and it works out the likely cause, then gives you one thing to focus on.

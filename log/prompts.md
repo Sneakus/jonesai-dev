@@ -2268,3 +2268,33 @@ Tell me in plain English what was keeping it awake, whether the live site alread
 ```
 Changed: Portrait clay heap can now settle and sleep; empty wake no longer leaves the loop marked awake; temporary frame logging removed.
 Files: src/portrait/sim.ts, src/portrait/sim.test.ts, src/motion/loop.ts, src/motion/loop.test.ts, tests/first-clays.mjs, .gitignore, log/prompts.md
+
+### 2026-10-01 02:20
+Prompt:
+```
+Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.
+```
+Changed: none - those background shells were leftover check servers being stopped after the heap fix shipped
+Files: none
+
+### 2026-10-01 02:28
+Prompt:
+```
+Two changes. Stop and tell me if anything fails.
+
+1. Builds list order (homepage): Golf Agent, worldcupmap, AJob, the puzzle box, Knowledge base assistant, Meeting plan agent.
+
+2. Knowledge base assistant page: replace the example, in both the text and the animated graphic.
+   - Label: "An example" (remove the old label about the real documents being confidential).
+   - The update: "Matches now last 15 minutes, down from 20."
+   - What it found:
+     1. Game design document: "Each match is four 5-minute rounds." Suggested fix: "Each match is three 5-minute rounds."
+     2. Store page: "Jump in for a quick 20-minute match." Suggested fix: "Jump in for a quick 15-minute match."
+     3. Tournament rules: "A best-of-three final takes about an hour." Suggested fix: "A best-of-three final takes about 45 minutes."
+   - "Nothing changed until someone approved each fix."
+   - The graphic's three document pages become: Game design document, Store page, Tournament rules. Everything else about the graphic stays the same.
+
+3. Run all the tests, a clean production build, the code check, the performance check and gitleaks git -v. Commit with "Builds order, simpler KB example" and push to main.
+```
+Changed: Reordered the Builds list and replaced the Knowledge base example text and graphic pages.
+Files: content/builds/golf-agent.md, content/builds/worldcupmap.md, content/builds/ajob.md, content/puzzle-box.md, content/builds/knowledge-base-assistant.md, content/builds/meeting-plan-agent.md, tests/knowledge-base.mjs, log/prompts.md

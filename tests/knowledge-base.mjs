@@ -32,11 +32,11 @@ for (const path of pages) {
 await page.goto(`${base}/`, { waitUntil: "load", timeout: 60000 });
 const titles = await page.locator("section.mt-16 a span.text-lg").allTextContents();
 const expected = [
-  "Knowledge base assistant",
-  "The puzzle box",
-  "worldcupmap",
   "Golf Agent",
+  "worldcupmap",
   "AJob",
+  "The puzzle box",
+  "Knowledge base assistant",
   "Meeting plan agent",
 ];
 if (titles.join(" | ") !== expected.join(" | ")) {
@@ -46,8 +46,9 @@ if (titles.join(" | ") !== expected.join(" | ")) {
 const lines = await page.locator("section.mt-16 a span.mt-1").allTextContents();
 const cardLine =
   "Finds every contradiction an update causes across our documents, and suggests the fixes.";
-if (lines[0] !== cardLine) {
-  console.error(`card line: ${lines[0]}`);
+const kbIndex = titles.indexOf("Knowledge base assistant");
+if (kbIndex < 0 || lines[kbIndex] !== cardLine) {
+  console.error(`card line: ${kbIndex < 0 ? "missing" : lines[kbIndex]}`);
   process.exitCode = 1;
 }
 

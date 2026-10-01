@@ -1,5 +1,5 @@
 ---
-order: 4
+order: 2
 title: AJob
 slug: ajob
 summary: Checks London startup job pages twice a day and emails me the few worth reading.
