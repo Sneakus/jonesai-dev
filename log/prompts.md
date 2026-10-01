@@ -2298,3 +2298,39 @@ Two changes. Stop and tell me if anything fails.
 ```
 Changed: Reordered the Builds list and replaced the Knowledge base example text and graphic pages.
 Files: content/builds/golf-agent.md, content/builds/worldcupmap.md, content/builds/ajob.md, content/puzzle-box.md, content/builds/knowledge-base-assistant.md, content/builds/meeting-plan-agent.md, tests/knowledge-base.mjs, log/prompts.md
+
+### 2026-10-01 02:28
+Prompt:
+```
+Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.
+```
+Changed: none - leftover check servers stopped after the Builds/KB push
+Files: none
+
+### 2026-10-01 02:32
+Prompt:
+```
+Two steps. Stop and tell me if anything fails.
+
+STEP 1, on main straight away:
+a. The tray heap is broken on the live site (some shards hang in mid-air at the top, others don't stack properly). Revert only the recent heap sleep change (the forced sleep after about 2 idle seconds, and making sleeping pieces harder to wake), so the heap behaves as it did before that change. Run the tests and gitleaks git -v, commit with "Revert heap sleep change (shards hanging)" and push to main.
+b. Reset the hard mode beaten count to 0. Do it once from this machine with a one-off command or script that reads the store's keys from Vercel (for example via vercel env pull into an ignored local file), sets the count back to 0, and clears any rate-limit entries. Don't add a reset route to the site, don't commit the script if it contains anything secret, and delete any local file holding the keys afterwards. Confirm the live count API returns {"count":0}.
+Tell me when both are done.
+
+STEP 2, on a new branch called heap-fix:
+
+1. Fix the heap sleep properly: a piece may only go to sleep when it is resting on the tray floor or on another resting piece, and barely moving. Falling or unsupported pieces never sleep. A piece landing on, or pushing, a sleeping piece wakes it. The whole pile may only be put to sleep when every piece is resting and supported. Compare with reference/portrait-prototype.html, which settles correctly, and match its behaviour.
+   Tests: after many clays have landed and settled, no piece is floating (every piece is supported), pieces don't overlap beyond a small tolerance, new shards landing on a sleeping pile settle into it, and the animation loop goes to sleep afterwards (on the normal and the slowed run).
+
+2. High gun smoke: it must start exactly at the fingertip of the aimed-right hand photo. Measure where the fingertip is in that photo (in the image's own pixels), and anchor the smoke there so it follows the hand's actual size and position on screen, on desktop and phone. Tell me the coordinates you used.
+
+3. High gun rosette, readability: make the centre a solid paper-coloured disc with "High Gun" in bold near-black ink, large enough to read easily on a phone. Keep the shine to the orange pleats and ribbons, and never over the text. No white over or behind the words.
+
+4. The test shortcuts must never change the real count (check ?test=highgun on the preview doesn't increase it).
+
+5. Run all the tests, a clean production build, the code check, the home page performance check (normal and hard) and gitleaks git -v. Push to heap-fix only, and give me the preview links with the shortcuts.
+
+Tell me in plain English what changed in each step.
+```
+Changed: (in progress)
+Files: (in progress)
