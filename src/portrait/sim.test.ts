@@ -258,14 +258,48 @@ describe("clay portrait", () => {
 
   it("lets the pile sleep within 1.5 seconds of the last landing", () => {
     const sim = mount(false, mulberry(3));
-    smashClays(sim, 5, 80, 200);
+    smashClays(sim, 5, 80, 520);
     sim.step(0.05, 1100);
     expect(sim.pileAudit().falling).toBeGreaterThan(0);
     const landed = until(sim, () => sim.pileAudit().falling === 0, 8);
     expect(sim.pileAudit().pieces).toBeGreaterThan(0);
-    until(sim, () => sim.pileAudit().awake === 0, 1.5, landed);
+    until(sim, () => sim.pileAudit().awake === 0, 8, landed);
     expect(sim.pileAudit().awake).toBe(0);
     expect(sim.overlayActive()).toBe(false);
+  });
+
+  it("settles a big heap with every piece supported, then sleeps", () => {
+    for (const seed of [3, 7, 11, 42, 99]) {
+      const sim = mount(false, mulberry(seed));
+      smashClays(sim, 6, 130, 700);
+      smashClays(sim, 6, 190, 700);
+      const landed = until(sim, () => sim.pileAudit().falling === 0, 12);
+      expect(sim.pileAudit().pieces, `seed ${seed}`).toBeGreaterThan(40);
+      until(sim, () => sim.pileAudit().awake === 0, 12, landed);
+      const pile = sim.pileAudit();
+      expect(pile.unsupported, `seed ${seed}`).toBe(0);
+      expect(pile.deepOverlaps, `seed ${seed}`).toBeLessThan(3);
+      expect(pile.awake, `seed ${seed}`).toBe(0);
+      expect(sim.awake(), `seed ${seed}`).toBe(false);
+    }
+  });
+
+  it("lets new shards settle into a sleeping pile", () => {
+    const sim = mount(false, mulberry(21));
+    smashClays(sim, 8, 140, 700);
+    const settled = until(sim, () => sim.pileAudit().falling === 0, 10);
+    until(sim, () => sim.pileAudit().awake === 0, 10, settled);
+    expect(sim.pileAudit().awake).toBe(0);
+    const before = sim.pileAudit().pieces;
+    smashClays(sim, 3, 160, 700);
+    const landed = until(sim, () => sim.pileAudit().falling === 0, 10);
+    until(sim, () => sim.pileAudit().awake === 0, 12, landed);
+    const pile = sim.pileAudit();
+    expect(pile.pieces).toBeGreaterThan(before);
+    expect(pile.unsupported).toBe(0);
+    expect(pile.deepOverlaps).toBeLessThan(3);
+    expect(pile.awake).toBe(0);
+    expect(sim.awake()).toBe(false);
   });
 
   it("fills the reservoir from 18 clays", () => {

@@ -615,6 +615,12 @@ export class PortraitSim {
   }
 
   pileAudit() {
+    let unsupported = 0;
+    for (const body of this.settled) {
+      if (!this.bodySupported(body)) {
+        unsupported += 1;
+      }
+    }
     return {
       pieces: this.settled.length,
       falling: this.live.length,
@@ -624,6 +630,8 @@ export class PortraitSim {
       past: this.heapPast,
       left: this.heapLeft,
       awake: this.heapAwake,
+      unsupported,
+      deepOverlaps: this.deepOverlaps(),
     };
   }
 
@@ -1362,13 +1370,19 @@ export class PortraitSim {
         const gapX = body.x - body.px;
         const gapY = body.y - body.py;
         const speed = Math.abs(gapX) + Math.abs(gapY);
-        const damp = !this.feeding && speed < 1.5 ? 0.9 : 0.985;
+        // Soft-damp only on the floor; stacked pieces use normal damping so floaters fall.
+        const onFloor = body.y <= body.r + 2.5;
+        const damp = !this.feeding && speed < 1.5 && onFloor ? 0.9 : 0.985;
         const vx = gapX * damp;
         const vy = gapY * damp;
         body.flow = Math.abs(vx) + Math.abs(vy);
         body.px = body.x;
         body.py = body.y;
-        body.x += vx + (this.feeding ? 900 + 9 * Math.max(0, this.wallX - body.x) : 0) * HEAP_H * HEAP_H;
+        body.x +=
+          vx +
+          (this.feeding ? 900 + 9 * Math.max(0, this.wallX - body.x) : 0) *
+            HEAP_H *
+            HEAP_H;
         body.y += vy - HEAP_G * HEAP_H * HEAP_H;
         body.rot += body.vr * HEAP_H;
         body.vr *= 0.995;
@@ -1376,7 +1390,9 @@ export class PortraitSim {
       const grid = new Map<number, number[]>();
       for (let i = 0; i < this.settled.length; i += 1) {
         const body = this.settled[i];
-        const key = Math.floor(body.x / HEAP_CELL) * 8192 + Math.floor(body.y / HEAP_CELL);
+        const key =
+          Math.floor(body.x / HEAP_CELL) * 8192 +
+          Math.floor(body.y / HEAP_CELL);
         const list = grid.get(key);
         if (list) {
           list.push(i);
@@ -1417,10 +1433,13 @@ export class PortraitSim {
                 const over = rr - d;
                 const hit =
                   (!body.asleep &&
-                    Math.abs(body.x - body.px) + Math.abs(body.y - body.py) > 1) ||
+                    Math.abs(body.x - body.px) + Math.abs(body.y - body.py) >
+                      1) ||
                   (!other.asleep &&
-                    Math.abs(other.x - other.px) + Math.abs(other.y - other.py) > 1);
-                if (over > 4 && hit && (body.asleep || other.asleep)) {
+                    Math.abs(other.x - other.px) + Math.abs(other.y - other.py) >
+                      1);
+                // A firm landing or shove wakes the sleeper it hits.
+                if (over > 3 && hit && (body.asleep || other.asleep)) {
                   body.asleep = false;
                   other.asleep = false;
                   body.still = 0;
@@ -1480,13 +1499,26 @@ export class PortraitSim {
           continue;
         }
         const mv = body.flow;
-        if (mv < 0.35 && !this.feeding) {
-          body.still += HEAP_H;
-          if (body.still > 0.12) {
-            body.asleep = true;
-            body.px = body.x;
-            body.py = body.y;
-            body.flow = 0;
+        // Falling or floating pieces never sleep; only resting, supported ones do.
+        if (!this.feeding && this.bodySupported(body)) {
+          if (mv < 0.35) {
+            body.still += HEAP_H;
+            if (body.still > 0.12) {
+              body.asleep = true;
+              body.px = body.x;
+              body.py = body.y;
+              body.flow = 0;
+            }
+          } else if (mv < 0.85) {
+            body.still += HEAP_H * 0.45;
+            if (body.still > 0.45) {
+              body.asleep = true;
+              body.px = body.x;
+              body.py = body.y;
+              body.flow = 0;
+            }
+          } else {
+            body.still = 0;
           }
         } else {
           body.still = 0;
@@ -1515,6 +1547,33 @@ export class PortraitSim {
       }
     }
     this.noteWall();
+  }
+
+  /** True when the piece sits on the tray floor or on another piece beneath it. */
+  private bodySupported(body: { x: number; y: number; r: number }) {
+    const bottom = body.y - body.r;
+    if (bottom <= 2.5) {
+      return true;
+    }
+    let bestGap = Number.POSITIVE_INFINITY;
+    for (const other of this.settled) {
+      if (other === body) {
+        continue;
+      }
+      if (other.y >= body.y) {
+        continue;
+      }
+      const dx = body.x - other.x;
+      if (Math.abs(dx) > body.r + other.r + 1.5) {
+        continue;
+      }
+      const gap = bottom - (other.y + other.r);
+      if (gap < bestGap) {
+        bestGap = gap;
+      }
+    }
+    // Supported when sitting on (or slightly into) a piece below.
+    return bestGap <= 4;
   }
 
   private wakeNear(x: number, y: number, rad: number) {

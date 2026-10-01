@@ -103,6 +103,7 @@ type Colors = {
   clayDark: string;
   ink: string;
   field: string;
+  paper: string;
 };
 
 function readColors(box: HTMLElement): Colors {
@@ -115,6 +116,7 @@ function readColors(box: HTMLElement): Colors {
     clayDark: read("--color-clay-dark", "#9e2f06"),
     ink: read("--color-ink", "#161514"),
     field: read("--color-field", "#eae4d7"),
+    paper: read("--color-paper", "#f3efe6"),
   };
 }
 
@@ -1052,6 +1054,7 @@ export function ClayGame({
       ctx.translate(centerX, centerY);
       ctx.rotate(swing);
       const petals = 14;
+      const discR = size * 0.38;
       for (let index = 0; index < petals; index += 1) {
         const angle = (Math.PI * 2 * index) / petals;
         ctx.save();
@@ -1062,17 +1065,22 @@ export function ClayGame({
         ctx.fill();
         ctx.restore();
       }
-      ctx.fillStyle = colors.field;
-      ctx.beginPath();
-      ctx.arc(0, 0, size * 0.32, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = colors.ink;
-      ctx.lineWidth = Math.max(1, size * 0.03);
-      ctx.stroke();
-      ctx.fillStyle = colors.clay;
-      ctx.beginPath();
-      ctx.arc(0, 0, size * 0.26, 0, Math.PI * 2);
-      ctx.fill();
+      // Shine only on the orange pleats, never across the centre text.
+      if (shine > 0 && shine < 1) {
+        const sweep = (shine - 0.5) * size * 1.6;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(-size, -size, size * 2, size * 2);
+        ctx.arc(0, 0, discR + 1, 0, Math.PI * 2);
+        ctx.clip("evenodd");
+        const gloss = ctx.createLinearGradient(sweep - 14, -size, sweep + 14, size);
+        gloss.addColorStop(0, "rgba(255,255,255,0)");
+        gloss.addColorStop(0.5, "rgba(255,255,255,0.55)");
+        gloss.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = gloss;
+        ctx.fillRect(sweep - 16, -size, 32, size * 2);
+        ctx.restore();
+      }
       ctx.fillStyle = colors.clay;
       ctx.beginPath();
       ctx.moveTo(-size * 0.08, size * 0.2);
@@ -1086,26 +1094,43 @@ export function ClayGame({
       ctx.lineTo(size * 0.02, size * 0.55);
       ctx.closePath();
       ctx.fill();
-      const fontSize = Math.max(11, size * 0.22);
+      if (shine > 0 && shine < 1) {
+        const ribbonShine = (shine - 0.5) * size * 1.2;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(-size * 0.32, size * 0.15);
+        ctx.lineTo(size * 0.32, size * 0.15);
+        ctx.lineTo(size * 0.32, size * 1.1);
+        ctx.lineTo(-size * 0.32, size * 1.1);
+        ctx.closePath();
+        ctx.clip();
+        const gloss = ctx.createLinearGradient(
+          ribbonShine - 10,
+          size * 0.4,
+          ribbonShine + 10,
+          size * 0.8,
+        );
+        gloss.addColorStop(0, "rgba(255,255,255,0)");
+        gloss.addColorStop(0.5, "rgba(255,255,255,0.45)");
+        gloss.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = gloss;
+        ctx.fillRect(ribbonShine - 12, size * 0.15, 24, size);
+        ctx.restore();
+      }
+      // Solid paper centre so the words stay readable on a phone.
+      ctx.fillStyle = colors.paper;
+      ctx.beginPath();
+      ctx.arc(0, 0, discR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = colors.ink;
+      ctx.lineWidth = Math.max(1, size * 0.025);
+      ctx.stroke();
+      const fontSize = Math.max(13, size * 0.34);
       ctx.font = `700 ${fontSize}px ${uiFont}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = colors.field;
+      ctx.fillStyle = colors.ink;
       ctx.fillText(label, 0, 1);
-      if (shine > 0 && shine < 1) {
-        const sweep = (shine - 0.5) * size * 1.4;
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(-size * 0.28, -fontSize * 0.7, size * 0.56, fontSize * 1.4);
-        ctx.clip();
-        const gloss = ctx.createLinearGradient(sweep - 12, -10, sweep + 12, 10);
-        gloss.addColorStop(0, "rgba(255,255,255,0)");
-        gloss.addColorStop(0.5, "rgba(255,255,255,0.7)");
-        gloss.addColorStop(1, "rgba(255,255,255,0)");
-        ctx.fillStyle = gloss;
-        ctx.fillRect(sweep - 14, -fontSize, 28, fontSize * 2);
-        ctx.restore();
-      }
       ctx.restore();
     };
 
@@ -1120,12 +1145,18 @@ export function ClayGame({
       const handHeight = Math.min(height * 0.38, Math.max(86, width * 0.24));
       const handWidth = handHeight * photoRatio;
       const restY = height - handHeight * 0.42;
-      // Aimed-right fingertip sits toward the right of the hand photo.
-      const tipX = width / 2 + handWidth * 0.28;
-      const tipY = restY - handHeight * 0.4;
+      // Fingertip of public/hand/hand-right.webp, measured in that image's pixels (720x484).
+      const AIMED_RIGHT_TIP = { x: 450, y: 140 };
+      const tipSource = aimedRight ?? { naturalWidth: 720, naturalHeight: 484 };
+      const tipNx =
+        AIMED_RIGHT_TIP.x / Math.max(1, tipSource.naturalWidth || 720);
+      const tipNy =
+        AIMED_RIGHT_TIP.y / Math.max(1, tipSource.naturalHeight || 484);
+      const tipX = width / 2 + (tipNx - 0.5) * handWidth;
+      const tipY = restY + (tipNy - 0.5) * handHeight;
       const rosetteX = width / 2;
       const rosetteY = height * 0.28;
-      const rosetteSize = Math.min(64, width * 0.14);
+      const rosetteSize = Math.min(78, Math.max(52, width * 0.18));
 
       // Soft dim with a spotlight over the play area.
       if (phases.dim > 0) {

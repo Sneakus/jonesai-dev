@@ -2332,5 +2332,5 @@ STEP 2, on a new branch called heap-fix:
 
 Tell me in plain English what changed in each step.
 ```
-Changed: (in progress)
-Files: (in progress)
+Changed: STEP1 reverted heap sleep on main and reset hard-beats to 0; STEP2 fixed support-based heap sleep, High gun smoke tip and rosette on heap-fix.
+Files: src/portrait/sim.ts, src/portrait/sim.test.ts, components/clay-game.tsx, log/prompts.md
