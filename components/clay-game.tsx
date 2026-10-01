@@ -1113,13 +1113,13 @@ export function ClayGame({
       const elapsed = Math.max(0, now - celebrationAt);
       const phases = highGunPhases(elapsed, reducedMotion);
       const straight = handImages.straight;
+      const aimedRight = handImages.right;
       const handHeight = Math.min(height * 0.38, Math.max(86, width * 0.24));
+      const handWidth = handHeight * photoRatio;
       const restY = height - handHeight * 0.42;
-      const tipX = width / 2;
-      const tipY =
-        restY -
-        handHeight * 0.4 +
-        phases.handLowerProgress * (height + handHeight);
+      // Aimed-right fingertip sits toward the right of the hand photo.
+      const tipX = width / 2 + handWidth * 0.28;
+      const tipY = restY - handHeight * 0.4;
       const rosetteX = width / 2;
       const rosetteY = height * 0.28;
       const rosetteSize = Math.min(64, width * 0.14);
@@ -1143,9 +1143,9 @@ export function ClayGame({
         ctx.restore();
       }
 
-      if (phases.smoke && straight) {
+      if (phases.smoke && aimedRight) {
         const smokeLife = highGunTiming.smokeMs;
-        // Thicker plume: staggered soft puffs that billow, swirl and expand.
+        // Thicker plume from the aimed-right fingertip.
         for (let puff = 0; puff < 16; puff += 1) {
           const born = puff * 110;
           const age = (elapsed - born) / smokeLife;
@@ -1185,7 +1185,9 @@ export function ClayGame({
         }
       }
 
-      if (straight && phases.handLowerProgress < 1) {
+      if (phases.aimedRight && aimedRight && phases.handLowerProgress <= 0) {
+        drawHandPhoto(aimedRight, width / 2, restY, handHeight, 0, 1);
+      } else if (straight && phases.handLowerProgress < 1) {
         const y = restY + phases.handLowerProgress * (height * 0.55 + handHeight);
         drawHandPhoto(straight, width / 2, y, handHeight, 0, 1);
       } else {

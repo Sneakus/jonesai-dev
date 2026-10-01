@@ -17,6 +17,8 @@ export const highGunTiming = {
   slowMoMs: 1500,
   slowMoScale: 0.22,
   smokeMs: 5000,
+  /** Hand stays aimed-right through the smoke, then lowers. */
+  handStartMs: 5000,
   handLowerMs: 1200,
   shardAssembleMs: 1500,
   rosetteDropMs: 750,
@@ -92,13 +94,17 @@ export function highGunDuration(reducedMotion: boolean) {
   if (reducedMotion) {
     return highGunTiming.holdAfterBannerMs;
   }
-  return (
-    highGunTiming.slowMoMs +
-    highGunTiming.handLowerMs +
-    highGunTiming.shardAssembleMs +
+  // Smoke and shards overlap while aimed-right; the hand lowers after smoke.
+  const shardAt = highGunTiming.slowMoMs * 0.7;
+  const rosetteAt = shardAt + highGunTiming.shardAssembleMs * 0.72;
+  const handDone =
+    highGunTiming.handStartMs + highGunTiming.handLowerMs;
+  const bannerAt =
+    Math.max(handDone * 0.5, rosetteAt) +
     highGunTiming.rosetteDropMs +
-    highGunTiming.bannerAfterRosetteMs +
-    highGunTiming.holdAfterBannerMs
+    highGunTiming.bannerAfterRosetteMs;
+  return (
+    Math.max(handDone, bannerAt) + highGunTiming.holdAfterBannerMs
   );
 }
 
@@ -107,6 +113,7 @@ export function highGunPhases(elapsed: number, reducedMotion: boolean) {
     return {
       slowMo: false,
       smoke: false,
+      aimedRight: false,
       handLowerProgress: 1,
       shardProgress: 1,
       rosetteProgress: 1,
@@ -118,11 +125,12 @@ export function highGunPhases(elapsed: number, reducedMotion: boolean) {
   }
 
   const smokeEnd = highGunTiming.smokeMs;
-  const handStart = highGunTiming.slowMoMs * 0.55;
+  const handStart = highGunTiming.handStartMs;
   const handLowerProgress = clamp01(
     (elapsed - handStart) / highGunTiming.handLowerMs,
   );
-  const shardAt = highGunTiming.slowMoMs + highGunTiming.handLowerMs * 0.35;
+  // Shards gather during the aimed-right smoke, then the hand lowers.
+  const shardAt = highGunTiming.slowMoMs * 0.7;
   const shardProgress = clamp01(
     (elapsed - shardAt) / highGunTiming.shardAssembleMs,
   );
@@ -133,13 +141,14 @@ export function highGunPhases(elapsed: number, reducedMotion: boolean) {
   const shineAt = rosetteAt + highGunTiming.rosetteDropMs * 0.55;
   const shineProgress = clamp01((elapsed - shineAt) / highGunTiming.shineMs);
   const bannerAt =
-    rosetteAt +
+    Math.max(handStart + highGunTiming.handLowerMs * 0.5, rosetteAt) +
     highGunTiming.rosetteDropMs +
     highGunTiming.bannerAfterRosetteMs;
 
   return {
     slowMo: elapsed < highGunTiming.slowMoMs,
     smoke: elapsed < smokeEnd,
+    aimedRight: elapsed < handStart || handLowerProgress <= 0,
     handLowerProgress,
     shardProgress,
     rosetteProgress,

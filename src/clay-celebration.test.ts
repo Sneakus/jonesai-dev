@@ -4,6 +4,7 @@ import {
   formatOrdinal,
   highGunDuration,
   highGunPhases,
+  highGunTiming,
   ordinalSuffix,
   perfectActionEnd,
   perfectCelebrationDuration,
@@ -45,11 +46,18 @@ describe("perfect celebration hand timing", () => {
 });
 
 describe("High gun celebration", () => {
-  it("lasts about seven seconds and is shorter with reduced motion", () => {
+  it("lasts about eight seconds with smoke then hand-lower, and is shorter with reduced motion", () => {
     const full = highGunDuration(false);
-    expect(full).toBeGreaterThanOrEqual(6500);
-    expect(full).toBeLessThanOrEqual(8000);
+    expect(full).toBeGreaterThanOrEqual(7000);
+    expect(full).toBeLessThanOrEqual(9500);
     expect(highGunDuration(true)).toBeLessThan(full);
+    const midSmoke = highGunPhases(1000, false);
+    expect(midSmoke.smoke).toBe(true);
+    expect(midSmoke.aimedRight).toBe(true);
+    expect(midSmoke.handLowerProgress).toBe(0);
+    const afterSmoke = highGunPhases(highGunTiming.handStartMs + 100, false);
+    expect(afterSmoke.aimedRight).toBe(false);
+    expect(afterSmoke.handLowerProgress).toBeGreaterThan(0);
   });
 
   it("skips motion effects when reduced motion is on", () => {

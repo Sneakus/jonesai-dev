@@ -95,8 +95,11 @@ export function ClayGameHost({
         setUnlocked(true);
       } else if (shortcut === "normal" || shortcut === "win") {
         setUnlocked(false);
+        setHard(false);
       }
-      setHard(next.mode === "hard");
+      if (shortcut !== "normal" && shortcut !== "win") {
+        setHard(next.mode === "hard");
+      }
       setTestShortcut(shortcut);
       if (mod.clayTestStartsPlaying(shortcut)) {
         setPlaying(true);

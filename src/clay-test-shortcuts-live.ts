@@ -54,28 +54,55 @@ export function clayTestSkipsHardCount(shortcut: ClayTestShortcut | null) {
   return shortcut === "win" || shortcut === "highgun";
 }
 
+export type ClayTestStorageKeys = {
+  unlocked: string;
+  mode: string;
+  counted: string;
+  lastInvite?: string;
+  lastHardMessage?: string;
+  lastHardWin?: string;
+};
+
+/** True when ?test=normal has wiped unlock, mode, and count like a new visitor. */
+export function clayTestNormalIsFreshVisitor(storage: {
+  getItem: (key: string) => string | null;
+}, keys: ClayTestStorageKeys) {
+  return (
+    storage.getItem(keys.unlocked) !== "1" &&
+    storage.getItem(keys.mode) !== "hard" &&
+    storage.getItem(keys.counted) !== "1"
+  );
+}
+
 export function writeClayTestStorage(
   shortcut: ClayTestShortcut,
-  storage: {
-    unlocked: string;
-    mode: string;
-    counted: string;
-  },
+  storage: ClayTestStorageKeys,
 ) {
   const next = clayTestStorageFor(shortcut);
   try {
     if (shortcut === "hard") {
       window.localStorage.setItem(storage.unlocked, "1");
     } else if (shortcut === "normal" || shortcut === "win") {
-      // Clear unlock only when explicitly returning to a normal shortcut.
+      // Full new-visitor reset: locked hard mode, no remembered unlock or count.
       window.localStorage.removeItem(storage.unlocked);
+      window.localStorage.removeItem(storage.counted);
+      if (storage.lastInvite) {
+        window.localStorage.removeItem(storage.lastInvite);
+      }
+      if (storage.lastHardMessage) {
+        window.localStorage.removeItem(storage.lastHardMessage);
+      }
+      if (storage.lastHardWin) {
+        window.localStorage.removeItem(storage.lastHardWin);
+      }
     }
     // highgun: leave any existing unlock alone; never grant a new one.
     window.localStorage.setItem(storage.mode, next.mode);
     // Shortcuts must never leave a counted flag that could interact oddly,
-    // and must never POST a beat. Clear counted so a shortcut cannot look
-    // like a real hard win already stored.
-    window.localStorage.removeItem(storage.counted);
+    // and must never POST a beat.
+    if (shortcut !== "normal" && shortcut !== "win") {
+      window.localStorage.removeItem(storage.counted);
+    }
   } catch {
     // Ignore blocked storage.
   }

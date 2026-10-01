@@ -17,16 +17,24 @@ export const hardMode = {
   miniWeightMul: 2, // mini clays about twice as common
   minTricky: 3, // every hard round has at least this many tricky throws
   // How often each throw appears in hard mode. A higher number means it comes up more often.
+  // Away + far-biased launches together make about half of hard throws look small.
   throwCrosser: 2,
-  throwAway: 1,
+  throwAway: 6,
   throwIncomer: 1,
-  throwHigh: 1,
+  throwHigh: 2,
   throwRabbit: 1,
   throwBattue: 2,
-  throwTeal: 2,
-  throwLooper: 2,
-  throwDropper: 2,
+  throwTeal: 1,
+  throwLooper: 1,
+  throwDropper: 4,
   throwCurler: 2,
+  // Going-away throws fly further out (higher distance = smaller on screen).
+  awayDistanceFrom: 0.4,
+  awayDistanceTo: 0.9,
+  // Chance a non-away hard launch picks the far band instead of its usual range.
+  farLaunchChance: 0.55,
+  farDistanceFrom: 0.58,
+  farDistanceTo: 1,
 };
 
 const desktopClay = { draw: 1, hit: 1, speed: 1 };

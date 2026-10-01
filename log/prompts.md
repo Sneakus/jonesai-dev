@@ -2160,3 +2160,31 @@ Return: summary of what you changed and any test failures.
 ```
 Changed: Wired hard physics into throws while keeping normal mode as main; reverted phone feel scaling; added main mirror and removed temp refs.
 Files: src/clay-throws.ts, src/clay-feel.ts, src/clay-feel.test.ts, src/clay-flight.test.ts, src/clay-throws-main-mirror.ts, log/prompts.md; deleted src/clay-throws-hard-backup.ts, src/clay-throws-main-ref.ts, src/clay-celebration-main-ref.ts
+
+### 2026-10-01 00:50
+Prompt:
+```
+Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.
+```
+Changed: none - those shell exits were the local check servers being stopped after first-clays
+Files: none
+
+### 2026-10-01 00:57
+Prompt:
+```
+Four changes to hard mode on the hard-mode branch. Normal mode must stay exactly as main (the parity test must still pass). Stop and tell me if anything fails.
+
+1. Harder: more far-away throws, where the clays appear smaller. Increase the share of throws launched from further away (and going-away throws), roughly half of all hard throws, and put the weights in hardMode. Keep every throw passing the fairness check. Re-run the difficulty report and show me hard mode's numbers before and after.
+
+2. No clay may leave the top of the frame: add a rule to the fairness check (hard mode only, since normal must stay as main) that a clay never goes above the visible top edge of the game during its flight. A throw that would must be adjusted at launch. Add a test across many random hard throws on desktop and phone.
+
+3. High gun: play the smoke while the hand is in the aimed-right pose (the smoke rising from that pose's fingertip), then lower the hand as now.
+
+4. Check that ?test=normal fully resets to a new visitor (hard mode locked, no Hard mode option, no remembered unlock or count), so I can test the real 5/5 unlock on the preview.
+
+5. Run all the tests, a clean production build, the code check, the home page performance check (normal and hard) and gitleaks git -v. Push to the hard-mode branch only, and give me the preview links.
+
+Tell me in plain English what changed and the hard mode numbers.
+```
+Changed: Hard mode gets more far/away throws, no clay above the top, High gun smoke from the aimed-right hand, and ?test=normal fully resets like a new visitor.
+Files: src/clay-feel.ts, src/clay-throws.ts, src/clay-celebration.ts, src/clay-hard-frame.test.ts, src/clay-test-shortcuts-live.ts, src/clay-test-shortcuts.test.ts, src/clay-celebration.test.ts, components/clay-game.tsx, components/clay-game-host.tsx, log/prompts.md
