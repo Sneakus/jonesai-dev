@@ -2374,3 +2374,29 @@ Two changes. Stop and tell me if anything fails.
 ```
 Changed: London intro wording, and a France share card on the worldcupmap build page after the globe.
 Files: content/home.md, content/builds/worldcupmap.md, public/worldcupmap-share.png, components/build-article.tsx, lib/content.ts, log/prompts.md
+
+### 2026-10-01 16:13
+Prompt:
+```
+Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.
+```
+Changed: none - leftover check shells from the London and worldcupmap share image push finishing after the work shipped
+Files: none
+
+### 2026-10-01 16:26
+Prompt:
+```
+Two changes to the worldcupmap page. Stop and tell me if anything fails.
+
+1. A contrarian share image instead of France backs France:
+   - In the real vote data, find countries whose most-picked winner was a different team, ideally a well-known rival (the kind of result that would wind people up in a group chat). Only use real results from the data.
+   - Render the three strongest with the tool's own share-image code, the same way as before, checking nothing personal is on them. Use the best one on the page (replacing public/worldcupmap-share.png) and save the other two as public/worldcupmap-share-alt-1.png and -alt-2.png, not shown on the page.
+   - Update the image's alt text to match.
+   - Tell me what all three say and their pick counts, and why you chose the one you did.
+
+2. In "What happened", remove the line "Most of the growth came from share images people posted in their group chats." (the caption under the image says it now).
+
+3. Run all the tests, a clean production build, the code check and gitleaks git -v. Commit with "worldcupmap: a contrarian share image" and push to main.
+```
+Changed: Swapped in Italy backs France as the share image, kept two alt cards, and trimmed the What happened line.
+Files: content/builds/worldcupmap.md, public/worldcupmap-share.png, public/worldcupmap-share-alt-1.png, public/worldcupmap-share-alt-2.png, log/prompts.md

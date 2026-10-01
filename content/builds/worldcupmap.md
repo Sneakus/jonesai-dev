@@ -9,7 +9,7 @@ image:
 globeCaption: Each country is coloured by the team its people voted for most to win the World Cup. Each dot is one vote.
 shareShot:
   src: /worldcupmap-share.png
-  alt: A tall dark share card from worldcupmap showing the outline of France filled with glowing vote dots, French flags, the line France backs France, and a big 68 percent
+  alt: A tall dark share card from worldcupmap showing the outline of Italy filled with glowing vote dots, Italian and French flags, the line Italy backs France, and a big 18 percent
   caption: Most of the growth came from people sharing these in their group chats.
 links:
   - label: Visit worldcupmap.io
@@ -24,4 +24,4 @@ I built it on my own in about a week for the 2026 World Cup. You didn't need an 
 
 ## What happened
 
-4,262 people used it across the tournament, with no paid promotion. Most of the growth came from share images people posted in their group chats.
+4,262 people used it across the tournament, with no paid promotion.
