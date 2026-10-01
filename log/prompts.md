@@ -2235,8 +2235,8 @@ Hard mode is approved, and I've connected a Redis store (Upstash) to the project
 
 Tell me in plain English when it's live and what you found.
 ```
-Changed: (in progress)
-Files: (in progress)
+Changed: Hard mode merged and pushed to main after fixing the clay heap never settling; live shortcuts do nothing, analytics loads, count API is 0.
+Files: (hard-mode merge on main) plus heap settle fix in src/portrait/sim.ts, src/motion/loop.ts and tests
 
 ### 2026-10-01 01:34
 Prompt:
