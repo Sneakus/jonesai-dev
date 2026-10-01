@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   activeClayFeel,
+  clearAllClayStorage,
   clayFeel,
   desktopClaySettings,
   hardMode,
@@ -68,6 +69,33 @@ describe("clay feel on phones and hard mode", () => {
       expect(round).toHaveLength(5);
       expect(round.filter(isTrickyKind).length).toBeGreaterThanOrEqual(3);
     }
+  });
+
+  it("wipes every clay-* key on a full visitor reset", () => {
+    const store: Record<string, string> = {
+      "clay-hard-unlocked": "1",
+      "clay-mode": "hard",
+      "clay-legacy-preview": "x",
+      other: "keep",
+    };
+    const storage = {
+      getItem: (key: string) => store[key] ?? null,
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      get length() {
+        return Object.keys(store).length;
+      },
+      key: (index: number) => Object.keys(store)[index] ?? null,
+    };
+    clearAllClayStorage(storage as Storage, storage as Storage);
+    expect(store["clay-hard-unlocked"]).toBeUndefined();
+    expect(store["clay-mode"]).toBeUndefined();
+    expect(store["clay-legacy-preview"]).toBeUndefined();
+    expect(store.other).toBe("keep");
   });
 
   it("never repeats an end-of-round message twice in a row when it can help it", () => {

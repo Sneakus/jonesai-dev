@@ -2188,3 +2188,29 @@ Tell me in plain English what changed and the hard mode numbers.
 ```
 Changed: Hard mode gets more far/away throws, no clay above the top, High gun smoke from the aimed-right hand, and ?test=normal fully resets like a new visitor.
 Files: src/clay-feel.ts, src/clay-throws.ts, src/clay-celebration.ts, src/clay-hard-frame.test.ts, src/clay-test-shortcuts-live.ts, src/clay-test-shortcuts.test.ts, src/clay-celebration.test.ts, components/clay-game.tsx, components/clay-game-host.tsx, log/prompts.md
+
+### 2026-10-01 01:02
+Prompt:
+```
+Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.
+```
+Changed: none - that shell exit was the local check server being stopped after first-clays
+Files: none
+
+### 2026-10-01 01:09
+Prompt:
+```
+Three fixes on the hard-mode branch. Stop and tell me if anything fails.
+
+1. Hard mode, far throws: far-away throws (where the clay looks small) must be mostly level crossers, with little rise or fall, so the lead is mainly horizontal. Loopers, teal and other steep throws only at near or middle distance. Put these rules in hardMode, keep every throw passing the fairness check, and add a test that far throws stay within a small vertical movement. Show me hard mode's difficulty numbers again.
+
+2. Normal mode really must match main. The parity test only compared flight paths and celebration timing. Extend it to everything that affects difficulty: the hit area for every clay size, clay sizes on screen, reload time, speeds, the fairness rules and how often each throw type appears, on desktop and phone. Compare against main and restore anything that differs (keeping only the touchClay phone tuning and the layering fix). In particular, check whether the hard mode hit-area fix changed normal mode's hit area. Tell me what differed, if anything.
+
+3. ?test=normal didn't reset in my real browser: the Hard mode option still showed without a 5/5. Reproduce it in a real browser profile that has used earlier versions of the preview (old storage keys, earlier shortcuts, cached pages), not just a clean one. Find the cause, then make the reset clear every key the game has ever used, and make the Hard mode option depend only on the real unlock. Test it in that dirty profile.
+
+4. Run all the tests, a clean production build, the code check, the home page performance check (normal and hard) and gitleaks git -v. Push to the hard-mode branch only, and give me the preview links.
+
+Tell me in plain English what was wrong with each, and what changed.
+```
+Changed: Hard far throws stay level; normal matches main on every difficulty measure; ?test=normal fully clears unlock in dirty browsers.
+Files: src/clay-feel.ts, src/clay-throws.ts, src/clay-hard-frame.test.ts, src/clay-normal-parity.test.ts, src/clay-feel.test.ts, src/clay-test-shortcuts-live.ts, src/clay-test-shortcuts.test.ts, components/clay-game-host.tsx, components/clay-game.tsx, tests/clay-reset-dirty.mjs, log/prompts.md

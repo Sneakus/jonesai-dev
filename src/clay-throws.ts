@@ -129,12 +129,36 @@ export function pickDistance(from: number, to: number) {
   return rand(Math.min(start, end), Math.max(start, end));
 }
 
-/** Hard launches: often pick the far band so clays look smaller. */
-function hardPickDistance(from: number, to: number) {
-  if (Math.random() < hardMode.farLaunchChance) {
+/** Hard launches: far band only for level kinds; steep kinds stay near/mid. */
+function hardPickDistance(kind: ThrowKind, from: number, to: number) {
+  const steep = (hardMode.steepKinds as readonly string[]).includes(kind);
+  if (steep) {
+    const steepTo = Math.min(to, hardMode.steepDistanceTo);
+    const steepFrom = Math.min(from, steepTo);
+    return pickDistance(steepFrom, steepTo);
+  }
+  const level = (hardMode.farLevelKinds as readonly string[]).includes(kind);
+  if (level && Math.random() < hardMode.farLaunchChance) {
     return pickDistance(hardMode.farDistanceFrom, hardMode.farDistanceTo);
   }
+  // Unknown kinds never launch into the far band.
+  if (!level && to > hardMode.steepDistanceTo) {
+    const capped = hardMode.steepDistanceTo;
+    return pickDistance(Math.min(from, capped), capped);
+  }
   return pickDistance(from, to);
+}
+
+function hardIsFarDistance(distance: number) {
+  return hardDistanceIsFar(distance);
+}
+
+/** True when a distance is in the hard-mode far (small on screen) band. */
+export function hardDistanceIsFar(distance: number) {
+  return (
+    distance >=
+    lerp(settings.nearDistance, settings.farDistance, hardMode.farDistanceFrom)
+  );
 }
 
 export function pickPace(from: number, to: number) {
@@ -434,6 +458,39 @@ export function flightStaysBelowTop(
   return true;
 }
 
+/** Max vertical travel of the clay centre while it crosses the visible frame. */
+export function flightVerticalSpan(
+  source: Clay,
+  boxWidth: number,
+  boxHeight: number,
+) {
+  const ghost: Clay = { ...source };
+  const dt = 1 / 60;
+  let total = 0;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  let seen = false;
+  while (total < 8 && !clayGone(ghost, boxWidth, boxHeight)) {
+    const look = lookOf(ghost);
+    const onScreen =
+      ghost.x + look.rx > 0 &&
+      ghost.x - look.rx < boxWidth &&
+      ghost.y + look.ry > 0 &&
+      ghost.y - look.ry < boxHeight;
+    if (onScreen) {
+      seen = true;
+      minY = Math.min(minY, ghost.y);
+      maxY = Math.max(maxY, ghost.y);
+    }
+    total += dt;
+    stepClay(ghost, dt, boxWidth, boxHeight);
+  }
+  if (!seen) {
+    return 0;
+  }
+  return maxY - minY;
+}
+
 export function applyTouchSpeed(clay: Clay) {
   const speed = activeClayFeel().speed;
   if (speed === 1) {
@@ -620,7 +677,30 @@ function hardFinishLaunch(target: Clay) {
     target.gravityScale = Math.min(1.12, target.gravityScale * 1.12);
     target.distanceVel *= 1.1;
   }
-  return applyTouchSpeed(target);
+  applyTouchSpeed(target);
+  return hardFlattenFarLevel(target);
+}
+
+/** Far level kinds: keep the on-screen lead almost horizontal. */
+export function hardFlattenFarLevel(target: Clay) {
+  if (!isHardModeActive() || !hardIsFarDistance(target.distance)) {
+    return target;
+  }
+  if (!(hardMode.farLevelKinds as readonly string[]).includes(target.kind)) {
+    return target;
+  }
+  target.lift = Math.min(target.lift, 0.08);
+  target.gravityScale = Math.min(target.gravityScale, 0.08);
+  target.curl *= 0.35;
+  // Cap vertical speed so rise/fall stay small across the crossing.
+  const cap = 28;
+  if (Math.abs(target.vy) > cap) {
+    target.vy = Math.sign(target.vy) * cap;
+  }
+  if (target.bounce > 0) {
+    target.bounce = Math.min(target.bounce, 28);
+  }
+  return target;
 }
 
 function hardLaunchThrow(
@@ -661,7 +741,9 @@ function hardLaunchCrosser(
   sizeScale: number,
 ) {
   const distance =
-    kind === "high" ? hardPickDistance(0.45, 1) : hardPickDistance(0, 1);
+    kind === "high"
+      ? hardPickDistance("high", 0.2, hardMode.steepDistanceTo)
+      : hardPickDistance("crosser", 0, 1);
   const target = freshClay(kind, distance, sizeScale);
   const direction = Math.random() < 0.5 ? 1 : -1;
   let time = flightTime(
@@ -672,16 +754,26 @@ function hardLaunchCrosser(
   time /= hardCrosserSpeedMul();
   time = Math.max(1.05 + 0.08, time);
   const look = lookOf(target);
-  const riseLimit = kind === "high" ? 0.06 : 0.18;
-  const yMin = kind === "high" ? height * 0.14 : height * 0.34;
-  const yMax = kind === "high" ? height * 0.34 : height * 0.62;
+  const far = hardIsFarDistance(distance);
+  // Far crossers stay nearly level so the lead is mostly horizontal.
+  const riseLimit = far
+    ? hardMode.farLevelRiseFrac
+    : kind === "high"
+      ? 0.06
+      : 0.18;
+  const yMin = far
+    ? height * 0.38
+    : kind === "high"
+      ? height * 0.14
+      : height * 0.34;
+  const yMax = far
+    ? height * 0.58
+    : kind === "high"
+      ? height * 0.34
+      : height * 0.62;
   target.y = rand(yMin, Math.max(yMin + 8, yMax));
-  // Keep the peak under the top of the frame (hard fairness).
   const riseRoom = Math.max(8, target.y - look.ry - 4);
-  const rise = Math.min(
-    height * rand(kind === "high" ? 0.02 : 0.06, riseLimit),
-    riseRoom,
-  );
+  const rise = Math.min(height * rand(0.012, riseLimit), riseRoom);
   const span = width + look.rx * 2;
   const startPad = look.rx + 2;
   target.x = direction > 0 ? -startPad : width + startPad;
@@ -689,9 +781,12 @@ function hardLaunchCrosser(
   target.vy = -Math.sqrt(2 * settings.gravity * rise);
   target.gravityScale = height < 480 ? 0.8 : 0.92;
   target.gravityScale = Math.min(1, target.gravityScale + 0.12);
-  target.lift = sizeAero(sizeScale).lift * (kind === "high" ? 0.7 : 1.05) * 0.82;
-  target.drag = sizeAero(sizeScale).drag * 0.85;
-  target.curl = direction * rand(12, 30);
+  target.lift =
+    sizeAero(sizeScale).lift *
+    (far ? 0.35 : kind === "high" ? 0.7 : 1.05) *
+    0.82;
+  target.drag = sizeAero(sizeScale).drag * (far ? 0.7 : 0.85);
+  target.curl = direction * rand(far ? 6 : 12, far ? 16 : 30);
   target.duration = time;
   return hardFinishLaunch(target);
 }
@@ -699,84 +794,91 @@ function hardLaunchCrosser(
 function hardLaunchAway({ width, height }: LaunchBox, sizeScale: number) {
   const side = Math.random() < 0.5 ? -1 : 1;
   const target = freshClay("away", settings.nearDistance, sizeScale);
-  target.distance = rand(
-    lerp(settings.nearDistance, settings.farDistance, hardMode.awayDistanceFrom),
-    lerp(settings.nearDistance, settings.farDistance, hardMode.awayDistanceTo),
-  );
+  // Away is steep: keep near/mid so far small clays stay level crossers.
+  target.distance = hardPickDistance("away", 0.05, hardMode.steepDistanceTo);
   target.x = width * 0.5 + side * width * rand(0.08, 0.18);
   target.y = height * rand(0.66, 0.84);
   const look = lookOf(target);
   const peakFloor = look.ry + 6;
-  const peak = Math.max(peakFloor, height * rand(0.18, 0.32));
+  const peak = Math.max(peakFloor, height * rand(0.22, 0.38));
   target.vx = side * width * rand(0.12, 0.28);
   target.vy = -Math.sqrt(2 * settings.gravity * Math.max(40, target.y - peak));
   target.gravityScale = 1;
   target.lift = sizeAero(sizeScale).lift * 1.05;
   target.drag = sizeAero(sizeScale).drag * 1.05;
   target.curl = side * rand(22, 48);
-  target.distanceVel = rand(0.22, 0.4);
+  target.distanceVel = rand(0.18, 0.32);
   target.duration = flightTime(target.distance, pickPace(0.15, 0.9), sizeScale);
   return hardFinishLaunch(target);
 }
 
 function hardLaunchIncomer({ width, height }: LaunchBox, sizeScale: number) {
-  const target = freshClay("incomer", settings.farDistance, sizeScale);
-  target.distance = rand(
-    lerp(settings.nearDistance, settings.farDistance, 0.78),
-    settings.farDistance,
-  );
+  // Steep: near/mid only (never the far small band).
+  const distance = hardPickDistance("incomer", 0.15, hardMode.steepDistanceTo);
+  const target = freshClay("incomer", distance, sizeScale);
   target.x = width * rand(0.28, 0.72);
-  target.y = height * rand(0.18, 0.34);
+  target.y = height * rand(0.22, 0.4);
   target.vx = width * rand(-0.12, 0.12);
-  target.vy = -height * rand(0.08, 0.18);
+  target.vy = -height * rand(0.06, 0.14);
   target.gravityScale = 1;
   target.lift = sizeAero(sizeScale).lift * 1.15;
   target.drag = sizeAero(sizeScale).drag * 0.95;
   target.curl = (Math.random() < 0.5 ? -1 : 1) * rand(20, 44);
-  target.distanceVel = -rand(0.22, 0.38);
+  target.distanceVel = -rand(0.14, 0.26);
   target.duration = flightTime(target.distance, pickPace(0.1, 0.7), sizeScale);
   return hardFinishLaunch(target);
 }
 
 function hardLaunchRabbit({ width, height }: LaunchBox, sizeScale: number) {
-  const distance = hardPickDistance(0, 0.5);
+  const distance = hardPickDistance("rabbit", 0, 1);
   const target = freshClay("rabbit", distance, sizeScale);
   const direction = Math.random() < 0.5 ? 1 : -1;
   let time = flightTime(distance, lerp(0.48, 0.7, Math.random()), sizeScale);
   time = Math.max(1.05 + 0.05, time * 0.88);
   const look = lookOf(target);
   const span = width + look.rx * 2;
+  const far = hardIsFarDistance(distance);
   target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
   target.y = height - look.ry;
   target.vx = (direction * span) / time;
-  target.vy = -Math.sqrt(2 * settings.gravity * height * rand(0.06, 0.14));
+  const hopFrac = far ? rand(0.02, 0.05) : rand(0.06, 0.14);
+  target.vy = -Math.sqrt(2 * settings.gravity * height * hopFrac);
   target.gravityScale = 1;
   target.lift = sizeAero(sizeScale).lift * 0.25;
   target.drag = sizeAero(sizeScale).drag * 1.1;
-  target.curl = direction * rand(10, 28);
-  target.bounce = Math.sqrt(2 * settings.gravity * height * rand(0.05, 0.12));
+  target.curl = direction * rand(far ? 6 : 10, far ? 16 : 28);
+  target.bounce = Math.sqrt(
+    2 * settings.gravity * height * (far ? rand(0.02, 0.04) : rand(0.05, 0.12)),
+  );
   target.duration = time;
   return hardFinishLaunch(target);
 }
 
 function hardLaunchBattue({ width, height }: LaunchBox, sizeScale: number) {
-  const distance = hardPickDistance(0.1, 0.8);
+  const distance = hardPickDistance("battue", 0.1, 1);
   const target = freshClay("battue", distance, sizeScale);
   const direction = Math.random() < 0.5 ? 1 : -1;
   let time = Math.max(flightTime(distance, pickPace(0.35, 0.85), sizeScale), 1.7);
   time = Math.max(1.05 + 0.1, time * 0.88);
   target.roll = 0;
   const look = lookOf(target);
-  target.y = rand(height * 0.3, height * 0.48);
-  const rise = Math.min(height * rand(0.02, 0.045), Math.max(8, target.y - 14));
+  const far = hardIsFarDistance(distance);
+  target.y = far
+    ? rand(height * 0.4, height * 0.56)
+    : rand(height * 0.3, height * 0.48);
+  const riseCap = far ? hardMode.farLevelRiseFrac : 0.045;
+  const rise = Math.min(
+    height * rand(0.012, riseCap),
+    Math.max(8, target.y - 14),
+  );
   const span = width + look.rx * 2;
   target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
   target.vx = (direction * span) / time;
   target.vy = -Math.sqrt(2 * settings.gravity * rise);
   target.gravityScale = height < 480 ? 0.75 : 0.9;
-  target.lift = sizeAero(sizeScale).lift * 0.18;
+  target.lift = sizeAero(sizeScale).lift * (far ? 0.1 : 0.18);
   target.drag = sizeAero(sizeScale).drag * 1.1;
-  target.curl = direction * rand(10, 28);
+  target.curl = direction * rand(far ? 6 : 10, far ? 16 : 28);
   target.duration = time;
   if (isCoarseFeel()) {
     target.vx *= 1.25;
@@ -787,11 +889,12 @@ function hardLaunchBattue({ width, height }: LaunchBox, sizeScale: number) {
 }
 
 function hardLaunchTeal({ width, height }: LaunchBox, sizeScale: number) {
-  const target = freshClay("teal", hardPickDistance(0.15, 0.7), sizeScale);
+  const distance = hardPickDistance("teal", 0.1, hardMode.steepDistanceTo);
+  const target = freshClay("teal", distance, sizeScale);
   target.x = width * rand(0.3, 0.7);
   target.y = height * rand(0.62, 0.8);
   const look = lookOf(target);
-  const peak = Math.max(look.ry + 6, height * rand(0.16, 0.28));
+  const peak = Math.max(look.ry + 6, height * rand(0.22, 0.36));
   const rise = Math.max(48, target.y - peak);
   target.vy = -Math.sqrt(2 * settings.gravity * rise);
   target.vx = (Math.random() - 0.5) * width * 0.08;
@@ -809,13 +912,13 @@ function hardLaunchTeal({ width, height }: LaunchBox, sizeScale: number) {
 }
 
 function hardLaunchLooper({ width, height }: LaunchBox, sizeScale: number) {
-  const distance = hardPickDistance(0.2, 0.7);
+  const distance = hardPickDistance("looper", 0.15, hardMode.steepDistanceTo);
   const target = freshClay("looper", distance, sizeScale);
   const direction = Math.random() < 0.5 ? 1 : -1;
   target.x = direction > 0 ? width * 0.08 : width * 0.92;
   target.y = height * rand(0.52, 0.68);
   const look = lookOf(target);
-  const peak = Math.max(look.ry + 6, height * rand(0.16, 0.28));
+  const peak = Math.max(look.ry + 6, height * rand(0.22, 0.36));
   target.vx = direction * width * rand(0.14, 0.24);
   target.vy = -Math.sqrt(2 * settings.gravity * Math.max(60, target.y - peak));
   target.gravityScale = 0.88;
@@ -841,20 +944,17 @@ function hardLaunchLooper({ width, height }: LaunchBox, sizeScale: number) {
 }
 
 function hardLaunchDropper({ width, height }: LaunchBox, sizeScale: number) {
-  const target = freshClay("dropper", settings.farDistance, sizeScale);
-  target.distance = rand(
-    lerp(settings.nearDistance, settings.farDistance, 0.65),
-    settings.farDistance,
-  );
+  const distance = hardPickDistance("dropper", 0.2, hardMode.steepDistanceTo);
+  const target = freshClay("dropper", distance, sizeScale);
   target.x = width * rand(0.4, 0.6);
-  target.y = height * rand(0.18, 0.32);
+  target.y = height * rand(0.22, 0.38);
   target.vx = width * rand(-0.025, 0.025);
   target.vy = -height * rand(0, 0.02);
   target.gravityScale = height < 480 ? 0.55 : 0.78;
   target.lift = sizeAero(sizeScale).lift * (height < 480 ? 2.4 : 1.85);
   target.drag = sizeAero(sizeScale).drag * 1.25;
   target.curl = (Math.random() < 0.5 ? -1 : 1) * rand(6, 18);
-  target.distanceVel = -rand(0.14, 0.26);
+  target.distanceVel = -rand(0.1, 0.2);
   target.lift *= height < 480 ? 0.55 : 0.7;
   target.gravityScale = Math.min(1, target.gravityScale + (height < 480 ? 0.32 : 0.2));
   target.distanceVel *= 1.35;
@@ -871,22 +971,25 @@ function hardLaunchDropper({ width, height }: LaunchBox, sizeScale: number) {
 }
 
 function hardLaunchCurler({ width, height }: LaunchBox, sizeScale: number) {
-  const distance = hardPickDistance(0.15, 0.75);
+  const distance = hardPickDistance("curler", 0.15, 1);
   const target = freshClay("curler", distance, sizeScale);
   const direction = Math.random() < 0.5 ? 1 : -1;
   let time = flightTime(distance, pickPace(0.1, 0.45), sizeScale);
   time = Math.max(1.05 + (height < 480 ? 0.55 : 0.3), time * 0.92);
   const look = lookOf(target);
   const span = width + look.rx * 2;
-  target.y = height * rand(0.28, 0.46);
-  const rise = height * rand(0.04, 0.1);
+  const far = hardIsFarDistance(distance);
+  target.y = far
+    ? height * rand(0.38, 0.54)
+    : height * rand(0.28, 0.46);
+  const rise = height * rand(0.012, far ? hardMode.farLevelRiseFrac : 0.1);
   target.x = direction > 0 ? -look.rx - 2 : width + look.rx + 2;
   target.vx = (direction * span) / time;
   target.vy = -Math.sqrt(2 * settings.gravity * rise);
   target.gravityScale = height < 480 ? 0.7 : 0.92;
-  target.lift = sizeAero(sizeScale).lift * 0.9;
+  target.lift = sizeAero(sizeScale).lift * (far ? 0.45 : 0.9);
   target.drag = sizeAero(sizeScale).drag * 0.95;
-  target.curl = direction * rand(55, 100);
+  target.curl = direction * rand(far ? 28 : 55, far ? 55 : 100);
   target.duration = time;
   if (isCoarseFeel()) {
     target.vx *= 1.3;
@@ -1095,9 +1198,12 @@ export function nudgeTowardFair(
 ): Clay | null {
   if (isHardModeActive()) {
     const candidate: Clay = { ...source };
+    const farLevel =
+      hardIsFarDistance(candidate.distance) &&
+      (hardMode.farLevelKinds as readonly string[]).includes(candidate.kind);
     for (let step = 0; step < 28; step += 1) {
       if (flightIsFair(candidate, box.width, box.height, hidden)) {
-        return candidate;
+        return hardFlattenFarLevel(candidate);
       }
       const above = !flightStaysBelowTop(candidate, box.width, box.height);
       if (above) {
@@ -1106,24 +1212,31 @@ export function nudgeTowardFair(
         if (candidate.vy < 0) {
           candidate.vy *= 0.9;
         }
-        candidate.gravityScale = Math.min(1.4, candidate.gravityScale * 1.08);
+        if (!farLevel) {
+          candidate.gravityScale = Math.min(1.4, candidate.gravityScale * 1.08);
+        }
         candidate.y = Math.min(box.height * 0.78, candidate.y + box.height * 0.012);
       } else {
         // Launch-only tweaks: slower, more hang, milder curl.
         candidate.vx *= 0.94;
         candidate.vy *= 0.96;
         candidate.drag *= 0.94;
-        candidate.lift *= 1.05;
+        candidate.lift *= farLevel ? 0.9 : 1.05;
         candidate.curl *= 0.88;
         candidate.bounce *= 0.95;
-        candidate.gravityScale = Math.max(0.55, candidate.gravityScale * 0.96);
+        if (farLevel) {
+          // Keep far level crossers flat - do not floor gravity back up.
+          candidate.gravityScale = Math.min(candidate.gravityScale, 0.08) * 0.96;
+        } else {
+          candidate.gravityScale = Math.max(0.55, candidate.gravityScale * 0.96);
+        }
         if (candidate.y > box.height * 0.15 && candidate.y < box.height * 0.7) {
           candidate.y *= 0.995;
         }
       }
     }
     return flightIsFair(candidate, box.width, box.height, hidden)
-      ? candidate
+      ? hardFlattenFarLevel(candidate)
       : null;
   }
   const candidate: Clay = { ...source };
@@ -1226,32 +1339,34 @@ export function chooseFairThrow(
   const hidden = options.hidden ?? (() => false);
   const tries = Math.max(1, options.tries ?? Math.round(settings.fairTries));
   for (let attempt = 0; attempt < tries; attempt += 1) {
-    const candidate = launchThrow(kind, box, sizeScale);
+    const candidate = hardFlattenFarLevel(launchThrow(kind, box, sizeScale));
     if (flightIsFair(candidate, box.width, box.height, hidden)) {
       return { clay: candidate, fallback: false };
     }
     const nudged = nudgeTowardFair(candidate, box, hidden);
     if (nudged) {
-      return { clay: nudged, fallback: false };
+      return { clay: hardFlattenFarLevel(nudged), fallback: false };
     }
   }
   if (options.hard) {
     for (let attempt = 0; attempt < tries; attempt += 1) {
       // Retry the planned kind with a slightly longer nudge budget before a hard fallback.
-      const retry = launchThrow(kind, box, sizeScale);
+      const retry = hardFlattenFarLevel(launchThrow(kind, box, sizeScale));
       const nudgedRetry = nudgeTowardFair(retry, box, hidden);
       if (nudgedRetry) {
-        return { clay: nudgedRetry, fallback: false };
+        return { clay: hardFlattenFarLevel(nudgedRetry), fallback: false };
       }
     }
     for (let attempt = 0; attempt < tries; attempt += 1) {
-      const fallback = hardFallbackThrow(box, sizeScale, attempt * 0.06);
+      const fallback = hardFlattenFarLevel(
+        hardFallbackThrow(box, sizeScale, attempt * 0.06),
+      );
       if (flightIsFair(fallback, box.width, box.height, hidden)) {
         return { clay: fallback, fallback: true };
       }
       const nudged = nudgeTowardFair(fallback, box, hidden);
       if (nudged) {
-        return { clay: nudged, fallback: true };
+        return { clay: hardFlattenFarLevel(nudged), fallback: true };
       }
     }
     return { clay: null, fallback: true };

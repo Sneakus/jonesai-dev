@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { ClayScene } from "@/components/clay-scene";
-import { formatBeatCount, STORAGE } from "@/src/clay-feel";
+import {
+  clearAllClayStorage,
+  formatBeatCount,
+  STORAGE,
+} from "@/src/clay-feel";
 import { hardUnlockAllowed } from "@/src/clay-unlock";
 import {
   type ClayTestShortcut,
@@ -27,6 +31,52 @@ type ClayGameHostProps = {
   beatYou: string;
   highGunLabel: string;
 };
+
+/** Apply preview reset shortcuts before the first React state read. */
+function applySyncTestShortcutReset() {
+  if (typeof window === "undefined") {
+    return null as ClayTestShortcut | null;
+  }
+  if (process.env.NEXT_PUBLIC_CLAY_TEST_SHORTCUTS !== "1") {
+    return null;
+  }
+  try {
+    const value = new URLSearchParams(window.location.search).get("test");
+    if (value === "normal" || value === "win") {
+      clearAllClayStorage();
+      window.localStorage.setItem(STORAGE.mode, "normal");
+      return value as ClayTestShortcut;
+    }
+    if (value === "hard" || value === "highgun") {
+      return value as ClayTestShortcut;
+    }
+  } catch {
+    // Ignore blocked storage / bad URLs.
+  }
+  return null;
+}
+
+function readUnlockedFromStorage() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  try {
+    return window.localStorage.getItem(STORAGE.unlocked) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function readHardFromStorage() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  try {
+    return window.localStorage.getItem(STORAGE.mode) === "hard";
+  } catch {
+    return false;
+  }
+}
 
 export function ClayGameHost({
   label,
@@ -56,24 +106,13 @@ export function ClayGameHost({
     null,
   );
   const [unlocked, setUnlocked] = useState(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-    try {
-      return window.localStorage.getItem(STORAGE.unlocked) === "1";
-    } catch {
-      return false;
-    }
+    applySyncTestShortcutReset();
+    return readUnlockedFromStorage();
   });
   const [hard, setHard] = useState(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-    try {
-      return window.localStorage.getItem(STORAGE.mode) === "hard";
-    } catch {
-      return false;
-    }
+    // Reset must run before reading mode when ?test=normal|win.
+    applySyncTestShortcutReset();
+    return readHardFromStorage();
   });
   const [beatCount, setBeatCount] = useState<number | null>(null);
 
@@ -221,6 +260,7 @@ export function ClayGameHost({
         beatCount={beatCount}
         highGunLabel={highGunLabel}
         hard={hard}
+        hardUnlocked={unlocked}
         testShortcut={
           testShortcut === "win" || testShortcut === "highgun"
             ? testShortcut

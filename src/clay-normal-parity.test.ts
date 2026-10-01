@@ -4,7 +4,12 @@ import {
   perfectHandOpacity,
   type PerfectCelebrationSettings,
 } from "./clay-celebration";
-import { setClayFeel } from "./clay-feel";
+import {
+  clayFeel,
+  desktopClaySettings,
+  setClayFeel,
+  touchClay,
+} from "./clay-feel";
 import {
   clayHandRecoilHoldMs,
   clayHandShouldShow,
@@ -77,6 +82,57 @@ const kinds: live.ThrowKind[] = [
   "teal",
 ];
 
+const difficultyKeys = [
+  "claySize",
+  "hitAreaSize",
+  "reloadTime",
+  "pauseBetweenClays",
+  "speedMin",
+  "speedMax",
+  "sizeNear",
+  "sizeFar",
+  "sizeStandard",
+  "sizeMidi",
+  "sizeMini",
+  "throwCrosser",
+  "throwAway",
+  "throwIncomer",
+  "throwHigh",
+  "throwRabbit",
+  "throwBattue",
+  "throwTeal",
+  "fairVisible",
+  "fairMargin",
+  "fairTime",
+  "fairHand",
+  "fairTries",
+  "nearDistance",
+  "farDistance",
+  "windStrength",
+] as const;
+
+function hitRadiiForSize(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  api: any,
+  sizeScale: number,
+  distance: number,
+  feelHit: number,
+) {
+  const clay = {
+    kind: "crosser" as const,
+    distance,
+    sizeScale,
+    roll: 0,
+  };
+  const look = api.lookOf(clay);
+  return {
+    hitX: (look.rx + api.settings.hitAreaSize) * feelHit,
+    hitY: (look.ry + api.settings.hitAreaSize) * feelHit,
+    drawRx: look.rx,
+    drawRy: look.ry,
+  };
+}
+
 describe("normal mode matches main", () => {
   it("keeps the hand through the last real shot recoil without changing celebration timing", () => {
     const hold = clayHandRecoilHoldMs(live.settings.handRecoil);
@@ -127,6 +183,44 @@ describe("normal mode matches main", () => {
       perfectHandOpacity(2000, mirrorCele),
     );
   });
+
+  it("matches main difficulty settings and throw frequencies", () => {
+    for (const key of difficultyKeys) {
+      expect(live.settings[key], key).toBe(mainMirror.settings[key]);
+    }
+    expect(desktopClaySettings).toEqual({
+      claySize: 51,
+      hitAreaSize: 8,
+      speedMin: 0.64,
+      speedMax: 0.96,
+    });
+  });
+
+  for (const [label, coarse] of [
+    ["desktop", false],
+    ["phone", true],
+  ] as const) {
+    it(`matches main feel, sizes, and hit areas on ${label}`, () => {
+      setClayFeel(coarse, false);
+      const feel = clayFeel(coarse, false);
+      expect(feel).toEqual(coarse ? touchClay : { draw: 1, hit: 1, speed: 1 });
+      // Hard-mode hit multiplier must not leak into normal.
+      expect(feel.hit).toBe(coarse ? touchClay.hit : 1);
+
+      for (const sizeScale of [1, 0.75, 0.5]) {
+        for (const distance of [0.42, 0.7, 1]) {
+          const liveHit = hitRadiiForSize(live, sizeScale, distance, feel.hit);
+          const mirrorHit = hitRadiiForSize(
+            mainMirror,
+            sizeScale,
+            distance,
+            feel.hit,
+          );
+          expect(liveHit, `size ${sizeScale} d ${distance}`).toEqual(mirrorHit);
+        }
+      }
+    });
+  }
 
   for (const [label, coarse, box] of [
     ["desktop", false, { width: 1100, height: 520 }],

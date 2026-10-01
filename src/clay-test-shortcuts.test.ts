@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CLAY_TEST_SHORTCUTS_ENABLED } from "./clay-test-shortcuts";
 import {
-  CLAY_TEST_SHORTCUT_BUNDLE_MARKER,
   clayTestNormalIsFreshVisitor,
   clayTestSkipsHardCount,
   clayTestStartsPlaying,
@@ -52,6 +51,8 @@ describe("clay test shortcuts", () => {
       "clay-hard-unlocked": "1",
       "clay-mode": "hard",
       "clay-hard-counted": "1",
+      "clay-last-score-message": "old",
+      "clay-legacy-preview": "1",
     };
     const storage = {
       getItem: (key: string) => store[key] ?? null,
@@ -61,10 +62,17 @@ describe("clay test shortcuts", () => {
       removeItem: (key: string) => {
         delete store[key];
       },
+      get length() {
+        return Object.keys(store).length;
+      },
+      key: (index: number) => Object.keys(store)[index] ?? null,
     };
-    // Simulate writeClayTestStorage for normal without needing window.
-    storage.removeItem("clay-hard-unlocked");
-    storage.removeItem("clay-hard-counted");
+    // Simulate clearAllClayStorage + normal mode write.
+    for (const key of Object.keys(store)) {
+      if (key.startsWith("clay-")) {
+        storage.removeItem(key);
+      }
+    }
     storage.setItem("clay-mode", "normal");
     expect(
       clayTestNormalIsFreshVisitor(storage, {
@@ -73,6 +81,7 @@ describe("clay test shortcuts", () => {
         counted: "clay-hard-counted",
       }),
     ).toBe(true);
+    expect(store["clay-legacy-preview"]).toBeUndefined();
     expect(clayTestStorageFor("normal")).toEqual({
       unlocked: false,
       mode: "normal",

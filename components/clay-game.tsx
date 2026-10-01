@@ -267,6 +267,7 @@ export function ClayGame({
   beatCount,
   highGunLabel,
   hard,
+  hardUnlocked = false,
   testShortcut = null,
   onHardChange,
   onHardUnlock,
@@ -288,6 +289,8 @@ export function ClayGame({
   beatCount: number | null;
   highGunLabel: string;
   hard: boolean;
+  /** True only after a real unlock (normal 5/5 or ?test=hard). */
+  hardUnlocked?: boolean;
   testShortcut?: ClayTestShortcut | null;
   onHardChange: (hard: boolean) => void;
   onHardUnlock: () => void;
@@ -1886,34 +1889,36 @@ export function ClayGame({
               {replayLabel}
             </button>
           )}
-          <div className="mt-3 flex gap-4 text-sm">
-            <button
-              type="button"
-              className={`underline underline-offset-4 ${hard ? "text-clay" : "text-muted"}`}
-              onClick={() => {
-                onHardChange(true);
-                setResult(null);
-                setOver(false);
-                const canvas = canvasRef.current;
-                canvas?.dispatchEvent(new Event("replay"));
-              }}
-            >
-              {hardModeLabel}
-            </button>
-            <button
-              type="button"
-              className={`underline underline-offset-4 ${!hard ? "text-clay" : "text-muted"}`}
-              onClick={() => {
-                onHardChange(false);
-                setResult(null);
-                setOver(false);
-                const canvas = canvasRef.current;
-                canvas?.dispatchEvent(new Event("replay"));
-              }}
-            >
-              {normalModeLabel}
-            </button>
-          </div>
+          {hardUnlocked ? (
+            <div className="mt-3 flex gap-4 text-sm">
+              <button
+                type="button"
+                className={`underline underline-offset-4 ${hard ? "text-clay" : "text-muted"}`}
+                onClick={() => {
+                  onHardChange(true);
+                  setResult(null);
+                  setOver(false);
+                  const canvas = canvasRef.current;
+                  canvas?.dispatchEvent(new Event("replay"));
+                }}
+              >
+                {hardModeLabel}
+              </button>
+              <button
+                type="button"
+                className={`underline underline-offset-4 ${!hard ? "text-clay" : "text-muted"}`}
+                onClick={() => {
+                  onHardChange(false);
+                  setResult(null);
+                  setOver(false);
+                  const canvas = canvasRef.current;
+                  canvas?.dispatchEvent(new Event("replay"));
+                }}
+              >
+                {normalModeLabel}
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -16,25 +16,39 @@ export const hardMode = {
   midiWeightMul: 2, // midi clays about twice as common
   miniWeightMul: 2, // mini clays about twice as common
   minTricky: 3, // every hard round has at least this many tricky throws
-  // How often each throw appears in hard mode. A higher number means it comes up more often.
-  // Away + far-biased launches together make about half of hard throws look small.
-  throwCrosser: 2,
-  throwAway: 6,
+  // Far (small) throws are mostly level crossers. Steep kinds stay near/mid.
+  throwCrosser: 7,
+  throwAway: 2,
   throwIncomer: 1,
-  throwHigh: 2,
+  throwHigh: 1,
   throwRabbit: 1,
   throwBattue: 2,
   throwTeal: 1,
   throwLooper: 1,
-  throwDropper: 4,
-  throwCurler: 2,
-  // Going-away throws fly further out (higher distance = smaller on screen).
-  awayDistanceFrom: 0.4,
-  awayDistanceTo: 0.9,
-  // Chance a non-away hard launch picks the far band instead of its usual range.
-  farLaunchChance: 0.55,
-  farDistanceFrom: 0.58,
+  throwDropper: 2,
+  throwCurler: 3,
+  // Distance bands (0 = near, 1 = far). Far looks small on screen.
+  farDistanceFrom: 0.6,
   farDistanceTo: 1,
+  // Steep / rising throws may only launch up to this distance.
+  steepDistanceTo: 0.52,
+  // Chance a level kind picks the far band.
+  farLaunchChance: 0.62,
+  // Far level crossers: tiny rise so the lead is mostly horizontal.
+  farLevelRiseFrac: 0.035,
+  // Max vertical travel (as a fraction of game height) for a far throw.
+  farMaxVerticalFrac: 0.16,
+  // Kinds allowed at far distance (mostly level crossers).
+  farLevelKinds: ["crosser", "curler", "battue", "rabbit"] as const,
+  // Kinds forced to near/mid distance only.
+  steepKinds: [
+    "looper",
+    "teal",
+    "dropper",
+    "away",
+    "incomer",
+    "high",
+  ] as const,
 };
 
 const desktopClay = { draw: 1, hit: 1, speed: 1 };
@@ -125,6 +139,55 @@ export const STORAGE = {
   lastHardMessage: "clay-hard-last-score-message",
   lastHardWin: "clay-hard-last-win",
 } as const;
+
+/** Every clay local/session key this site has ever used (for full visitor reset). */
+export const ALL_CLAY_STORAGE_KEYS = [
+  STORAGE.unlocked,
+  STORAGE.mode,
+  STORAGE.counted,
+  STORAGE.lastInvite,
+  STORAGE.lastHardMessage,
+  STORAGE.lastHardWin,
+  "clay-last-score-message",
+  "clay-hard-unlocked",
+  "clay-mode",
+  "clay-hard-counted",
+  "clay-hard-last-invite",
+  "clay-hard-last-score-message",
+  "clay-hard-last-win",
+] as const;
+
+/** Remove every known clay key from local and session storage. */
+export function clearAllClayStorage(
+  local: Storage | null = typeof window !== "undefined" ? window.localStorage : null,
+  session: Storage | null = typeof window !== "undefined" ? window.sessionStorage : null,
+) {
+  const wipe = (store: Storage | null) => {
+    if (!store) {
+      return;
+    }
+    try {
+      for (const key of ALL_CLAY_STORAGE_KEYS) {
+        store.removeItem(key);
+      }
+      // Also clear any other clay-* leftovers from older previews.
+      const doomed: string[] = [];
+      for (let index = 0; index < store.length; index += 1) {
+        const key = store.key(index);
+        if (key && key.startsWith("clay-")) {
+          doomed.push(key);
+        }
+      }
+      for (const key of doomed) {
+        store.removeItem(key);
+      }
+    } catch {
+      // Ignore blocked storage.
+    }
+  };
+  wipe(local);
+  wipe(session);
+}
 
 export type HardThrowKind =
   | "crosser"

@@ -1,4 +1,5 @@
 import type { ClayTestShortcut, ClayTestStorage } from "./clay-test-shortcuts";
+import { clearAllClayStorage } from "./clay-feel";
 
 /** Unique string used to prove this file is absent from production builds. */
 export const CLAY_TEST_SHORTCUT_BUNDLE_MARKER =
@@ -80,29 +81,20 @@ export function writeClayTestStorage(
 ) {
   const next = clayTestStorageFor(shortcut);
   try {
+    if (shortcut === "normal" || shortcut === "win") {
+      // Wipe every clay key this site has ever used (local + session).
+      clearAllClayStorage();
+      window.localStorage.setItem(storage.mode, "normal");
+      return next;
+    }
     if (shortcut === "hard") {
       window.localStorage.setItem(storage.unlocked, "1");
-    } else if (shortcut === "normal" || shortcut === "win") {
-      // Full new-visitor reset: locked hard mode, no remembered unlock or count.
-      window.localStorage.removeItem(storage.unlocked);
-      window.localStorage.removeItem(storage.counted);
-      if (storage.lastInvite) {
-        window.localStorage.removeItem(storage.lastInvite);
-      }
-      if (storage.lastHardMessage) {
-        window.localStorage.removeItem(storage.lastHardMessage);
-      }
-      if (storage.lastHardWin) {
-        window.localStorage.removeItem(storage.lastHardWin);
-      }
     }
     // highgun: leave any existing unlock alone; never grant a new one.
     window.localStorage.setItem(storage.mode, next.mode);
     // Shortcuts must never leave a counted flag that could interact oddly,
     // and must never POST a beat.
-    if (shortcut !== "normal" && shortcut !== "win") {
-      window.localStorage.removeItem(storage.counted);
-    }
+    window.localStorage.removeItem(storage.counted);
   } catch {
     // Ignore blocked storage.
   }
